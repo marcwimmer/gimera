@@ -1,0 +1,3 @@
+- repos:
+  - url: git@git.itewimmer.de:ansible_group/roles/rsync_backup_on_mount.git
+    path: roles/X
