@@ -189,23 +189,6 @@ def _apply_repo(repo_config):
     submodule = existing_submodules[0]
     del existing_submodules
 
-
-@gimera.command(name='update', help="Fetches latest versions of branches and applies patches")
-def update():
-    apply()
-
-    # make sure latest branch is checked out
-
-
-    # submodule = repos.submodule('submodule-name')
-    # submodule.module().git.checkout('wanted commit')
-
-    # add new submodule commit to main repo pythonic from # https://stackoverflow.com/questions/31835812/gitpython-how-to-commit-updated-submodule
-    #submodule.binsha = submodule.module().head.commit.binsha
-    #repos.index.add([submodule])
-    #repos.index.commit("updated submodule to 'wanted commit'")
-    pass
-
 def _get_dirty_files(repo, path, untracked=False):
     files = repo.index.diff(None)
 
@@ -227,13 +210,13 @@ def _get_dirty_files(repo, path, untracked=False):
     return files
 
 
-@gimera.command(name='is_path_dirty')
-@click.argument("path")
-def is_path_dirty(path):
-    path = Path(os.getcwd()) / path
+# @gimera.command(name='is_path_dirty')
+# @click.argument("path")
+# def is_path_dirty(path):
+#     path = Path(os.getcwd()) / path
 
-    files = list(_get_dirty_files(Repo(os.getcwd()), path))
-    print("\n".join(map(str, files)))
+#     files = list(_get_dirty_files(Repo(os.getcwd()), path))
+#     print("\n".join(map(str, files)))
 
 
 if __name__ == '__main__':

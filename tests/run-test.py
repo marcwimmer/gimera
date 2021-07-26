@@ -51,11 +51,10 @@ repos:
     assert (path / 'roles2' / 'sub1' / 'file2.txt').exists()
 
     # check dirty
-    (path / 'roles2' / 'sub1' / 'file2.txt').write_text('a change!')
-    (path / 'roles2' / 'sub1' / 'file3.txt').write_text('a new file!')
-    (path / 'file4.txt').write_text('a new file!')
-    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'is_path_dirty', 'roles2/sub1'], cwd=path)
-    test = subprocess.check_output(["python3", current_dir.parent / 'gimera.py', 'is_path_dirty', 'roles2/sub1'], cwd=path).decode('utf-8')
+    # (path / 'roles2' / 'sub1' / 'file2.txt').write_text('a change!')
+    # (path / 'roles2' / 'sub1' / 'file3.txt').write_text('a new file!')
+    # (path / 'file4.txt').write_text('a new file!')
+    # test = subprocess.check_output(["python3", current_dir.parent / 'gimera.py', 'is_path_dirty', 'roles2/sub1'], cwd=path).decode('utf-8')
     assert 'file2.txt' in test
     assert 'file3.txt' in test
     assert 'file4.txt' not in test
