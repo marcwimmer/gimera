@@ -1,3 +1,11 @@
-- repos:
-  - url: git@git.itewimmer.de:ansible_group/roles/rsync_backup_on_mount.git
+repos:
+  - url: git@git.itewimmer.de:marc/testrepo_may_be_deleted.git
+    branch: branch1
     path: roles/X
+    patches: []
+    type: submodule
+  - url: git@git.itewimmer.de:marc/testrepo_may_be_deleted.git
+    branch: branch1
+    path: roles2/X
+    patches: []
+    type: integrated

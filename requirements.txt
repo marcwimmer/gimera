@@ -1,2 +1,4 @@
 gitpython
 click
+pyyaml
+pathlib
