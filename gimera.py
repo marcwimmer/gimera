@@ -209,14 +209,14 @@ def _get_dirty_files(repo, path, untracked=False):
         yield from perhaps_yield(diff_path)
     return files
 
+if os.getenv("GIMERA_DEBUG") == "1":
+    @gimera.command(name='is_path_dirty')
+    @click.argument("path")
+    def is_path_dirty(path):
+        path = Path(os.getcwd()) / path
 
-# @gimera.command(name='is_path_dirty')
-# @click.argument("path")
-# def is_path_dirty(path):
-#     path = Path(os.getcwd()) / path
-
-#     files = list(_get_dirty_files(Repo(os.getcwd()), path))
-#     print("\n".join(map(str, files)))
+        files = list(_get_dirty_files(Repo(os.getcwd()), path))
+        print("\n".join(map(str, files)))
 
 
 if __name__ == '__main__':
