@@ -5,6 +5,7 @@ import git
 import yaml
 import sys
 from git import Repo
+import subprocess
 from git import Actor
 from pathlib import Path
 
@@ -14,7 +15,6 @@ def gimera():
 
 @gimera.command(name='apply', help="Applies configuration from gimera.yml")
 def apply():
-    import pudb;pudb.set_trace()
     config_file = Path(os.getcwd()) / 'gimera.yml'
     if not config_file.exists():
         click.secho(f"Did not find: {config_file}")
@@ -30,9 +30,9 @@ def load_config(config_file):
     for repo in config['repos']:
         path = repo['path']
         name = path.split("/")[-1]
-        if path.endswith("/X"):
+        if path.endswith("/"):
             name = repo['url'].split("/")[-1].replace(".git", "")
-        path = path[:-1] + name
+            path = path + name
         repo['path'] = path
     return config
 
@@ -43,13 +43,11 @@ def __add_submodule(repo, config):
         name=path,
         path=path,
         url=config['url'],
+        branch=config['branch'],
     )
     repo.index.add(['.gitmodules'])
+    click.secho(f"Added submodule {path} pointing to {config['url']}", fg='yellow')
     repo.index.commit(f"gimera added submodule: {path}") #, author=author, committer=committer)
-    import pudb;pudb.set_trace()
-    submodule.module().git.checkout('--track', f"origin/{config['branch']}")
-    # submodule.repo.git.branch(f'--set-upstream-to=origin/{config["branch"]}', config['branch'])
-    repo.git.config('-f', '.gitmodules', f'submodule.{path}.branch', config['branch'])
 
 
 def _apply_repo(repo_config):
@@ -66,8 +64,13 @@ def _apply_repo(repo_config):
         sys.exit(-1)
     submodule = existing_submodules[0]
     del existing_submodules
-    #submodule.repo.git.checkout(repo_config['branch'])
+
     repo.git.pull('--recurse-submodules', '--jobs=10')
+
+
+@gimera.command(name='update', help="Fetches latest versions of branches and applies patches")
+def update():
+
     # make sure latest branch is checked out
 
 
@@ -78,7 +81,7 @@ def _apply_repo(repo_config):
     #submodule.binsha = submodule.module().head.commit.binsha
     #repos.index.add([submodule])
     #repos.index.commit("updated submodule to 'wanted commit'")
-
+    pass
 
 
 
