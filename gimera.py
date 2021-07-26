@@ -13,6 +13,10 @@ from pathlib import Path
 def gimera():
     pass
 
+def _raise_error(msg):
+    click.secho(msg, fg='red')
+    sys.exit(-1)
+
 @gimera.command(name='apply', help="Applies configuration from gimera.yml")
 def apply():
     config = load_config()
@@ -32,12 +36,14 @@ def apply():
             _fetch_latest_commit_in_submodule(main_repo, repo)
         elif repo.get('type') == 'integrated':
             if not repo.get('patches'):
-                click.secho(f"Please provide at least one path where to search patches for {repo['url']} with key patches.", fg='red')
-                sys.exit(-1)
+                _raise_error(f"Please provide at least one path where to search patches for {repo['url']} with key patches.")
             _update_integrated_module(main_repo, repo)
 
 
 def _update_integrated_module(main_repo, repo):
+    """
+    Put contents of a git repository inside the main repository.
+    """
     def _get_cache_dir():
         path = Path(os.path.expanduser("~/.cache/gimera")) / repo['url'].replace(":", "_").replace("/", "_")
         path.parent.mkdir(exist_ok=True, parents=True)
@@ -58,6 +64,8 @@ def _update_integrated_module(main_repo, repo):
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
     path = Path(main_repo.working_dir) / repo['path']
+    if list(_get_dirty_files(main_repo, repo['path'])):
+        _raise_error(f"Directory {repo['path']} contains modified files. Please commit or purge before!")
     subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
     subprocess.check_call(['git', 'pull'], cwd=path)
@@ -65,8 +73,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo):
 def load_config():
     config_file = Path(os.getcwd()) / 'gimera.yml'
     if not config_file.exists():
-        click.secho(f"Did not find: {config_file}")
-        sys.exit(-1)
+        _raise_error(f"Did not find: {config_file}")
 
     config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
     for repo in config['repos']:
@@ -78,8 +85,7 @@ def load_config():
         repo['path'] = path
 
         if repo.get('type') not in ['submodule', 'integrated']:
-            click.secho("Please provide type for repo {config['path']}: either 'integrated' or 'submodule'", fg='red')
-            sys.exit(-1)
+            _raise_error("Please provide type for repo {config['path']}: either 'integrated' or 'submodule'")
 
     return config
 
@@ -110,8 +116,7 @@ def _apply_repo(repo_config):
         __add_submodule(repo, repo_config)
     existing_submodules = list(filter(lambda x: x.path == repo_config['path'], repo.submodules))
     if not existing_submodules:
-        click.secho(f"Error with submodule {repo_config['path']}", fg='red')
-        sys.exit(-1)
+        _raise_error(f"Error with submodule {repo_config['path']}")
     submodule = existing_submodules[0]
     del existing_submodules
 
