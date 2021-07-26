@@ -70,7 +70,6 @@ repos:
     subprocess.check_call(["git", "add", "file5.txt"], cwd=remote_sub_repo)
     subprocess.check_call(["git", "commit", "-am", "file5 added"], cwd=remote_sub_repo)
     # should apply patches now
-    import pudb;pudb.set_trace()
     subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply'], cwd=path)
 
 

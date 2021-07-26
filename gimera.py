@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import inquirer
 import click
 import json
 import git
@@ -68,7 +69,26 @@ def _make_patches(main_repo, repo):
     patch_content = subprocess.check_output(["git", "format-patch", "HEAD~1", '--stdout', '--relative'], cwd=str(Path(main_repo.working_dir) / repo['path']))
     subprocess.check_output(["git", "reset", "HEAD~1"], cwd=main_repo.working_dir)
 
-    patch_dir = Path(repo['patches'][0])
+    if len(repo['patches']) == 1:
+        patch_dir = Path(repo['patches'][0])
+    else:
+        questions = [
+            inquirer.List('path', 
+                message="Please choose a directory where to put the patch file.",
+                choices=['Type directory'] + repo['patches'] 
+            )
+        ]
+        answers = inquirer.prompt(questions)
+        if answers['path'] == 'Type directory':
+            questions = [
+                inquirer.Text('path', 
+                    message="Where shall i put the patch file? (directory)",
+                    default="./"
+                )
+            ]
+            answers = inquirer.prompt(questions)
+        patch_dir = Path(answers['path'])
+
     patch_dir.mkdir(exist_ok=True, parents=True)
     (patch_dir / (datetime.now().strftime("%Y%m%d_%H%M%S") + '.patch')).write_bytes(patch_content)
 
