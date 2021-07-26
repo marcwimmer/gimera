@@ -24,13 +24,14 @@ def test1():
 repos:
     - url: "file://{remote_sub_repo}"
       branch: branch1
-      path: roles/
+      path: roles/sub1
       patches: []
       type: submodule
     - url: "file://{remote_sub_repo}"
       branch: branch1
-      path: roles2/
-      patches: []
+      path: roles2/sub1
+      patches: 
+          - 'roles2/sub1_patches'
       type: integrated
     """.replace("    ", "    "))
     (path / 'main.txt').write_text("main repo")
@@ -38,6 +39,28 @@ repos:
     subprocess.check_call(['git', 'add', 'gimera.yml'], cwd=path)
     subprocess.check_call(['git', 'commit', '-am', 'on main'], cwd=path)
     subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply'], cwd=path)
+
+    click.secho("Now we have a repo with two subrepos; now we update the subrepos and pull")
+    (remote_sub_repo / 'file2.txt').write_text("This is a new function")
+    subprocess.check_call(['git', 'add', 'file2.txt'], cwd=remote_sub_repo)
+    subprocess.check_call(['git', 'commit', '-am', 'file2 added'], cwd=remote_sub_repo)
+    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply'], cwd=path)
+    subprocess.check_call(['git', 'add', 'roles2'], cwd=path)
+    subprocess.check_call(['git', 'commit', '-am', 'updated roles2'], cwd=path)
+
+    click.secho(str(path), fg='green')
+    assert (path / 'roles' / 'sub1' / 'file2.txt').exists()
+    assert (path / 'roles2' / 'sub1' / 'file2.txt').exists()
+
+    # check dirty
+    (path / 'roles2' / 'sub1' / 'file2.txt').write_text('a change!')
+    (path / 'roles2' / 'sub1' / 'file3.txt').write_text('a new file!')
+    (path / 'file4.txt').write_text('a new file!')
+    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'is_path_dirty', 'roles2/sub1'], cwd=path)
+    test = subprocess.check_output(["python3", current_dir.parent / 'gimera.py', 'is_path_dirty', 'roles2/sub1'], cwd=path).decode('utf-8')
+    assert 'file2.txt' in test
+    assert 'file3.txt' in test
+    assert 'file4.txt' not in test
 
 
 def _make_remote_repo():
