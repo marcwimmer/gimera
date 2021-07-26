@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 import click
 import json
 import git
@@ -37,7 +38,22 @@ def apply():
         elif repo.get('type') == 'integrated':
             if not repo.get('patches'):
                 _raise_error(f"Please provide at least one path where to search patches for {repo['url']} with key patches.")
+
+            _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo)
+
+
+def _make_patches(main_repo, repo):
+    changed_files = list(_get_dirty_files(main_repo, repo['path']))
+    if not changed_files:
+        return
+
+    patch_content = subprocess.check_output(['git', 'diff', '--binary', repo['path']], cwd=main_repo.working_dir)
+    # adapt file paths to relative paths
+
+    patch_dir = Path(repo['patches'][0])
+    patch_dir.mkdir(exist_ok=True, parents=True)
+    (patch_dir / (datetime.now().strftime("%Y%m%d_%H%M%S") + '.patch')).write_bytes(patch_content)
 
 
 def _update_integrated_module(main_repo, repo):
@@ -60,6 +76,9 @@ def _update_integrated_module(main_repo, repo):
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
     subprocess.check_call(['rsync', '-arP', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
+    if list(_get_dirty_files(main_repo, repo['path'])):
+        subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
+        subprocess.check_call(['git', 'commit', '-am', f'updated integrated submodule: {repo["path"]}'], cwd=main_repo.working_dir)
 
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
@@ -142,7 +161,7 @@ def _get_dirty_files(repo, path):
 
     def perhaps_yield(x):
         try:
-            x.relative_to(path)
+            x.relative_to(Path(repo.working_dir) / path)
         except ValueError:
             pass
         else:
