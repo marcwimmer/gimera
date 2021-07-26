@@ -62,6 +62,16 @@ repos:
 
     # now lets make a patch
     subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply'], cwd=path)
+    subprocess.check_call(["git", "add", "roles2"], cwd=path)
+    subprocess.check_call(["git", "commit", "-am", "patches"], cwd=path)
+
+    # now lets make an update and see if patches are applied
+    (remote_sub_repo / 'file5.txt').write_text("I am no 5")
+    subprocess.check_call(["git", "add", "file5.txt"], cwd=remote_sub_repo)
+    subprocess.check_call(["git", "commit", "-am", "file5 added"], cwd=remote_sub_repo)
+    # should apply patches now
+    import pudb;pudb.set_trace()
+    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply'], cwd=path)
 
 
 def _make_remote_repo():

@@ -63,19 +63,14 @@ def _make_patches(main_repo, repo):
         subprocess.check_call(['git', 'add', '-N', untracked_file], cwd=main_repo.working_dir)
         to_reset.append(untracked_file)
         del untracked_file
-    patch_content = subprocess.check_output(['git', 'diff', '--binary', repo['path']], cwd=main_repo.working_dir).decode('utf-8')
-    # adapt file paths to relative paths
-    #--- a/roles2/sub1/file2.txt
-    #+++ b/roles2/sub1/file2.txt
-    # remove relative path from project root
-    old_path = repo['path']
-    patch_content = patch_content.replace(f"--- a/{old_path}", f"--- a")
-    patch_content = patch_content.replace(f"+++ b/{old_path}", f"+++ b")
+    subprocess.check_output(["git", "add", str(Path(main_repo.working_dir) / repo['path'])], cwd=main_repo.working_dir)
+    subprocess.check_output(["git", "commit", '-am', 'for patch'], cwd=main_repo.working_dir)
+    patch_content = subprocess.check_output(["git", "format-patch", "HEAD~1", '--stdout', '--relative'], cwd=str(Path(main_repo.working_dir) / repo['path']))
+    subprocess.check_output(["git", "reset", "HEAD~1"], cwd=main_repo.working_dir)
 
     patch_dir = Path(repo['patches'][0])
     patch_dir.mkdir(exist_ok=True, parents=True)
-    (patch_dir / (datetime.now().strftime("%Y%m%d_%H%M%S") + '.patch')).write_text(patch_content)
-    print(patch_content)
+    (patch_dir / (datetime.now().strftime("%Y%m%d_%H%M%S") + '.patch')).write_bytes(patch_content)
 
     for to_reset in to_reset:
         subprocess.check_call(['git', 'reset', to_reset], cwd=main_repo.working_dir)
@@ -101,6 +96,16 @@ def _update_integrated_module(main_repo, repo):
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
     subprocess.check_call(['rsync', '-arP', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
+
+    # apply patches:
+    for dir in repo.get('patches'):
+        dir = Path(main_repo.working_dir) / dir
+        for file in sorted(dir.glob("*.patch")):
+            print("===============================")
+            print(file.read_text())
+            print("===============================")
+            subprocess.check_call(['git', 'apply', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
         subprocess.check_call(['git', 'commit', '-am', f'updated integrated submodule: {repo["path"]}'], cwd=main_repo.working_dir)
