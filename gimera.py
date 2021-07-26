@@ -20,7 +20,8 @@ def _raise_error(msg):
     sys.exit(-1)
 
 @gimera.command(name='apply', help="Applies configuration from gimera.yml")
-def apply():
+@click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
+def apply(update):
     config = load_config()
 
     for repo in config['repos']:
@@ -28,20 +29,20 @@ def apply():
         del repo
 
     main_repo = Repo(os.getcwd())
-    # main_repo.git.pull('--recurse-submodules', '--jobs=10')
 
     for repo in config['repos']:
         if not repo.get('type'):
             repo['type'] = 'integrated'
 
         if repo.get('type') == 'submodule':
-            _fetch_latest_commit_in_submodule(main_repo, repo)
+            if update:
+                _fetch_latest_commit_in_submodule(main_repo, repo)
         elif repo.get('type') == 'integrated':
             if not repo.get('patches'):
                 _raise_error(f"Please provide at least one path where to search patches for {repo['url']} with key patches.")
 
             _make_patches(main_repo, repo)
-            _update_integrated_module(main_repo, repo)
+            _update_integrated_module(main_repo, repo, update)
 
 
 def _make_patches(main_repo, repo):
@@ -96,7 +97,7 @@ def _make_patches(main_repo, repo):
         subprocess.check_call(['git', 'reset', to_reset], cwd=main_repo.working_dir)
 
 
-def _update_integrated_module(main_repo, repo):
+def _update_integrated_module(main_repo, repo, update):
     """
     Put contents of a git repository inside the main repository.
     """
@@ -113,9 +114,24 @@ def _update_integrated_module(main_repo, repo):
     subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=local_repo_dir)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
+    if not update and repo.get('sha'):
+        branches = list(
+            filter(
+                bool, map(
+                    lambda x: x.strip().replace("* ", ""),
+                    subprocess.check_output([
+                        'git', 'branch', '--contains', repo['sha']
+                        ], cwd=local_repo_dir).decode('utf-8').split('\n'))))
+        if repo['branch'] not in branches:
+            subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
+            _store(repo, {'sha': None})
+        else:
+            subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=local_repo_dir)
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
     subprocess.check_call(['rsync', '-arP', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
+    sha = Repo(local_repo_dir).head.object.hexsha
+    _store(repo, {'sha': sha})
 
     # apply patches:
     for dir in repo.get('patches'):
@@ -139,10 +155,23 @@ def _fetch_latest_commit_in_submodule(main_repo, repo):
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
     subprocess.check_call(['git', 'pull'], cwd=path)
 
-def load_config():
+def _get_config_file():
     config_file = Path(os.getcwd()) / 'gimera.yml'
     if not config_file.exists():
         _raise_error(f"Did not find: {config_file}")
+    return config_file
+
+def _store(repo, value):
+    config_file = _get_config_file()
+    config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
+    for repo in config['repos']:
+
+        if repo['path'].startswith('/'.join(repo['path'].split('/')[:-1])):
+            repo.update(value)
+    config_file.write_text(yaml.dump(config, default_flow_style=False))
+
+def load_config():
+    config_file = _get_config_file()
 
     config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
     for repo in config['repos']:

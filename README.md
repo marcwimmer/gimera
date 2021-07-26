@@ -28,8 +28,22 @@ repos:
 
 Then execute:
 
-`gimera apply`
+`>  gimera apply`
 
+## How to make a patchfile:
+
+From the example above: 
+
+  * edit roles2/sub1/file1.txt
+  * `>  gimera apply`
+
+Then a patch file is created as suggestion in roles2/sub1_patches which you may commit and push.
+
+## How to fetch latest versions:
+
+  * `>  gimera apply --update`
+
+Latest versions are pulled and patches are applied.
 
 ## How to upload new version
 

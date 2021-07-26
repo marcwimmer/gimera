@@ -44,7 +44,7 @@ repos:
     (remote_sub_repo / 'file2.txt').write_text("This is a new function")
     subprocess.check_call(['git', 'add', 'file2.txt'], cwd=remote_sub_repo)
     subprocess.check_call(['git', 'commit', '-am', 'file2 added'], cwd=remote_sub_repo)
-    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply'], cwd=path)
+    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply', '--update'], cwd=path)
 
     click.secho(str(path), fg='green')
     assert (path / 'roles' / 'sub1' / 'file2.txt').exists()
@@ -61,7 +61,7 @@ repos:
     assert 'file4.txt' not in test
 
     # now lets make a patch
-    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply'], cwd=path)
+    subprocess.check_call(["python3", current_dir.parent / 'gimera.py', 'apply', '--update'], cwd=path)
     subprocess.check_call(["git", "add", "roles2"], cwd=path)
     subprocess.check_call(["git", "commit", "-am", "patches"], cwd=path)
 
