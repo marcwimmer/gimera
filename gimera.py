@@ -193,7 +193,7 @@ def __add_submodule(repo, config):
     # branch is added with refs/head/branch1 then instead of branch1 in .gitmodules; makes problems at pull then
     # submodule = repo.create_submodule(name=path, path=path, url=config['url'], branch=config['branch'],)
     if config.get('type') == 'submodule':
-        subprocess.check_call(['git', 'submodule', 'add', '-b', config['branch'], config['url'], path], cwd=repo.working_dir)
+        subprocess.check_call(['git', 'submodule', 'add', '--force', '-b', config['branch'], config['url'], path], cwd=repo.working_dir)
         repo.index.add(['.gitmodules'])
         click.secho(f"Added submodule {path} pointing to {config['url']}", fg='yellow')
         repo.index.commit(f"gimera added submodule: {path}") #, author=author, committer=committer)
