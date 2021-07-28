@@ -76,7 +76,7 @@ def _make_patches(main_repo, repo):
         questions = [
             inquirer.List('path', 
                 message="Please choose a directory where to put the patch file.",
-                choices=['Type directory'] + repo['patches'] 
+                choices=['Type directory'] + repo['patches']
             )
         ]
         answers = inquirer.prompt(questions)
@@ -95,6 +95,12 @@ def _make_patches(main_repo, repo):
 
     for to_reset in to_reset:
         subprocess.check_call(['git', 'reset', to_reset], cwd=main_repo.working_dir)
+
+    # commit the patches
+    subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
+    subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
+    subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
+
 
 
 def _update_integrated_module(main_repo, repo, update):
@@ -124,14 +130,14 @@ def _update_integrated_module(main_repo, repo, update):
                         ], cwd=local_repo_dir).decode('utf-8').split('\n'))))
         if repo['branch'] not in branches:
             subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
-            _store(repo, {'sha': None})
+            _store(main_repo, repo, {'sha': None})
         else:
             subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=local_repo_dir)
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
     subprocess.check_call(['rsync', '-arP', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
     sha = Repo(local_repo_dir).head.object.hexsha
-    _store(repo, {'sha': sha})
+    _store(main_repo, repo, {'sha': sha})
 
     # apply patches:
     for dir in repo.get('patches'):
@@ -140,7 +146,9 @@ def _update_integrated_module(main_repo, repo, update):
             print("===============================")
             print(file.read_text())
             print("===============================")
-            subprocess.check_call(['git', 'apply', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+            subprocess.check_call(['git', 'apply', '--stat', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+            subprocess.check_call(['git', 'apply', '--check', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+            subprocess.check_output(['patch', '-p1'], input=file.read_bytes(), cwd=Path(main_repo.working_dir) / repo['path'])
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
@@ -161,7 +169,7 @@ def _get_config_file():
         _raise_error(f"Did not find: {config_file}")
     return config_file
 
-def _store(repo, value):
+def _store(main_repo, repo, value):
     config_file = _get_config_file()
     config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
     for repo in config['repos']:
@@ -169,6 +177,11 @@ def _store(repo, value):
         if repo['path'].startswith('/'.join(repo['path'].split('/')[:-1])):
             repo.update(value)
     config_file.write_text(yaml.dump(config, default_flow_style=False))
+    if main_repo.index.diff("HEAD"):
+        _raise_error("There mustnt be any staged files when updating gimera.yml")
+    subprocess.check_call(['git', 'add', config_file], cwd=main_repo.working_dir)
+    if main_repo.index.diff("HEAD"):
+        subprocess.check_call(['git', 'commit', '-m', 'auto update gimera.yml'], cwd=main_repo.working_dir)
 
 def load_config():
     config_file = _get_config_file()
