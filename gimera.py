@@ -66,7 +66,7 @@ def _make_patches(main_repo, repo):
         to_reset.append(untracked_file)
         del untracked_file
     subprocess.check_output(["git", "add", str(Path(main_repo.working_dir) / repo['path'])], cwd=main_repo.working_dir)
-    subprocess.check_output(["git", "commit", '-am', 'for patch'], cwd=main_repo.working_dir)
+    subprocess.check_output(["git", "commit", '-m', 'for patch'], cwd=main_repo.working_dir)
     patch_content = subprocess.check_output(["git", "format-patch", "HEAD~1", '--stdout', '--relative'], cwd=str(Path(main_repo.working_dir) / repo['path']))
     subprocess.check_output(["git", "reset", "HEAD~1"], cwd=main_repo.working_dir)
 
@@ -148,12 +148,16 @@ def _update_integrated_module(main_repo, repo, update):
             print(file.read_text())
             print("===============================")
             subprocess.check_call(['git', 'apply', '--stat', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
-            subprocess.check_call(['git', 'apply', '--check', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+            try:
+                subprocess.check_call(['git', 'apply', '--check', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+            except subprocess.CalledProcessError:
+                _raise_error(f"Validating patch file {file.relative_to(main_repo.working_dir)} failed!")
             subprocess.check_output(['patch', '-p1'], input=file.read_bytes(), cwd=Path(main_repo.working_dir) / repo['path'])
+            click.secho(f"Applied patch {file.realtive_to(main_repo.working_dir)}", fg='blue')
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-        subprocess.check_call(['git', 'commit', '-am', f'updated integrated submodule: {repo["path"]}'], cwd=main_repo.working_dir)
+        subprocess.check_call(['git', 'commit', '-m', f'updated integrated submodule: {repo["path"]}'], cwd=main_repo.working_dir)
 
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
@@ -173,9 +177,10 @@ def _get_config_file():
 def _store(main_repo, repo, value):
     config_file = _get_config_file()
     config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
+    param_repo = repo
     for repo in config['repos']:
 
-        if repo['path'].startswith('/'.join(repo['path'].split('/')[:-1])):
+        if repo['path'] == param_repo['path']:
             repo.update(value)
     config_file.write_text(yaml.dump(config, default_flow_style=False))
     if main_repo.index.diff("HEAD"):
@@ -186,15 +191,17 @@ def _store(main_repo, repo, value):
 
 def load_config():
     config_file = _get_config_file()
+    paths = set()
 
     config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
     for repo in config['repos']:
         path = repo['path']
-        name = path.split("/")[-1]
+        if path in paths:
+            _raise_error("Duplicate path: " + path)
         if path.endswith("/"):
-            name = repo['url'].split("/")[-1].replace(".git", "")
-            path = path + name
+            _raise_error("Paths may not end on /")
         repo['path'] = path
+        paths.add(path)
 
         if repo.get('type') not in ['submodule', 'integrated']:
             _raise_error("Please provide type for repo {config['path']}: either 'integrated' or 'submodule'")
