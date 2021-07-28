@@ -150,6 +150,7 @@ def _update_integrated_module(main_repo, repo, update):
             subprocess.check_call(['git', 'apply', '--stat', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
             subprocess.check_call(['git', 'apply', '--check', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
             subprocess.check_output(['patch', '-p1'], input=file.read_bytes(), cwd=Path(main_repo.working_dir) / repo['path'])
+            click.secho(f"Applied patch: {file.relative_to(Path(main_repo.working_dir))}", fg='green')
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)

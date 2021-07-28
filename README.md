@@ -52,3 +52,8 @@ Latest versions are pulled and patches are applied.
   * rm -Rf gimera.egg-info
   * python setup.py sdist
   * twine upload dist/*
+
+
+## install directly
+
+pip install git+https://github.com/marcwimmer/gimera
