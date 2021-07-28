@@ -147,13 +147,13 @@ def _update_integrated_module(main_repo, repo, update):
             print("===============================")
             print(file.read_text())
             print("===============================")
-            subprocess.check_call(['git', 'apply', '--stat', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
-            try:
-                subprocess.check_call(['git', 'apply', '--check', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
-            except subprocess.CalledProcessError:
-                _raise_error(f"Validating patch file {file.relative_to(main_repo.working_dir)} failed!")
-            subprocess.check_output(['patch', '-p1'], input=file.read_bytes(), cwd=Path(main_repo.working_dir) / repo['path'])
-            click.secho(f"Applied patch {file.realtive_to(main_repo.working_dir)}", fg='blue')
+            # subprocess.check_call(['git', 'apply', '--stat', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+            subprocess.check_output(
+                ['patch', '-p1'],
+                input=file.read_bytes(),
+                cwd=Path(main_repo.working_dir) / repo['path']
+                )
+            click.secho(f"Applied patch {file.relative_to(main_repo.working_dir)}", fg='blue')
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
