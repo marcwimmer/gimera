@@ -132,10 +132,11 @@ def _update_integrated_module(main_repo, repo, update):
             subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
             _store(main_repo, repo, {'sha': None})
         else:
+            subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
             subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=local_repo_dir)
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
-    subprocess.check_call(['rsync', '-arP', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
+    subprocess.check_call(['rsync', '-ar', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
     sha = Repo(local_repo_dir).head.object.hexsha
     _store(main_repo, repo, {'sha': sha})
 
