@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 from datetime import datetime
 import inquirer
@@ -106,10 +107,10 @@ def _make_patches(main_repo, repo):
     for to_reset in to_reset:
         subprocess.check_call(['git', 'reset', to_reset], cwd=main_repo.working_dir)
 
-    # commit the patches
-    subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-    subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
-    subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
+    # commit the patches - do NOT - could lie in submodule - is hard to do
+    #subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
+    #subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
+    #subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
 
 
 
