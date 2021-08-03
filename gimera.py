@@ -19,6 +19,12 @@ def _raise_error(msg):
     click.secho(msg, fg='red')
     sys.exit(-1)
 
+@gimera.command(name='combine-patch', help="Combine patches")
+def combine_patches():
+    click.secho("\n\nHow to combine patches:\n", fg='yellow')
+    click.secho("1. Please install patchutils:\n\n\tapt install patchutils\n")
+    click.secho("2. combinediff patch1 patch2 > patch_combined\n")
+
 @gimera.command(name='apply', help="Applies configuration from gimera.yml")
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(update):
