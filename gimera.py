@@ -57,7 +57,7 @@ def _make_patches(main_repo, repo):
     if not changed_files:
         return
 
-    files_in_lines = '\n' + '\n'.join(map(str, sorted(changed_files + untracked_files)))
+    files_in_lines = '\t'.join(map(str, sorted(changed_files + untracked_files)))
     correct = inquirer.confirm(f"Continue making patches for: {files_in_lines}", default=False)
     if not correct:
         sys.exit(-1)
