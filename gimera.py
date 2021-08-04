@@ -45,9 +45,6 @@ def apply(update):
             if update:
                 _fetch_latest_commit_in_submodule(main_repo, repo)
         elif repo.get('type') == 'integrated':
-            if not repo.get('patches'):
-                _raise_error(f"Please provide at least one path where to search patches for {repo['url']} with key patches.")
-
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
 
@@ -80,6 +77,9 @@ def _make_patches(main_repo, repo):
     subprocess.check_output(["git", "commit", '-m', 'for patch'], cwd=main_repo.working_dir)
     patch_content = subprocess.check_output(["git", "format-patch", "HEAD~1", '--stdout', '--relative'], cwd=str(Path(main_repo.working_dir) / repo['path']))
     subprocess.check_output(["git", "reset", "HEAD~1"], cwd=main_repo.working_dir)
+
+    if not repo.get('patches'):
+        _raise_error(f"Please define at least one directory, where patches are stored for {repo['path']}")
 
     if len(repo['patches']) == 1:
         patch_dir = Path(repo['patches'][0])
@@ -152,7 +152,7 @@ def _update_integrated_module(main_repo, repo, update):
     _store(main_repo, repo, {'sha': sha})
 
     # apply patches:
-    for dir in repo.get('patches'):
+    for dir in repo.get('patches', []):
         dir = Path(main_repo.working_dir) / dir
         for file in sorted(dir.glob("*.patch")):
             print("===============================")
