@@ -12,6 +12,9 @@ import subprocess
 from git import Actor
 from pathlib import Path
 
+REPO_TYPE_INT = 'integrated'
+REPO_TYPE_SUB = 'submodule'
+
 @click.group()
 def gimera():
     pass
@@ -39,12 +42,12 @@ def apply(update):
 
     for repo in config['repos']:
         if not repo.get('type'):
-            repo['type'] = 'integrated'
+            repo['type'] = REPO_TYPE_INT
 
-        if repo.get('type') == 'submodule':
+        if repo.get('type') == REPO_TYPE_SUB:
             if update:
                 _fetch_latest_commit_in_submodule(main_repo, repo)
-        elif repo.get('type') == 'integrated':
+        elif repo.get('type') == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
 
@@ -168,7 +171,7 @@ def _update_integrated_module(main_repo, repo, update):
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-        subprocess.check_call(['git', 'commit', '-m', f'updated integrated submodule: {repo["path"]}'], cwd=main_repo.working_dir)
+        subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
 
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
@@ -214,8 +217,8 @@ def load_config():
         repo['path'] = path
         paths.add(path)
 
-        if repo.get('type') not in ['submodule', 'integrated']:
-            _raise_error("Please provide type for repo {config['path']}: either 'integrated' or 'submodule'")
+        if repo.get('type') not in [REPO_TYPE_SUB, REPO_TYPE_INT]:
+            _raise_error(f"Please provide type for repo {config['path']}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'")
 
     return config
 
@@ -224,12 +227,12 @@ def __add_submodule(repo, config):
 
     # branch is added with refs/head/branch1 then instead of branch1 in .gitmodules; makes problems at pull then
     # submodule = repo.create_submodule(name=path, path=path, url=config['url'], branch=config['branch'],)
-    if config.get('type') == 'submodule':
+    if config.get('type') == REPO_TYPE_SUB:
         subprocess.check_call(['git', 'submodule', 'add', '--force', '-b', config['branch'], config['url'], path], cwd=repo.working_dir)
         repo.index.add(['.gitmodules'])
         click.secho(f"Added submodule {path} pointing to {config['url']}", fg='yellow')
         repo.index.commit(f"gimera added submodule: {path}") #, author=author, committer=committer)
-    elif config.get('type') == 'integrated':
+    elif config.get('type') == REPO_TYPE_INT:
         # nothing to do here - happens at update
         pass
 
@@ -238,7 +241,7 @@ def _apply_repo(repo_config):
     """
     makes sure that git submodules exist for the repo
     """
-    if repo_config.get('type') != 'submodule':
+    if repo_config.get('type') != REPO_TYPE_SUB:
         return
     repo = Repo(os.getcwd())
     existing_submodules = list(filter(lambda x: x.path == repo_config['path'], repo.submodules))
