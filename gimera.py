@@ -12,6 +12,9 @@ import subprocess
 from git import Actor
 from pathlib import Path
 
+REPO_TYPE_INT = 'integrated'
+REPO_TYPE_SUB = 'submodule'
+
 @click.group()
 def gimera():
     pass
@@ -27,24 +30,29 @@ def combine_patches():
     click.secho("2. combinediff patch1 patch2 > patch_combined\n")
 
 @gimera.command(name='apply', help="Applies configuration from gimera.yml")
+@click.argument('repos', nargs=-1, default=None)
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
-def apply(update):
+def apply(repos, update):
     config = load_config()
 
     for repo in config['repos']:
+        if repos and repo['path'] not in repos:
+            continue
         _apply_repo(repo)
         del repo
 
     main_repo = Repo(os.getcwd())
 
     for repo in config['repos']:
+        if repos and repo['path'] not in repos:
+            continue
         if not repo.get('type'):
-            repo['type'] = 'integrated'
+            repo['type'] = REPO_TYPE_INT
 
-        if repo.get('type') == 'submodule':
+        if repo.get('type') == REPO_TYPE_SUB:
             if update:
                 _fetch_latest_commit_in_submodule(main_repo, repo)
-        elif repo.get('type') == 'integrated':
+        elif repo.get('type') == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
 
@@ -112,7 +120,53 @@ def _make_patches(main_repo, repo):
     #subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
     #subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
 
+def _get_remotes(repo_dir):
+    lines = subprocess.check_output(['git', 'remote', '-v'], cwd=repo_dir).splitlines()
+    remotes = {}
+    for line in lines:
+        line = line.decode()
+        name, url = line.split('\t')
+        url = url.split(' ')[0]
+        v = remotes.setdefault(name, url)
+        if v != url:
+            raise NotImplementedError(
+                'Different urls gor push and fetch for remote %s\n'
+                '%s != %s' % (name, url, v)
+            )
+    return remotes
 
+def _add_remotes(remotes, repo_dir):
+    if not remotes:
+        return
+    _remotes = _get_remotes(repo_dir)
+    for name, url in remotes:
+        _add_remote(name, url, _remotes, repo_dir)
+
+def _add_remote(name, url, remotes, repo_dir):
+    existing_url = remotes.get(name)
+    if existing_url == url:
+        return
+
+    if not existing_url:
+        subprocess.check_call(['git', 'remote', 'add', name, url], cwd=repo_dir)
+    else:
+        _remove_remote(name, repo_dir)
+        subprocess.check_call(['git', 'remote', 'add', name, url], cwd=repo_dir)
+
+def _fetch_remotes(remotes, merges, repo_dir):
+    for remote, ref in merges:
+        subprocess.check_call(['git', 'fetch', remote, ref], cwd=repo_dir)
+
+def _remove_remote(name, repo_dir):
+    subprocess.check_call(['git', 'remote', 'rm', name], cwd=repo_dir)
+
+def _remove_remotes(remotes, repo_dir):
+    for name, url in remotes:
+        _remove_remote(name, repo_dir)
+
+def _merge(merges, repo_dir):
+    for remote, ref in merges:
+        subprocess.check_call(['git', 'pull', '--no-edit', remote, ref], cwd=repo_dir)
 
 def _update_integrated_module(main_repo, repo, update):
     """
@@ -145,6 +199,14 @@ def _update_integrated_module(main_repo, repo, update):
         else:
             subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
             subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=local_repo_dir)
+
+    if repo.get('merges'):
+        remotes = repo.get('remotes', [])
+        _add_remotes(remotes, local_repo_dir)
+        _fetch_remotes(remotes, repo['merges'], local_repo_dir)
+        _merge(repo['merges'], local_repo_dir)
+        _remove_remotes(remotes, local_repo_dir)
+
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
     subprocess.check_call(['rsync', '-ar', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
@@ -168,8 +230,9 @@ def _update_integrated_module(main_repo, repo, update):
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-        subprocess.check_call(['git', 'commit', '-m', f'updated integrated submodule: {repo["path"]}'], cwd=main_repo.working_dir)
-
+        subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
+    
+    subprocess.check_call(['git', 'reset', '--hard', f'origin/{repo["branch"]}'], cwd=local_repo_dir)
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
     path = Path(main_repo.working_dir) / repo['path']
@@ -214,8 +277,17 @@ def load_config():
         repo['path'] = path
         paths.add(path)
 
-        if repo.get('type') not in ['submodule', 'integrated']:
-            _raise_error("Please provide type for repo {config['path']}: either 'integrated' or 'submodule'")
+        if repo.get('remotes'):
+            repo['remotes'] = repo['remotes'].items()
+        if repo.get('merges'):
+            _merges = []
+            for merge in repo.get('merges'):
+                remote, ref = merge.split(' ')
+                _merges.append((remote.strip(), ref.strip()))
+            repo['merges'] = _merges
+
+        if repo.get('type') not in [REPO_TYPE_SUB, REPO_TYPE_INT]:
+            _raise_error(f"Please provide type for repo {config['path']}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'")
 
     return config
 
@@ -224,12 +296,12 @@ def __add_submodule(repo, config):
 
     # branch is added with refs/head/branch1 then instead of branch1 in .gitmodules; makes problems at pull then
     # submodule = repo.create_submodule(name=path, path=path, url=config['url'], branch=config['branch'],)
-    if config.get('type') == 'submodule':
+    if config.get('type') == REPO_TYPE_SUB:
         subprocess.check_call(['git', 'submodule', 'add', '--force', '-b', config['branch'], config['url'], path], cwd=repo.working_dir)
         repo.index.add(['.gitmodules'])
         click.secho(f"Added submodule {path} pointing to {config['url']}", fg='yellow')
         repo.index.commit(f"gimera added submodule: {path}") #, author=author, committer=committer)
-    elif config.get('type') == 'integrated':
+    elif config.get('type') == REPO_TYPE_INT:
         # nothing to do here - happens at update
         pass
 
@@ -238,7 +310,7 @@ def _apply_repo(repo_config):
     """
     makes sure that git submodules exist for the repo
     """
-    if repo_config.get('type') != 'submodule':
+    if repo_config.get('type') != REPO_TYPE_SUB:
         return
     repo = Repo(os.getcwd())
     existing_submodules = list(filter(lambda x: x.path == repo_config['path'], repo.submodules))
