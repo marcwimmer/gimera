@@ -23,6 +23,11 @@ repos:
       path: roles2/sub1
       patches: 
           - 'roles2/sub1_patches'
+      remotes:
+          gimera-mt: https://github.com/mt-software-de/gimera.git
+      merges:
+          - gimera-mt main
+          - origin refs/pull/1/head
       type: integrated
 ```
 
@@ -38,7 +43,9 @@ From the example above:
   * `>  gimera apply`
 
 Then a patch file is created as suggestion in roles2/sub1_patches which you may commit and push.
+## How to fetch only one or more repo:
 
+  * `>  gimera apply repo_path repo_path2 repo_path3`
 ## How to fetch latest versions:
 
   * `>  gimera apply --update`
