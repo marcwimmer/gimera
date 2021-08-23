@@ -231,7 +231,8 @@ def _update_integrated_module(main_repo, repo, update):
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
         subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
-
+    
+    subprocess.check_call(['git', 'reset', '--hard', f'origin/{repo["branch"]}'], cwd=local_repo_dir)
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
     path = Path(main_repo.working_dir) / repo['path']
