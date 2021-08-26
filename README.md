@@ -13,23 +13,38 @@ Put gimera.yml into your root folder of your project:
 
 ```yaml
 repos:
-    - url: "https://github.com/marcwimmer/gimera"
+    # make ordinary git submodule:
+    - url: "https://github.com/foo/bar"
       branch: branch1
       path: roles/sub1
       patches: []
       type: submodule
-    - url: "https://github.com/marcwimmer/gimera"
+
+
+    # instead of submodule put the content directly in the repository;
+    # apply patches from local git repository
+    - url: "https://github.com/foo/bar"
       branch: branch1
       path: roles2/sub1
-      patches: 
+      patches:
           - 'roles2/sub1_patches'
+      type: integrated
+
+    # instead of submodule put the content directly in the repository;
+    # apply patches from another remote repository
+    #
+    - url: "https://github.com/foo/bar"
+      branch: branch1
+      path: roles2/sub1
       remotes:
-          gimera-mt: https://github.com/mt-software-de/gimera.git
+          remote2: https://github.com/foo2/bar2
       merges:
-          - gimera-mt main
+          - remote2 main
           - origin refs/pull/1/head
       type: integrated
 ```
+
+Patches and remote merges may be combined.
 
 Then execute:
 
