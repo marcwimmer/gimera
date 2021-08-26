@@ -185,21 +185,24 @@ def _update_integrated_module(main_repo, repo, update):
     subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=local_repo_dir)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
-    if not update and repo.get('sha'):
+    
+    sha = repo.get('sha')
+    if not update and sha:
         branches = list(
             filter(
                 bool, map(
                     lambda x: x.strip().replace("* ", ""),
                     subprocess.check_output([
-                        'git', 'branch', '--contains', repo['sha']
-                        ], cwd=local_repo_dir).decode('utf-8').split('\n'))))
+                        'git', 'branch', '--no-color', '--contains', sha
+                    ], cwd=local_repo_dir).decode('utf-8').split('\n'))))
         if repo['branch'] not in branches:
             subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
             _store(main_repo, repo, {'sha': None})
         else:
             subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
-            subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=local_repo_dir)
-
+            subprocess.check_call(['git', 'checkout', '-f', sha], cwd=local_repo_dir)
+    
+    new_sha = Repo(local_repo_dir).head.object.hexsha
     if repo.get('merges'):
         remotes = repo.get('remotes', [])
         _add_remotes(remotes, local_repo_dir)
@@ -210,8 +213,8 @@ def _update_integrated_module(main_repo, repo, update):
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
     subprocess.check_call(['rsync', '-ar', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
-    sha = Repo(local_repo_dir).head.object.hexsha
-    _store(main_repo, repo, {'sha': sha})
+    if new_sha != sha:
+        _store(main_repo, repo, {'sha': new_sha})
 
     # apply patches:
     for dir in repo.get('patches', []):
