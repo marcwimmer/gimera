@@ -18,7 +18,7 @@ URL = 'https://github.com/marcwimmer/gimera'
 EMAIL = 'marc@itewimmer.de'
 AUTHOR = 'Marc-Christian Wimmer'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.3.11'
+VERSION = '0.3.13'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
