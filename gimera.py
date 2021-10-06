@@ -34,7 +34,7 @@ def combine_patches():
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(repos, update):
     config = load_config()
-
+    
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
             continue
@@ -219,10 +219,8 @@ def _update_integrated_module(main_repo, repo, update):
     # apply patches:
     for dir in repo.get('patches', []):
         dir = Path(main_repo.working_dir) / dir
-        for file in sorted(dir.glob("*.patch")):
-            print("===============================")
-            print(file.read_text())
-            print("===============================")
+        for file in sorted(dir.rglob("*.patch")):
+            click.secho(f"Applying patch {file.relative_to(main_repo.working_dir)}", fg='blue')
             # subprocess.check_call(['git', 'apply', '--stat', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
             subprocess.check_output(
                 ['patch', '-p1'],
