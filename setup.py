@@ -8,8 +8,13 @@ import io
 import os
 import sys
 from shutil import rmtree
+from pathlib import Path
 
 from setuptools import find_packages, setup, Command
+from setuptools.command.install import install
+from subprocess import check_call, check_output
+
+
 
 # Package meta-data.
 NAME = 'gimera'
@@ -18,7 +23,7 @@ URL = 'https://github.com/marcwimmer/gimera'
 EMAIL = 'marc@itewimmer.de'
 AUTHOR = 'Marc-Christian Wimmer'
 REQUIRES_PYTHON = '>=3.6.0'
-VERSION = '0.3.14'
+VERSION = '0.3.17'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -91,6 +96,33 @@ class UploadCommand(Command):
 
         sys.exit()
 
+def setup_click_autocompletion():
+
+    def setup_for_bash():
+        path = Path("/etc/bash_completion.d")
+        done_bash = False
+        if path.exists():
+            if os.access(path, os.W_OK):
+                os.system(f"_{NAME.upper()}_COMPLETE=bash_source {NAME} > '{path / NAME}'")
+                done_bash = True
+        if not done_bash:
+            if not (path / NAME).exists():
+                bashrc = Path(os.path.expanduser("~")) / '.bashrc'
+                complete_file = bashrc.parent / f'.{NAME}-completion.sh'
+                os.system(f"_{NAME.upper()}_COMPLETE=bash_source {NAME} > '{complete_file}'")
+                if complete_file.name not in bashrc.read_text():
+                    content = bashrc.read_text()
+                    content += '\nsource ' + complete_file.name
+                    bashrc.write_text(content)
+    setup_for_bash()
+
+    
+
+class InstallCommand(install):
+    """Post-installation for installation mode."""
+    def run(self):
+        install.run(self)
+        setup_click_autocompletion()
 
 # Where the magic happens:
 setup(
@@ -110,6 +142,8 @@ setup(
     entry_points={
         'console_scripts': ['gimera=gimera:gimera'],
     },
+    data_files=[
+    ],
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     include_package_data=True,
@@ -127,5 +161,6 @@ setup(
     # $ setup.py publish support.
     cmdclass={
         'upload': UploadCommand,
+        'install': InstallCommand,
     },
 )

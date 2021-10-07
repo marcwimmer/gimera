@@ -29,8 +29,16 @@ def combine_patches():
     click.secho("1. Please install patchutils:\n\n\tapt install patchutils\n")
     click.secho("2. combinediff patch1 patch2 > patch_combined\n")
 
+def _get_available_repos(*args, **kwargs):
+    config = load_config()
+    repos = []
+    for repo in config.get('repos', []):
+        if not repo.get('path'): continue
+        repos.append(repo['path'])
+    return sorted(repos)
+
 @gimera.command(name='apply', help="Applies configuration from gimera.yml")
-@click.argument('repos', nargs=-1, default=None)
+@click.argument('repos', nargs=-1, default=None, autocompletion=_get_available_repos)
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(repos, update):
     config = load_config()
