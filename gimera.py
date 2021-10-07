@@ -221,7 +221,7 @@ def _update_integrated_module(main_repo, repo, update):
         dir = Path(main_repo.working_dir) / dir
         for file in sorted(dir.rglob("*.patch")):
             click.secho(f"Applying patch {file.relative_to(main_repo.working_dir)}", fg='blue')
-            # subprocess.check_call(['git', 'apply', '--stat', str(file)], cwd=Path(main_repo.working_dir) / repo['path'])
+            # Git apply fails silently if applied within local repos
             subprocess.check_output(
                 ['patch', '-p1'],
                 input=file.read_bytes(),
