@@ -68,12 +68,10 @@ Then a patch file is created as suggestion in roles2/sub1_patches which you may 
 Latest versions are pulled and patches are applied.
 
 ## How to upload new version
-
   * increase version in setup.py
-  * rm -Rf dist
-  * rm -Rf gimera.egg-info
-  * python setup.py sdist
-  * twine upload dist/*
+  * one time: pipenv install twine --dev
+  * pipenv shell
+  * setup.py upload
 
 ## Contributors
   * Michael Tietz (mtietz@mt-software.de)
