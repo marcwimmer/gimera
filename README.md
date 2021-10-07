@@ -71,7 +71,7 @@ Latest versions are pulled and patches are applied.
   * increase version in setup.py
   * one time: pipenv install twine --dev
   * pipenv shell
-  * setup.py upload
+  * python3 setup.py upload
 
 ## Contributors
   * Michael Tietz (mtietz@mt-software.de)
