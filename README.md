@@ -75,6 +75,10 @@ Latest versions are pulled and patches are applied.
   * python setup.py sdist
   * twine upload dist/*
 
+## Contributors
+  * Michael Tietz (mtietz@mt-software.de)
+  * Walter Saltzmann
+
 
 ## install directly
 
