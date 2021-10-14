@@ -181,6 +181,9 @@ def _update_integrated_module(main_repo, repo, update):
     Put contents of a git repository inside the main repository.
     """
     def _get_cache_dir():
+        if not repo.get('url'):
+            click.secho(f"Missing url: {json.dumps(repo, indent=4)}")
+            sys.exit(-1)
         path = Path(os.path.expanduser("~/.cache/gimera")) / repo['url'].replace(":", "_").replace("/", "_")
         path.parent.mkdir(exist_ok=True, parents=True)
         if not path.exists():
