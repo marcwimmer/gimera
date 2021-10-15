@@ -42,7 +42,7 @@ def _get_available_repos(*args, **kwargs):
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(repos, update):
     config = load_config()
-    
+
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
             continue
@@ -196,7 +196,7 @@ def _update_integrated_module(main_repo, repo, update):
     subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=local_repo_dir)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
-    
+
     sha = repo.get('sha')
     if not update and sha:
         branches = list(
@@ -212,7 +212,7 @@ def _update_integrated_module(main_repo, repo, update):
         else:
             subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
             subprocess.check_call(['git', 'checkout', '-f', sha], cwd=local_repo_dir)
-    
+
     new_sha = Repo(local_repo_dir).head.object.hexsha
     if repo.get('merges'):
         remotes = repo.get('remotes', [])
@@ -243,16 +243,20 @@ def _update_integrated_module(main_repo, repo, update):
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
         subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
-    
+
     subprocess.check_call(['git', 'reset', '--hard', f'origin/{repo["branch"]}'], cwd=local_repo_dir)
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
     path = Path(main_repo.working_dir) / repo['path']
     if list(_get_dirty_files(main_repo, repo['path'])):
         _raise_error(f"Directory {repo['path']} contains modified files. Please commit or purge before!")
-    subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
+    if repo.get('sha'):
+        subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=path)
+    else:
+        subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
-    subprocess.check_call(['git', 'pull'], cwd=path)
+    if not repo.get('sha'):
+        subprocess.check_call(['git', 'pull'], cwd=path)
 
 def _get_config_file():
     config_file = Path(os.getcwd()) / 'gimera.yml'

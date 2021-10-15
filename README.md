@@ -42,6 +42,7 @@ repos:
           - remote2 main
           - origin refs/pull/1/head
       type: integrated
+
 ```
 
 Patches and remote merges may be combined.
