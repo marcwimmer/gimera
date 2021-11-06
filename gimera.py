@@ -57,6 +57,8 @@ def apply(repos, update):
         if not repo.get('type'):
             repo['type'] = REPO_TYPE_INT
 
+        repo['branch'] = str(repo['branch'])  # e.g. if 15.0
+
         if repo.get('type') == REPO_TYPE_SUB:
             if update:
                 _fetch_latest_commit_in_submodule(main_repo, repo)
