@@ -235,12 +235,20 @@ def _update_integrated_module(main_repo, repo, update):
         for file in sorted(dir.rglob("*.patch")):
             click.secho(f"Applying patch {file.relative_to(main_repo.working_dir)}", fg='blue')
             # Git apply fails silently if applied within local repos
-            subprocess.check_output(
-                ['patch', '-p1'],
-                input=file.read_bytes(),
-                cwd=Path(main_repo.working_dir) / repo['path']
-                )
-            click.secho(f"Applied patch {file.relative_to(main_repo.working_dir)}", fg='blue')
+            try:
+                cwd = Path(main_repo.working_dir) / repo['path']
+                subprocess.check_output(
+                    ['patch', '-p1'],
+                    input=file.read_bytes(),
+                    cwd=cwd
+                    )
+                click.secho(f"Applied patch {file.relative_to(main_repo.working_dir)}", fg='blue')
+            except Exception as ex:
+                click.secho(f"Failed to apply patch: {file}\n\n", fg='red')
+                click.secho(f"Working Directory: {cwd}", fg='red')
+                click.secho(ex.stdout, fg='red')
+                click.secho(ex.stderr, fg='red')
+                sys.exit(-1)
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
