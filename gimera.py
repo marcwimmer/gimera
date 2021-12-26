@@ -57,6 +57,8 @@ def apply(repos, update):
         if not repo.get('type'):
             repo['type'] = REPO_TYPE_INT
 
+        repo['branch'] = str(repo['branch'])  # e.g. if 15.0
+
         if repo.get('type') == REPO_TYPE_SUB:
             if update:
                 _fetch_latest_commit_in_submodule(main_repo, repo)
@@ -181,6 +183,9 @@ def _update_integrated_module(main_repo, repo, update):
     Put contents of a git repository inside the main repository.
     """
     def _get_cache_dir():
+        if not repo.get('url'):
+            click.secho(f"Missing url: {json.dumps(repo, indent=4)}")
+            sys.exit(-1)
         path = Path(os.path.expanduser("~/.cache/gimera")) / repo['url'].replace(":", "_").replace("/", "_")
         path.parent.mkdir(exist_ok=True, parents=True)
         if not path.exists():
@@ -193,7 +198,7 @@ def _update_integrated_module(main_repo, repo, update):
     subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=local_repo_dir)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
-    
+
     sha = repo.get('sha')
     if not update and sha:
         branches = list(
@@ -209,7 +214,7 @@ def _update_integrated_module(main_repo, repo, update):
         else:
             subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
             subprocess.check_call(['git', 'checkout', '-f', sha], cwd=local_repo_dir)
-    
+
     new_sha = Repo(local_repo_dir).head.object.hexsha
     if repo.get('merges'):
         remotes = repo.get('remotes', [])
@@ -230,26 +235,38 @@ def _update_integrated_module(main_repo, repo, update):
         for file in sorted(dir.rglob("*.patch")):
             click.secho(f"Applying patch {file.relative_to(main_repo.working_dir)}", fg='blue')
             # Git apply fails silently if applied within local repos
-            subprocess.check_output(
-                ['patch', '-p1'],
-                input=file.read_bytes(),
-                cwd=Path(main_repo.working_dir) / repo['path']
-                )
-            click.secho(f"Applied patch {file.relative_to(main_repo.working_dir)}", fg='blue')
+            try:
+                cwd = Path(main_repo.working_dir) / repo['path']
+                subprocess.check_output(
+                    ['patch', '-p1'],
+                    input=file.read_bytes(),
+                    cwd=cwd
+                    )
+                click.secho(f"Applied patch {file.relative_to(main_repo.working_dir)}", fg='blue')
+            except Exception as ex:
+                click.secho(f"Failed to apply patch: {file}\n\n", fg='red')
+                click.secho(f"Working Directory: {cwd}", fg='red')
+                click.secho(ex.stdout, fg='red')
+                click.secho(ex.stderr, fg='red')
+                sys.exit(-1)
 
     if list(_get_dirty_files(main_repo, repo['path'])):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
         subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
-    
+
     subprocess.check_call(['git', 'reset', '--hard', f'origin/{repo["branch"]}'], cwd=local_repo_dir)
 
 def _fetch_latest_commit_in_submodule(main_repo, repo):
     path = Path(main_repo.working_dir) / repo['path']
     if list(_get_dirty_files(main_repo, repo['path'])):
         _raise_error(f"Directory {repo['path']} contains modified files. Please commit or purge before!")
-    subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
+    if repo.get('sha'):
+        subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=path)
+    else:
+        subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
-    subprocess.check_call(['git', 'pull'], cwd=path)
+    if not repo.get('sha'):
+        subprocess.check_call(['git', 'pull'], cwd=path)
 
 def _get_config_file():
     config_file = Path(os.getcwd()) / 'gimera.yml'
