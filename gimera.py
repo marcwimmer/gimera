@@ -42,7 +42,7 @@ def _get_available_repos(*args, **kwargs):
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(repos, update):
     config = load_config()
-    
+
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
             continue
