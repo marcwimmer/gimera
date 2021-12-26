@@ -116,8 +116,6 @@ def setup_click_autocompletion():
                     bashrc.write_text(content)
     setup_for_bash()
 
-    
-
 class InstallCommand(install):
     """Post-installation for installation mode."""
     def run(self):
