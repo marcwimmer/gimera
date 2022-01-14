@@ -115,10 +115,6 @@ setup(
     version=about['__version__'],
     long_description=long_description,
     long_description_content_type='text/markdown',
-<<<<<<< HEAD
-=======
-    python_requires=REQUIRED,
->>>>>>> ab5f70d861f686e89b9170806ce496887bca4d1c
     py_modules=['gimera'],
     data_files=[],
     install_requires=REQUIRED,
