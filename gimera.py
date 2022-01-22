@@ -195,7 +195,11 @@ def _update_integrated_module(main_repo, repo, update):
 
     # use a cache directory for pulling the repository and updating it
     local_repo_dir = _get_cache_dir()
-    subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=local_repo_dir)
+    if not os.access(local_repo_dir, os.W_OK):
+        click.secho(f"No R/W rights on {local_repo_dir}", fg='red')
+        sys.exit(-1)
+
+    subprocess.check_call(['git', 'checkout', '-f', str(repo['branch'])], cwd=local_repo_dir)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
 
@@ -323,7 +327,7 @@ def __add_submodule(repo, config):
     # branch is added with refs/head/branch1 then instead of branch1 in .gitmodules; makes problems at pull then
     # submodule = repo.create_submodule(name=path, path=path, url=config['url'], branch=config['branch'],)
     if config.get('type') == REPO_TYPE_SUB:
-        subprocess.check_call(['git', 'submodule', 'add', '--force', '-b', config['branch'], config['url'], path], cwd=repo.working_dir)
+        subprocess.check_call(['git', 'submodule', 'add', '--force', '-b', str(config['branch']), config['url'], path], cwd=repo.working_dir)
         repo.index.add(['.gitmodules'])
         click.secho(f"Added submodule {path} pointing to {config['url']}", fg='yellow')
         repo.index.commit(f"gimera added submodule: {path}") #, author=author, committer=committer)
@@ -363,7 +367,13 @@ def _get_dirty_files(repo, path, untracked=False):
         for diff in repo.index.diff(None):
             diff_path = Path(repo.working_dir) / Path(diff.b_path)
             yield from perhaps_yield(diff_path)
-    for untracked_file in repo.untracked_files:
+    # stumbling upon: UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe0 in position 1: invalid continuation byte
+    # going to hate the gitpython lib; system is an us installed ubuntu and things like happen; fresh install
+    # and why do they hardcode latin1? 
+    untracked_files = list(filter(bool, subprocess.check_output([
+        "git", "ls-files", "--others", "--exclude-standard"
+        ], cwd=repo.working_dir, encoding="utf8").split("\n")))
+    for untracked_file in untracked_files:
         diff_path = Path(repo.working_dir) / Path(untracked_file)
         yield from perhaps_yield(diff_path)
     return files
