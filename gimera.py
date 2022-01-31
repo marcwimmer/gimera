@@ -199,6 +199,7 @@ def _update_integrated_module(main_repo, repo, update):
         click.secho(f"No R/W rights on {local_repo_dir}", fg='red')
         sys.exit(-1)
 
+    subprocess.check_call(['git', 'fetch'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'checkout', '-f', str(repo['branch'])], cwd=local_repo_dir)
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
