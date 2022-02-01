@@ -60,8 +60,7 @@ def apply(repos, update):
         repo['branch'] = str(repo['branch'])  # e.g. if 15.0
 
         if repo.get('type') == REPO_TYPE_SUB:
-            if update:
-                _fetch_latest_commit_in_submodule(main_repo, repo)
+            _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
         elif repo.get('type') == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
@@ -261,18 +260,34 @@ def _update_integrated_module(main_repo, repo, update):
 
     subprocess.check_call(['git', 'reset', '--hard', f'origin/{repo["branch"]}'], cwd=local_repo_dir)
 
-def _fetch_latest_commit_in_submodule(main_repo, repo):
+def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     path = Path(main_repo.working_dir) / repo['path']
     if list(_get_dirty_files(main_repo, repo['path'])):
         _raise_error(f"Directory {repo['path']} contains modified files. Please commit or purge before!")
     if repo.get('sha'):
-        subprocess.check_call(['git', 'checkout', '-f', repo['sha']], cwd=path)
+        sha = repo['sha']
+        try:
+            branches = list(clean_branch_names(subprocess.check_output(["git", "branch", "--contains", sha], cwd=path, encoding="utf-8").split("\n")))
+        except:
+            click.secho(f"SHA {sha} does not seem to belong to a branch at module {repo['path']}", fg='red')
+            sys.exit(-1)
+        if not [x for x in branches if repo['branch'] == x]:
+            click.secho(f"SHA {sha} does not exist on branch {repo['branch']} at repo {repo['path']}", fg='red')
+            sys.exit(-1)
+        subprocess.check_call(['git', 'checkout', '-f', sha], cwd=path)
     else:
         subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
+    # check if sha collides with branch
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
-    if not repo.get('sha'):
+    if not repo.get('sha') or update:
         subprocess.check_call(['git', 'pull'], cwd=path)
 
+def clean_branch_names(arr):
+    for x in arr:
+        x = x.strip()
+        if x.startswith("* "):
+            x = x[2:]
+        yield x
 def _get_config_file():
     config_file = Path(os.getcwd()) / 'gimera.yml'
     if not config_file.exists():
