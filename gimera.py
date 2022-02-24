@@ -369,7 +369,10 @@ def _apply_repo(repo_config):
     del existing_submodules
 
 def _get_dirty_files(repo, path, untracked=False):
-    files = repo.index.diff(None)
+    # initially used index diff but fucks up when uninintialized submodules exist
+    files = list(filter(bool, subprocess.check_output([
+        "git", "diff", "--name-only"
+    ], encoding="utf-8").split("\n")))
 
     def perhaps_yield(x):
         try:
@@ -380,9 +383,10 @@ def _get_dirty_files(repo, path, untracked=False):
             yield x.relative_to(Path(repo.working_dir))
 
     if not untracked:
-        for diff in repo.index.diff(None):
-            diff_path = Path(repo.working_dir) / Path(diff.b_path)
+        for diff in files:
+            diff_path = Path(repo.working_dir) / Path(diff)
             yield from perhaps_yield(diff_path)
+
     # stumbling upon: UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe0 in position 1: invalid continuation byte
     # going to hate the gitpython lib; system is an us installed ubuntu and things like happen; fresh install
     # and why do they hardcode latin1? 
