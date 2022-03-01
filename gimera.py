@@ -234,7 +234,7 @@ def _update_integrated_module(main_repo, repo, update):
         _store(main_repo, repo, {'sha': new_sha})
 
     # apply patches:
-    for dir in repo.get('patches', []):
+    for dir in (repo.get('patches', []) or []):
         dir = Path(main_repo.working_dir) / dir
         if not dir.exists():
             click.secho(f"Folder does not exist {dir}", fg='red')
