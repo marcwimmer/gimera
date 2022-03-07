@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from ctypes.wintypes import PUSHORT
 import os
 from datetime import datetime
 import inquirer
@@ -42,6 +43,11 @@ def _get_available_repos(*args, **kwargs):
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(repos, update):
     config = load_config()
+
+    for check in repos:
+        if check not in map(lambda x: x['path'], config['repos']):
+            click.secho(f"Invalid path: {check}", fg='red')
+            sys.exit(-1)
 
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
@@ -102,7 +108,7 @@ def _make_patches(main_repo, repo):
         patch_dir = Path(repo['patches'][0])
     else:
         questions = [
-            inquirer.List('path', 
+            inquirer.List('path',
                 message="Please choose a directory where to put the patch file.",
                 choices=['Type directory'] + repo['patches']
             )
@@ -110,7 +116,7 @@ def _make_patches(main_repo, repo):
         answers = inquirer.prompt(questions)
         if answers['path'] == 'Type directory':
             questions = [
-                inquirer.Text('path', 
+                inquirer.Text('path',
                     message="Where shall i put the patch file? (directory)",
                     default="./"
                 )
