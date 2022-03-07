@@ -242,9 +242,7 @@ def _update_integrated_module(main_repo, repo, update):
     # apply patches:
     for dir in (repo.get('patches', []) or []):
         dir = Path(main_repo.working_dir) / dir
-        if not dir.exists():
-            click.secho(f"Folder does not exist {dir}", fg='red')
-            sys.exit(15)
+        dir.mkdir(parents=True, exist_ok=True)
         for file in sorted(dir.rglob("*.patch")):
             click.secho(f"Applying patch {file.relative_to(main_repo.working_dir)}", fg='blue')
             # Git apply fails silently if applied within local repos
