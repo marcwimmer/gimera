@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 from ctypes.wintypes import PUSHORT
 import os
 from datetime import datetime
@@ -8,13 +9,58 @@ import json
 import git
 import yaml
 import sys
-from git import Repo
+# from git import Repo
 import subprocess
 from git import Actor
 from pathlib import Path
 
 REPO_TYPE_INT = 'integrated'
 REPO_TYPE_SUB = 'submodule'
+
+class Repo(object):
+    class Submodule(object):
+        def __init__(self, path):
+            assert not str(path).startswith("/")
+            self.path = Path(path)
+
+        def equals(self, other):
+            if isinstance(other, str):
+                return str(self.path) == other
+            if isinstance(other, Path):
+                return self.path.absolute() == other.path.absolute()
+            raise NotImplementedError(other)
+
+    def __init__(self, path):
+        self.path = Path(path)
+        self.working_dir = path
+
+    @property
+    def dirty(self):
+        status = subprocess.check_output([
+            "git", "status", "-s"], 
+            encoding="utf-8", cwd=self.path).strip()
+        return bool(status)
+
+    @property
+    def hex(self):
+        hex = subprocess.check_output([
+            "git", "log", "-n", "1", "--pretty=%H"], 
+            encoding="utf-8", cwd=self.path).strip()
+        if hex:
+            return hex.strip()
+
+    def _get_submodules(self):
+        submodules = subprocess.check_output([
+            "git", "submodule"],
+            encoding="utf-8",
+            cwd=self.path
+        ).strip().splitlines()
+        for line in submodules:
+            sha, path, refs = line.strip().split(" ", 2)
+            yield Repo.Submodule(path)
+
+    def get_submodules(self):
+        return list(self._get_submodules())
 
 @click.group()
 def gimera():
@@ -43,6 +89,7 @@ def _get_available_repos(*args, **kwargs):
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(repos, update):
     config = load_config()
+    main_repo = Repo(os.getcwd())
 
     for check in repos:
         if check not in map(lambda x: x['path'], config['repos']):
@@ -52,10 +99,9 @@ def apply(repos, update):
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
             continue
-        _apply_repo(repo)
+        _apply_repo(main_repo, repo)
         del repo
 
-    main_repo = Repo(os.getcwd())
 
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
@@ -96,10 +142,14 @@ def _make_patches(main_repo, repo):
         subprocess.check_call(['git', 'add', '-N', untracked_file], cwd=main_repo.working_dir)
         to_reset.append(untracked_file)
         del untracked_file
-    subprocess.check_output(["git", "add", str(Path(main_repo.working_dir) / repo['path'])], cwd=main_repo.working_dir)
-    subprocess.check_output(["git", "commit", '-m', 'for patch'], cwd=main_repo.working_dir)
-    patch_content = subprocess.check_output(["git", "format-patch", "HEAD~1", '--stdout', '--relative'], cwd=str(Path(main_repo.working_dir) / repo['path']))
-    subprocess.check_output(["git", "reset", "HEAD~1"], cwd=main_repo.working_dir)
+    subprocess.check_call(["git", "add", str(Path(main_repo.working_dir) / repo['path'])], cwd=main_repo.working_dir)
+    subprocess.check_call(["git", "commit", '-m', 'for patch'], cwd=main_repo.working_dir)
+    patch_content = subprocess.check_output([
+        "git", "format-patch", "HEAD~1", '--stdout', '--relative'],
+        encoding='utf-8',
+        cwd=str(Path(main_repo.working_dir) / repo['path'])
+        )
+    subprocess.check_call(["git", "reset", "HEAD~1"], cwd=main_repo.working_dir)
 
     if not repo.get('patches'):
         _raise_error(f"Please define at least one directory, where patches are stored for {repo['path']}")
@@ -136,10 +186,13 @@ def _make_patches(main_repo, repo):
     #subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
 
 def _get_remotes(repo_dir):
-    lines = subprocess.check_output(['git', 'remote', '-v'], cwd=repo_dir).splitlines()
+    lines = subprocess.check_output([
+        'git', 'remote', '-v'],
+        encoding='utf-8',
+        cwd=repo_dir).splitlines()
     remotes = {}
     for line in lines:
-        line = line.decode()
+        line = line
         name, url = line.split('\t')
         url = url.split(' ')[0]
         v = remotes.setdefault(name, url)
@@ -217,7 +270,7 @@ def _update_integrated_module(main_repo, repo, update):
                     lambda x: x.strip().replace("* ", ""),
                     subprocess.check_output([
                         'git', 'branch', '--no-color', '--contains', sha
-                    ], cwd=local_repo_dir).decode('utf-8').split('\n'))))
+                    ], cwd=local_repo_dir, encoding='utf-8').splitlines()
         if repo['branch'] not in branches:
             subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
             _store(main_repo, repo, {'sha': None})
@@ -225,7 +278,7 @@ def _update_integrated_module(main_repo, repo, update):
             subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
             subprocess.check_call(['git', 'checkout', '-f', sha], cwd=local_repo_dir)
 
-    new_sha = Repo(local_repo_dir).head.object.hexsha
+    new_sha = Repo(local_repo_dir).hex
     if repo.get('merges'):
         remotes = repo.get('remotes', [])
         _add_remotes(remotes, local_repo_dir)
@@ -274,7 +327,9 @@ def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     if repo.get('sha'):
         sha = repo['sha']
         try:
-            branches = list(clean_branch_names(subprocess.check_output(["git", "branch", "--contains", sha], cwd=path, encoding="utf-8").split("\n")))
+            branches = list(clean_branch_names(subprocess.check_output([
+                "git", "branch", "--contains", sha],
+                cwd=path, encoding="utf-8").splitlines))
         except:
             click.secho(f"SHA {sha} does not seem to belong to a branch at module {repo['path']}", fg='red')
             sys.exit(-1)
@@ -287,6 +342,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     # check if sha collides with branch
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
     if not repo.get('sha') or update:
+        subprocess.check_call(['git', 'checkout', repo['branch']], cwd=path)
         subprocess.check_call(['git', 'pull'], cwd=path)
 
 def clean_branch_names(arr):
@@ -302,6 +358,9 @@ def _get_config_file():
     return config_file
 
 def _store(main_repo, repo, value):
+    """
+    Makes a commit of the changes.
+    """
     config_file = _get_config_file()
     config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
     param_repo = repo
@@ -310,7 +369,7 @@ def _store(main_repo, repo, value):
         if repo['path'] == param_repo['path']:
             repo.update(value)
     config_file.write_text(yaml.dump(config, default_flow_style=False))
-    if main_repo.index.diff("HEAD"):
+    if main_repo.dirty:
         _raise_error("There mustnt be any staged files when updating gimera.yml")
     subprocess.check_call(['git', 'add', config_file], cwd=main_repo.working_dir)
     if main_repo.index.diff("HEAD"):
@@ -365,28 +424,30 @@ def __add_submodule(repo, config):
         # nothing to do here - happens at update
         pass
 
+class Submodule(object):
+    def __init__(self, path):
+        self.path = path
 
-def _apply_repo(repo_config):
+def _apply_repo(repo, repo_config):
     """
     makes sure that git submodules exist for the repo
     """
     if repo_config.get('type') != REPO_TYPE_SUB:
         return
-    repo = Repo(os.getcwd())
-    existing_submodules = list(filter(lambda x: x.path == repo_config['path'], repo.submodules))
+    submodules = repo.get_submodules()
+    existing_submodules = list(filter(lambda x: x.equals(repo_config['path']), submodules))
     if not existing_submodules:
         __add_submodule(repo, repo_config)
-    existing_submodules = list(filter(lambda x: x.path == repo_config['path'], repo.submodules))
+    existing_submodules = list(filter(lambda x: x.equals(repo_config['path']), submodules))
     if not existing_submodules:
         _raise_error(f"Error with submodule {repo_config['path']}")
-    submodule = existing_submodules[0]
     del existing_submodules
 
 def _get_dirty_files(repo, path, untracked=False):
     # initially used index diff but fucks up when uninintialized submodules exist
     files = list(filter(bool, subprocess.check_output([
         "git", "diff", "--name-only"
-    ], encoding="utf-8").split("\n")))
+    ], encoding="utf-8").splitlines()
 
     def perhaps_yield(x):
         try:
@@ -406,21 +467,20 @@ def _get_dirty_files(repo, path, untracked=False):
     # and why do they hardcode latin1? 
     untracked_files = list(filter(bool, subprocess.check_output([
         "git", "ls-files", "--others", "--exclude-standard"
-        ], cwd=repo.working_dir, encoding="utf8").split("\n")))
+        ], cwd=repo.working_dir, encoding="utf8").splitlines()))
     for untracked_file in untracked_files:
         diff_path = Path(repo.working_dir) / Path(untracked_file)
         yield from perhaps_yield(diff_path)
     return files
 
-if os.getenv("GIMERA_DEBUG") == "1":
-    @gimera.command(name='is_path_dirty')
-    @click.argument("path")
-    def is_path_dirty(path):
-        path = Path(os.getcwd()) / path
-
-        files = list(_get_dirty_files(Repo(os.getcwd()), path))
-        print("\n".join(map(str, files)))
+def _make_sure_in_root():
+    path = Path(os.getcwd())
+    git_dir = path / '.git'
+    if not git_dir.exists():
+        click.secho("Please go into the root of the git repository.", fg='red')
+        sys.exit(-1)
 
 
 if __name__ == '__main__':
+    _make_sure_in_root()
     gimera()
