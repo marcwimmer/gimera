@@ -290,6 +290,7 @@ def _update_integrated_module(main_repo, repo, update):
         else:
             subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
             subprocess.check_call(['git', 'checkout', '-f', sha], cwd=local_repo_dir)
+    import pudb;pudb.set_trace()
 
     new_sha = Repo(local_repo_dir).hex
     if repo.get('merges'):
@@ -305,11 +306,6 @@ def _update_integrated_module(main_repo, repo, update):
         'rsync', '-ar', '--exclude=.git',
         '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"],
         cwd=main_repo.working_dir)
-    subprocess.check_call([
-        'git', 'add', str(dest_path)],
-        cwd=main_repo.working_dir)
-    if new_sha != sha:
-        _store(main_repo, repo, {'sha': new_sha})
 
     # apply patches:
     for dir in (repo.get('patches', []) or []):
@@ -336,11 +332,11 @@ def _update_integrated_module(main_repo, repo, update):
 
     if list(_get_dirty_files(main_repo, repo['path'], mode='all')):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-        import pudb;pudb.set_trace()
-        if list(_get_dirty_files(main_repo, repo['path'], mode='all')):
-            subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
+        subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
 
     subprocess.check_call(['git', 'reset', '--hard', f'origin/{repo["branch"]}'], cwd=local_repo_dir)
+    if new_sha != sha:
+        _store(main_repo, repo, {'sha': new_sha})
 
 def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     path = Path(main_repo.working_dir) / repo['path']
