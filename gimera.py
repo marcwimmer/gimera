@@ -32,7 +32,7 @@ class Repo(object):
 
     def __init__(self, path):
         self.path = Path(path)
-        self.working_dir = path
+        self.working_dir = Path(path)
 
     @property
     def dirty(self):
@@ -84,24 +84,30 @@ def _get_available_repos(*args, **kwargs):
         repos.append(repo['path'])
     return sorted(repos)
 
+def _strip_paths(paths):
+    for x in paths:
+        if x.endswith("/"):
+            x = x[:-1]
+        yield x
+
 @gimera.command(name='apply', help="Applies configuration from gimera.yml")
 @click.argument('repos', nargs=-1, default=None, autocompletion=_get_available_repos)
 @click.option('-u', '--update', is_flag=True, help="If set, then latest versions are pulled from remotes.")
 def apply(repos, update):
     config = load_config()
     main_repo = Repo(os.getcwd())
+    repos = list(_strip_paths(repos))
 
     for check in repos:
         if check not in map(lambda x: x['path'], config['repos']):
-            click.secho(f"Invalid path: {check}", fg='red')
-            sys.exit(-1)
+            import pudb;pudb.set_trace()
+            _raise_error(f"Invalid path: {check}")
 
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
             continue
         _apply_repo(main_repo, repo)
         del repo
-
 
     for repo in config['repos']:
         if repos and repo['path'] not in repos:
@@ -112,6 +118,7 @@ def apply(repos, update):
         repo['branch'] = str(repo['branch'])  # e.g. if 15.0
 
         if repo.get('type') == REPO_TYPE_SUB:
+            # _make_patches(main_repo, repo)
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
         elif repo.get('type') == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
@@ -119,17 +126,23 @@ def apply(repos, update):
 
 
 def _make_patches(main_repo, repo):
-    changed_files = list(_get_dirty_files(main_repo, repo['path']))
-    untracked_files = list(_get_dirty_files(main_repo, repo['path'], untracked=True))
+    changed_files = list(_get_dirty_files(main_repo, repo['path'], mode='all'))
+    untracked_files = list(_get_dirty_files(main_repo, repo['path'], mode='untracked'))
     if not changed_files:
         return
 
-    files_in_lines = '\n'.join(map(str, sorted(changed_files + untracked_files)))
+    files_in_lines = '\n'.join(map(str, sorted(changed_files)))
     correct = inquirer.confirm(f"Continue making patches for: {files_in_lines}", default=False)
     if not correct:
         sys.exit(-1)
 
     to_reset = []
+    if repo['type'] == REPO_TYPE_INT:
+        cwd = main_repo.working_dir
+    elif repo['type'] == REPO_TYPE_INT:
+        cwd = main_repo.working_dir / repo['path']
+    else:
+        raise NotImplementedError(repo['type'])
     for untracked_file in untracked_files:
         # add with empty blob to index, appears like that then:
         """
@@ -139,17 +152,18 @@ def _make_patches(main_repo, repo):
                 modified:   roles2/sub1/file2.txt
                 new file:   roles2/sub1/file3.txt
         """
-        subprocess.check_call(['git', 'add', '-N', untracked_file], cwd=main_repo.working_dir)
+        subprocess.check_call(['git', 'add', '-N', untracked_file], cwd=cwd)
         to_reset.append(untracked_file)
         del untracked_file
-    subprocess.check_call(["git", "add", str(Path(main_repo.working_dir) / repo['path'])], cwd=main_repo.working_dir)
-    subprocess.check_call(["git", "commit", '-m', 'for patch'], cwd=main_repo.working_dir)
+    subprocess.check_call(["git", "add", str(Path(main_repo.working_dir) / repo['path'])], cwd=cwd)
+    subprocess.check_call(["git", "commit", '-m', 'for patch'], cwd=cwd)
+
     patch_content = subprocess.check_output([
         "git", "format-patch", "HEAD~1", '--stdout', '--relative'],
         encoding='utf-8',
         cwd=str(Path(main_repo.working_dir) / repo['path'])
         )
-    subprocess.check_call(["git", "reset", "HEAD~1"], cwd=main_repo.working_dir)
+    subprocess.check_call(["git", "reset", "HEAD~1"], cwd=cwd)
 
     if not repo.get('patches'):
         _raise_error(f"Please define at least one directory, where patches are stored for {repo['path']}")
@@ -254,8 +268,7 @@ def _update_integrated_module(main_repo, repo, update):
     # use a cache directory for pulling the repository and updating it
     local_repo_dir = _get_cache_dir()
     if not os.access(local_repo_dir, os.W_OK):
-        click.secho(f"No R/W rights on {local_repo_dir}", fg='red')
-        sys.exit(-1)
+        _raise_error(f"No R/W rights on {local_repo_dir}")
 
     subprocess.check_call(['git', 'fetch'], cwd=local_repo_dir)
     subprocess.check_call(['git', 'checkout', '-f', str(repo['branch'])], cwd=local_repo_dir)
@@ -270,7 +283,7 @@ def _update_integrated_module(main_repo, repo, update):
                     lambda x: x.strip().replace("* ", ""),
                     subprocess.check_output([
                         'git', 'branch', '--no-color', '--contains', sha
-                    ], cwd=local_repo_dir, encoding='utf-8').splitlines()
+                    ], cwd=local_repo_dir, encoding='utf-8').splitlines())))
         if repo['branch'] not in branches:
             subprocess.check_call(['git', 'pull'], cwd=local_repo_dir)
             _store(main_repo, repo, {'sha': None})
@@ -288,7 +301,13 @@ def _update_integrated_module(main_repo, repo, update):
 
     dest_path = Path(main_repo.working_dir) / repo['path']
     dest_path.parent.mkdir(exist_ok=True, parents=True)
-    subprocess.check_call(['rsync', '-ar', '--exclude=.git', '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"], cwd=main_repo.working_dir)
+    subprocess.check_call([
+        'rsync', '-ar', '--exclude=.git',
+        '--delete-after', str(local_repo_dir) + "/", str(dest_path) + "/"],
+        cwd=main_repo.working_dir)
+    subprocess.check_call([
+        'git', 'add', str(dest_path)],
+        cwd=main_repo.working_dir)
     if new_sha != sha:
         _store(main_repo, repo, {'sha': new_sha})
 
@@ -308,21 +327,24 @@ def _update_integrated_module(main_repo, repo, update):
                     )
                 click.secho(f"Applied patch {file.relative_to(main_repo.working_dir)}", fg='blue')
             except Exception as ex:
-                click.secho(f"Failed to apply patch: {file}\n\n", fg='red')
-                click.secho(f"Working Directory: {cwd}", fg='red')
-                click.secho(ex.stdout, fg='red')
-                click.secho(ex.stderr, fg='red')
-                sys.exit(-1)
+                _raise_error((
+                    f"Failed to apply patch: {file}\n\n"
+                    f"Working Directory: {cwd}"
+                    f"{ex.stdout}"
+                    f"{ex.stderr}"
+                ))
 
-    if list(_get_dirty_files(main_repo, repo['path'])):
+    if list(_get_dirty_files(main_repo, repo['path'], mode='all')):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-        subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
+        import pudb;pudb.set_trace()
+        if list(_get_dirty_files(main_repo, repo['path'], mode='all')):
+            subprocess.check_call(['git', 'commit', '-m', f'updated {REPO_TYPE_INT} submodule: {repo["path"]}'], cwd=main_repo.working_dir)
 
     subprocess.check_call(['git', 'reset', '--hard', f'origin/{repo["branch"]}'], cwd=local_repo_dir)
 
 def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     path = Path(main_repo.working_dir) / repo['path']
-    if list(_get_dirty_files(main_repo, repo['path'])):
+    if list(_get_dirty_files(main_repo, repo['path'], mode='all')):
         _raise_error(f"Directory {repo['path']} contains modified files. Please commit or purge before!")
     if repo.get('sha'):
         sha = repo['sha']
@@ -331,11 +353,10 @@ def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
                 "git", "branch", "--contains", sha],
                 cwd=path, encoding="utf-8").splitlines))
         except:
-            click.secho(f"SHA {sha} does not seem to belong to a branch at module {repo['path']}", fg='red')
-            sys.exit(-1)
+            _raise_error(f"SHA {sha} does not seem to belong to a branch at module {repo['path']}")
+
         if not [x for x in branches if repo['branch'] == x]:
-            click.secho(f"SHA {sha} does not exist on branch {repo['branch']} at repo {repo['path']}", fg='red')
-            sys.exit(-1)
+            _raise_error(f"SHA {sha} does not exist on branch {repo['branch']} at repo {repo['path']}")
         subprocess.check_call(['git', 'checkout', '-f', sha], cwd=path)
     else:
         subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
@@ -361,18 +382,18 @@ def _store(main_repo, repo, value):
     """
     Makes a commit of the changes.
     """
+    if main_repo.dirty:
+        _raise_error("There mustnt be any staged files when updating gimera.yml")
+
     config_file = _get_config_file()
     config = yaml.load(config_file.read_text(), Loader=yaml.FullLoader)
     param_repo = repo
     for repo in config['repos']:
-
         if repo['path'] == param_repo['path']:
             repo.update(value)
     config_file.write_text(yaml.dump(config, default_flow_style=False))
-    if main_repo.dirty:
-        _raise_error("There mustnt be any staged files when updating gimera.yml")
     subprocess.check_call(['git', 'add', config_file], cwd=main_repo.working_dir)
-    if main_repo.index.diff("HEAD"):
+    if main_repo.dirty:
         subprocess.check_call(['git', 'commit', '-m', 'auto update gimera.yml'], cwd=main_repo.working_dir)
 
 def load_config():
@@ -443,11 +464,12 @@ def _apply_repo(repo, repo_config):
         _raise_error(f"Error with submodule {repo_config['path']}")
     del existing_submodules
 
-def _get_dirty_files(repo, path, untracked=False):
+def _get_dirty_files(repo, path, mode='all'):
     # initially used index diff but fucks up when uninintialized submodules exist
-    files = list(filter(bool, subprocess.check_output([
-        "git", "diff", "--name-only"
-    ], encoding="utf-8").splitlines()
+    assert mode in ['all', 'untracked', 'existing']
+    cwd = repo.working_dir / path
+    if not cwd.exists():
+        return
 
     def perhaps_yield(x):
         try:
@@ -457,28 +479,29 @@ def _get_dirty_files(repo, path, untracked=False):
         else:
             yield x.relative_to(Path(repo.working_dir))
 
-    if not untracked:
-        for diff in files:
-            diff_path = Path(repo.working_dir) / Path(diff)
-            yield from perhaps_yield(diff_path)
+    if mode in ['all', 'existing']:
+        files = list(filter(bool, subprocess.check_output([
+            "git", "diff", "--name-only", "."
+        ], encoding="utf-8", cwd=cwd).splitlines()))
 
-    # stumbling upon: UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe0 in position 1: invalid continuation byte
-    # going to hate the gitpython lib; system is an us installed ubuntu and things like happen; fresh install
-    # and why do they hardcode latin1? 
-    untracked_files = list(filter(bool, subprocess.check_output([
-        "git", "ls-files", "--others", "--exclude-standard"
-        ], cwd=repo.working_dir, encoding="utf8").splitlines()))
-    for untracked_file in untracked_files:
-        diff_path = Path(repo.working_dir) / Path(untracked_file)
-        yield from perhaps_yield(diff_path)
-    return files
+        for diff in files:
+            diff_path = cwd / Path(diff)
+            yield from perhaps_yield(diff_path)
+            del diff
+
+    if mode in ['all', 'untracked']:
+        untracked_files = list(filter(bool, subprocess.check_output([
+            "git", "ls-files", "--others", "--exclude-standard", "."
+            ], cwd=cwd, encoding="utf8").splitlines()))
+        for untracked_file in untracked_files:
+            diff_path = cwd / Path(untracked_file)
+            yield from perhaps_yield(diff_path)
 
 def _make_sure_in_root():
     path = Path(os.getcwd())
     git_dir = path / '.git'
     if not git_dir.exists():
-        click.secho("Please go into the root of the git repository.", fg='red')
-        sys.exit(-1)
+        _raise_error("Please go into the root of the git repository.")
 
 
 if __name__ == '__main__':
