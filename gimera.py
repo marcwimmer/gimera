@@ -188,7 +188,7 @@ def _make_patches(main_repo, repo):
         patch_dir = Path(answers['path'])
 
     patch_dir.mkdir(exist_ok=True, parents=True)
-    (patch_dir / (datetime.now().strftime("%Y%m%d_%H%M%S") + '.patch')).write_bytes(patch_content)
+    (patch_dir / (datetime.now().strftime("%Y%m%d_%H%M%S") + '.patch')).write_text(patch_content)
 
     for to_reset in to_reset:
         subprocess.check_call(['git', 'reset', to_reset], cwd=main_repo.working_dir)
