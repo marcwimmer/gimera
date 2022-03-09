@@ -100,7 +100,6 @@ def apply(repos, update):
 
     for check in repos:
         if check not in map(lambda x: x['path'], config['repos']):
-            import pudb;pudb.set_trace()
             _raise_error(f"Invalid path: {check}")
 
     for repo in config['repos']:
@@ -290,7 +289,6 @@ def _update_integrated_module(main_repo, repo, update):
         else:
             subprocess.check_call(['git', 'config', 'advice.detachedHead', 'false'], cwd=local_repo_dir)
             subprocess.check_call(['git', 'checkout', '-f', sha], cwd=local_repo_dir)
-    import pudb;pudb.set_trace()
 
     new_sha = Repo(local_repo_dir).hex
     if repo.get('merges'):
