@@ -30,7 +30,7 @@ NAME = metadata['name']
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-	"click", "inquirer", "pyyaml", "pathlib"
+	"click", "inquirer", "pyyaml"
 ]
 
 here = os.path.abspath(os.path.dirname(__file__))
