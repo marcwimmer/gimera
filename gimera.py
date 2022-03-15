@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-import re
 from ctypes.wintypes import PUSHORT
 import os
 from datetime import datetime
 import inquirer
 import click
 import json
-import git
 import yaml
 import sys
-# from git import Repo
 import subprocess
-from git import Actor
 from pathlib import Path
 
 REPO_TYPE_INT = 'integrated'
