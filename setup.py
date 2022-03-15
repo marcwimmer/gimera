@@ -4,9 +4,11 @@
 # Note: To use the 'upload' functionality of this file, you must:
 #   $ pipenv install twine --dev
 
+import re
 import io
 import os
 import sys
+import json
 import subprocess
 from shutil import rmtree
 from pathlib import Path
@@ -75,18 +77,37 @@ class UploadCommand(Command):
             except OSError:
                 pass
 
+    def inc_version(self):
+        file = Path('setup.cfg')
+        lines = file.read_text()
+        find = re.findall(r'version = (.*)', lines)
+        old_version = 'version = ' + find[-1]
+        version = list(map(int, find[-1].split('.')))
+        version[-1] += 1
+        version_string = '.'.join(map(str, version))
+        new_version = 'version = ' + version_string
+        lines = lines.replace(old_version, new_version)
+        file.write_text(lines)
+        return version_string
+
+
     def run(self):
         self.clear_builds()
 
+        # increase version
+        about['__version__'] = self.inc_version()
+
         self.status('Building Source and Wheel (universal) distribution…')
-        os.system('{0} setup.py sdist'.format(sys.executable))
+        subprocess.check_call([sys.executable, "setup.py", "sdist"])
 
         self.status('Uploading the package to PyPI via Twine…')
-        os.system('twine upload dist/*')
+        env = json.loads(Path(
+            os.path.expanduser("~/.pypi_access")).read_text())
+        subprocess.check_call(["/usr/local/bin/twine", "upload", "dist/*"], env=env)
 
         self.status('Pushing git tags…')
-        os.system('git tag v{0}'.format(about['__version__']))
-        os.system('git push --tags')
+        subprocess.check_call(["git", "tag", f"v{about['__version__']}"])
+        subprocess.check_call(["git", "push", "--tags"])
 
         self.clear_builds()
 

@@ -37,14 +37,14 @@ class Repo(object):
     @property
     def dirty(self):
         status = subprocess.check_output([
-            "git", "status", "-s"], 
+            "git", "status", "-s"],
             encoding="utf-8", cwd=self.path).strip()
         return bool(status)
 
     @property
     def hex(self):
         hex = subprocess.check_output([
-            "git", "log", "-n", "1", "--pretty=%H"], 
+            "git", "log", "-n", "1", "--pretty=%H"],
             encoding="utf-8", cwd=self.path).strip()
         if hex:
             return hex.strip()
@@ -56,8 +56,8 @@ class Repo(object):
             cwd=self.path
         ).strip().splitlines()
         for line in submodules:
-            sha, path, refs = line.strip().split(" ", 2)
-            yield Repo.Submodule(path)
+            splitted = line.strip().split(" ", 2)
+            yield Repo.Submodule(splitted[-1])
 
     def get_submodules(self):
         return list(self._get_submodules())
@@ -353,7 +353,13 @@ def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
             _raise_error(f"SHA {sha} does not exist on branch {repo['branch']} at repo {repo['path']}")
         subprocess.check_call(['git', 'checkout', '-f', sha], cwd=path)
     else:
-        subprocess.check_call(['git', 'checkout', '-f', repo['branch']], cwd=path)
+        rc = subprocess.run(['git', 'checkout', '-f', repo['branch']], cwd=path)
+        if rc.returncode:
+            click.secho(rc.stderr, fc='red')
+            click.secho((
+                f"Failed to checkout {repo['branch']} in {path}"
+            ), fg='red')
+            sys.exit(-1)
     # check if sha collides with branch
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
     if not repo.get('sha') or update:
