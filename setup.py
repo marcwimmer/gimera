@@ -100,7 +100,7 @@ class UploadCommand(Command):
         self.status('Building Source and Wheel (universal) distribution…')
         subprocess.check_call([sys.executable, "setup.py", "sdist"])
         subprocess.check_call(["git", "add", "."])
-        subprocess.check_call(["git", "commit", "-am", "upload"])
+        subprocess.check_call(["git", "commit", "-am", f"upload {about['__version__']}"])
 
         self.status('Uploading the package to PyPI via Twine…')
         env = json.loads(Path(
