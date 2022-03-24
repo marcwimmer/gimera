@@ -340,8 +340,13 @@ def _update_integrated_module(main_repo, repo, update):
                 ), fg='blue')
             except subprocess.CalledProcessError as ex:
                 click.secho((
-                    "Failed to apply the following patch file:\n\n"
-                    f"{file}\n\n"
+                    "\n\nFailed to apply the following patch file:\n\n"
+                ), fg='yellow')
+                click.secho((
+                    f"{file}\n"
+                    "============================================================================================="
+                ), fg='red', bold=True)
+                click.secho((
                     f"{ex.stdout or ''}\n"
                     f"{ex.stderr or ''}\n"
                 ), fg='yellow')
