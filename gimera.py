@@ -66,6 +66,22 @@ def _raise_error(msg):
     click.secho(msg, fg='red')
     sys.exit(-1)
 
+@gimera.command(name="clean", help="Removes all dirty")
+def clean():
+    changes = subprocess.check_output(["git", "status", "-s"], encoding="utf8").strip()
+    if not changes:
+        click.secho("Everything already clean!", fg='green')
+        return
+    subprocess.check_call(["git", "status"])
+    doit = inquirer.confirm(f"Continue cleaning? All local changes are lost.", default=True)
+    if not doit:
+        return
+    subprocess.check_call(["git", "checkout", "-f"])
+    subprocess.check_call(["git", "clean", "-xdff"])
+    click.secho("Cleaning done.", fg='green')
+    subprocess.check_call(["git", "status"])
+
+
 @gimera.command(name='combine-patch', help="Combine patches")
 def combine_patches():
     click.secho("\n\nHow to combine patches:\n", fg='yellow')
@@ -76,7 +92,8 @@ def _get_available_repos(*args, **kwargs):
     config = load_config()
     repos = []
     for repo in config.get('repos', []):
-        if not repo.get('path'): continue
+        if not repo.get('path'):
+            continue
         repos.append(repo['path'])
     return sorted(repos)
 
@@ -306,23 +323,33 @@ def _update_integrated_module(main_repo, repo, update):
         dir = Path(main_repo.working_dir) / dir
         dir.mkdir(parents=True, exist_ok=True)
         for file in sorted(dir.rglob("*.patch")):
-            click.secho(f"Applying patch {file.relative_to(main_repo.working_dir)}", fg='blue')
+            click.secho((
+                f"Applying patch {file.relative_to(main_repo.working_dir)}"
+            ), fg='blue')
             # Git apply fails silently if applied within local repos
             try:
                 cwd = Path(main_repo.working_dir) / repo['path']
                 subprocess.check_output(
                     ['patch', '-p1'],
-                    input=file.read_bytes(),
-                    cwd=cwd
+                    input=file.read_text(), # bytes().decode('utf-8'),
+                    cwd=cwd,
+                    encoding='utf-8',
                     )
-                click.secho(f"Applied patch {file.relative_to(main_repo.working_dir)}", fg='blue')
+                click.secho((
+                    f"Applied patch {file.relative_to(main_repo.working_dir)}"
+                ), fg='blue')
+            except subprocess.CalledProcessError as ex:
+                click.secho((
+                    "Failed to apply the following patch file:\n\n"
+                    f"{file}\n\n"
+                    f"{ex.stdout or ''}\n"
+                    f"{ex.stderr or ''}\n"
+                ), fg='yellow')
+                if not inquirer.confirm("Continue?", default=True):
+                    sys.exit(-1)
             except Exception as ex:
-                _raise_error((
-                    f"Failed to apply patch: {file}\n\n"
-                    f"Working Directory: {cwd}"
-                    f"{ex.stdout}"
-                    f"{ex.stderr}"
-                ))
+                click.secho(str(ex), fg='red')
+                sys.exit(-1)
 
     if list(_get_dirty_files(main_repo, repo['path'], mode='all')):
         subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
