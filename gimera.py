@@ -350,6 +350,8 @@ def _update_integrated_module(main_repo, repo, update):
                     f"{ex.stdout or ''}\n"
                     f"{ex.stderr or ''}\n"
                 ), fg='yellow')
+
+                click.secho(file.read_text(), fg='cyan')
                 if not inquirer.confirm("Continue?", default=True):
                     sys.exit(-1)
             except Exception as ex:
