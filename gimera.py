@@ -47,12 +47,12 @@ class Repo(object):
 
     def _get_submodules(self):
         submodules = subprocess.check_output([
-            "git", "submodule"],
+            "git", "submodule--helper", "list"],
             encoding="utf-8",
             cwd=self.path
         ).strip().splitlines()
         for line in submodules:
-            splitted = line.strip().split(" ", 2)
+            splitted = line.strip().split("\t", 3)
             yield Repo.Submodule(splitted[-1])
 
     def get_submodules(self):
@@ -461,9 +461,10 @@ def __add_submodule(repo, config):
             '--force', '-b', str(config['branch']),
             config['url'], path
             ], cwd=repo.working_dir)
-        repo.index.add(['.gitmodules'])
+        subprocess.check_call(["git", "add", ".gitmodules"], cwd=repo.path)
+        subprocess.check_call(["git", "add", path], cwd=repo.path)
         click.secho(f"Added submodule {path} pointing to {config['url']}", fg='yellow')
-        repo.index.commit(f"gimera added submodule: {path}") #, author=author, committer=committer)
+        subprocess.check_call(["git", "commit", "-m", f"gimera added submodule: {path}"])
     elif config.get('type') == REPO_TYPE_INT:
         # nothing to do here - happens at update
         pass
@@ -482,6 +483,7 @@ def _apply_repo(repo, repo_config):
     existing_submodules = list(filter(lambda x: x.equals(repo_config['path']), submodules))
     if not existing_submodules:
         __add_submodule(repo, repo_config)
+        submodules = repo.get_submodules()
     existing_submodules = list(filter(lambda x: x.equals(repo_config['path']), submodules))
     if not existing_submodules:
         _raise_error(f"Error with submodule {repo_config['path']}")
