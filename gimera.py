@@ -461,7 +461,11 @@ def __add_submodule(repo, config):
     # submodule = repo.create_submodule(name=path, path=path, url=config['url'], branch=config['branch'],)
     if config.get('type') == REPO_TYPE_SUB:
         if Path(path).exists():
-            subprocess.check_call(["git", "rm", "-f", "-r", path])
+            try:
+                subprocess.check_call(["git", "rm", "-f", "-r", path], cwd=repo.working_dir)
+            except subprocess.CalledProcessError:
+                subprocess.check_call(["rm", "-Rf"], cwd=repo.working_dir)
+                subprocess.check_call(["git", "add", path], cwd=repo.working_dir)
             subprocess.check_call(["git", "commit", "-m", f"removed existing path as inserted as submodule: {path}"])
         subprocess.check_call([
             'git', 'submodule', 'add',
