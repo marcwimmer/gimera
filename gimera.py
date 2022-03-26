@@ -18,6 +18,12 @@ class Repo(object):
         def __init__(self, path):
             assert not str(path).startswith("/")
             self.path = Path(path)
+        
+        def __repr__(self):
+            return f"{self.path}"
+
+        def __str__(self):
+            return f"{self.path}"
 
         def equals(self, other):
             if isinstance(other, str):
@@ -29,6 +35,12 @@ class Repo(object):
     def __init__(self, path):
         self.path = Path(path)
         self.working_dir = Path(path)
+
+    def __repr__(self):
+        return f"{self.path}"
+
+    def __str__(self):
+        return f"{self.path}"
 
     @property
     def dirty(self):
@@ -390,6 +402,15 @@ def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
                 f"Failed to checkout {repo['branch']} in {path}"
             ), fg='red')
             sys.exit(-1)
+        else:
+            rc = subprocess.run([
+                "git", "add", repo['path']], cwd=main_repo.path)
+            if not rc.returncode:
+                rc = subprocess.run([
+                    "git", "commit", "-m", (
+                        f"updated submodule {repo['path']}"
+                    )], cwd=main_repo.path)
+
     # check if sha collides with branch
     subprocess.check_call(['git', 'clean', '-xdff'], cwd=path)
     if not repo.get('sha') or update:
