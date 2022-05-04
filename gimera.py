@@ -46,7 +46,8 @@ class Repo(object):
     def dirty(self):
         status = subprocess.check_output([
             "git", "status", "-s"],
-            encoding="utf-8", cwd=self.path).strip()
+            encoding="utf-8", cwd=self.path).strip().splitlines()
+        status = [x for x in status if 'gimera.yml' not in x]
         return bool(status)
 
     @property
