@@ -82,15 +82,15 @@ def test_basicbehaviour(temppath, python):
             {
                 "url": f"file://{remote_sub_repo}",
                 "branch": "branch1",
-                "path": "roles/sub1",
+                "path": "submodules/sub1",
                 "patches": [],
                 "type": "submodule",
             },
             {
                 "url": f"file://{remote_sub_repo}",
                 "branch": "branch1",
-                "path": "roles2/sub1",
-                "patches": ["roles2/sub1_patches"],
+                "path": "integrated/sub1",
+                "patches": ["integrated/sub1_patches"],
                 "type": "integrated",
             },
         ]
@@ -116,22 +116,24 @@ def test_basicbehaviour(temppath, python):
         subprocess.check_call(["git", "add", "file2.txt"], cwd=repopath)
         subprocess.check_call(["git", "commit", "-am", "file2 added"], cwd=repopath)
 
+    import pudb;pudb.set_trace()
     os.chdir(workspace)
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     gimera_apply([], update=True)
 
     click.secho(str(workspace), fg="green")
-    assert (workspace / "roles" / "sub1" / "file2.txt").exists()
-    assert (workspace / "roles2" / "sub1" / "file2.txt").exists()
+    assert (workspace / "submodules" / "sub1" / "file2.txt").exists()
+    assert (workspace / "integrated" / "sub1" / "file2.txt").exists()
 
     # check dirty - disabled because the command is_path_dirty is not cool
-    (workspace / "roles2" / "sub1" / "file2.txt").write_text("a change!")
-    (workspace / "roles2" / "sub1" / "file3.txt").write_text("a new file!")
+    (workspace / "integrated" / "sub1" / "file2.txt").write_text("a change!")
+    (workspace / "integrated" / "sub1" / "file3.txt").write_text("a new file!")
     (workspace / "file4.txt").write_text("a new file!")
 
     # now lets make a patch
     os.chdir(workspace)
     gimera_apply([], update=True)
-    subprocess.check_call(["git", "add", "roles2"], cwd=workspace)
+    subprocess.check_call(["git", "add", "integrated"], cwd=workspace)
     subprocess.check_call(["git", "commit", "-am", "patches"], cwd=workspace)
 
     # now lets make an update and see if patches are applied

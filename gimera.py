@@ -71,6 +71,7 @@ def _get_available_repos(ctx, param, incomplete):
 def apply(repos, update):
     return _apply(repos, update)
 
+
 def _apply(repos, update):
     config = load_config()
     main_repo = Repo(os.getcwd())
@@ -101,26 +102,33 @@ def _apply(repos, update):
             _update_integrated_module(main_repo, repo, update)
 
 
-def _make_patches(main_repo, repo):
+def _make_patches(main_repo, repo_yml):
+    import pudb
+
+    pudb.set_trace()
     changed_files = main_repo.filterout_submodules(main_repo.all_dirty_files)
     untracked_files = main_repo.filterout_submodules(main_repo.untracked_files)
     if not changed_files:
         return
 
     files_in_lines = "\n".join(map(str, sorted(changed_files)))
-    correct = inquirer.confirm(
-        f"Continue making patches for: {files_in_lines}", default=False
-    )
+    if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+        correct = True
+    else:
+        correct = inquirer.confirm(
+            f"Continue making patches for: {files_in_lines}", default=False
+        )
     if not correct:
         sys.exit(-1)
 
     to_reset = []
-    if repo["type"] == REPO_TYPE_INT:
+    if repo_yml["type"] == REPO_TYPE_INT:
         cwd = main_repo.working_dir
-    elif repo["type"] == REPO_TYPE_INT:
-        cwd = main_repo.working_dir / repo["path"]
+    elif repo_yml["type"] == REPO_TYPE_INT:
+        cwd = main_repo.working_dir / repo_yml["path"]
     else:
-        raise NotImplementedError(repo["type"])
+        raise NotImplementedError(repo_yml["type"])
+    repo = Repo(cwd)
     for untracked_file in untracked_files:
         # add with empty blob to index, appears like that then:
         """
@@ -130,34 +138,35 @@ def _make_patches(main_repo, repo):
                 modified:   roles2/sub1/file2.txt
                 new file:   roles2/sub1/file3.txt
         """
-        subprocess.check_call(["git", "add", "-N", untracked_file], cwd=cwd)
+        repo.X("git", "add", "-N", untracked_file)
         to_reset.append(untracked_file)
         del untracked_file
-    subprocess.check_call(
-        ["git", "add", str(Path(main_repo.working_dir) / repo["path"])], cwd=cwd
-    )
-    subprocess.check_call(["git", "commit", "-m", "for patch"], cwd=cwd)
 
-    patch_content = subprocess.check_output(
-        ["git", "format-patch", "HEAD~1", "--stdout", "--relative"],
-        encoding="utf-8",
-        cwd=str(Path(main_repo.working_dir) / repo["path"]),
-    )
-    subprocess.check_call(["git", "reset", "HEAD~1"], cwd=cwd)
+    import pudb
 
-    if not repo.get("patches"):
+    pudb.set_trace()
+    subdir_path = Path(main_repo.working_dir) / repo_yml["path"]
+    repo.X("git", "add", subdir_path)
+    repo.X("git", "commit", "-m", "for patch")
+
+    patch_content = Repo(subdir_path).out(
+        "git", "format-patch", "HEAD~1", "--stdout", "--relative"
+    )
+    repo.X("git", "reset", "HEAD~1")
+
+    if not repo_yml.get("patches"):
         _raise_error(
-            f"Please define at least one directory, where patches are stored for {repo['path']}"
+            f"Please define at least one directory, where patches are stored for {repo_yml['path']}"
         )
 
-    if len(repo["patches"]) == 1:
-        patch_dir = Path(repo["patches"][0])
+    if len(repo_yml["patches"]) == 1:
+        patch_dir = Path(repo_yml["patches"][0])
     else:
         questions = [
             inquirer.List(
                 "path",
                 message="Please choose a directory where to put the patch file.",
-                choices=["Type directory"] + repo["patches"],
+                choices=["Type directory"] + repo_yml["patches"],
             )
         ]
         answers = inquirer.prompt(questions)
@@ -178,7 +187,7 @@ def _make_patches(main_repo, repo):
     )
 
     for to_reset in to_reset:
-        subprocess.check_call(["git", "reset", to_reset], cwd=main_repo.working_dir)
+        main_repo.X("git", "reset", to_reset)
 
     # commit the patches - do NOT - could lie in submodule - is hard to do
     # subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
@@ -252,7 +261,9 @@ def _update_integrated_module(main_repo, repo_yml, update):
 
     # commit updated directories
     if list(_get_dirty_files(main_repo, repo_yml["path"], mode="all")):
-        subprocess.check_call(["git", "add", repo_yml["path"]], cwd=main_repo.working_dir)
+        subprocess.check_call(
+            ["git", "add", repo_yml["path"]], cwd=main_repo.working_dir
+        )
         subprocess.check_call(
             [
                 "git",
@@ -266,6 +277,7 @@ def _update_integrated_module(main_repo, repo_yml, update):
     repo.X("git", "reset", "--hard", f'origin/{repo_yml["branch"]}')
     if new_sha != sha:
         _store(main_repo, repo_yml, {"sha": new_sha})
+
 
 def _apply_merges(repo, repo_yml):
     if not repo_yml.get("merges"):
@@ -286,6 +298,7 @@ def _apply_merges(repo, repo_yml):
         repo.pull(remote, ref)
     for name, url in configured_remotes:
         repo.remove_remote(name)
+
 
 def _apply_patches(main_repo, repo_yml):
     for dir in repo_yml.get("patches", []) or []:
@@ -332,86 +345,76 @@ def _apply_patches(main_repo, repo_yml):
             except Exception as ex:
                 _raise_error(str(ex))
 
-def _commit_submodule_inside_clean_but_not_linked(main_repo_path, submodule_path):
+
+def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
     """
-    If the submodule is clean inside but is not committed, this module does that.
+    If the submodule is clean inside but is not committed to the parent
+    repository, this module does that.
     """
-    cmd_sub = GitCommands(submodule_path.relative_to(main_repo_path).absoulte())
-    if cmd_sub.dirty:
+    if subrepo.dirty:
         return False
 
-    # subprocess.check_output(
+    if not [
+        x
+        for x in main_repo.all_dirty_files
+        if x.absolute() == subrepo.path.absolute()
+    ]:
+        return
 
+    main_repo.X("git", "add", subrepo.path)
+    sha = subrepo.hex
+    import pudb;pudb.set_trace()
+    main_repo.X("git", "commit", "-m", (
+        f"gimera: updated submodule at {subrepo.path.relative_to(main_repo.path)} "
+        f"to latest version {sha}",
+    ))
 
-def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
-    path = Path(main_repo.working_dir) / repo["path"]
-    if list(_get_dirty_files(main_repo, repo["path"], mode="all")):
+def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
+    path = Path(main_repo.working_dir) / repo_yml["path"]
+    if not path.exists():
+        return
+    subrepo = main_repo.get_submodule(repo_yml["path"])
+    if subrepo.dirty:
         _raise_error(
-            f"Directory {repo['path']} contains modified files. Please commit or purge before!"
+            f"Directory {repo_yml['path']} contains modified "
+            "files. Please commit or purge before!"
         )
-    if repo.get("sha"):
-        sha = repo["sha"]
+    if sha := repo_yml.get("sha"):
         try:
             branches = list(
                 clean_branch_names(
-                    subprocess.check_output(
-                        ["git", "branch", "--contains", sha], cwd=path, encoding="utf-8"
-                    ).splitlines
+                    subrepo.out("git", "branch", "--contains", sha).splitlines()
                 )
             )
-        except:
+        except Exception:
             _raise_error(
-                f"SHA {sha} does not seem to belong to a branch at module {repo['path']}"
+                f"SHA {sha} does not seem to belong to a "
+                f"branch at module {repo_yml['path']}"
             )
 
-        if not [x for x in branches if repo["branch"] == x]:
+        if not [x for x in branches if repo_yml["branch"] == x]:
             _raise_error(
-                f"SHA {sha} does not exist on branch {repo['branch']} at repo {repo['path']}"
+                f"SHA {sha} does not exist on branch "
+                f"{repo_yml['branch']} at repo {repo_yml['path']}"
             )
-        subprocess.check_call(["git", "checkout", "-f", sha], cwd=path)
+        subrepo.X("git", "checkout", "-f", sha)
     else:
-        rc = subprocess.run(["git", "checkout", "-f", repo["branch"]], cwd=path)
-        if rc.returncode:
-            click.secho(rc.stderr, fc="red")
-            click.secho((f"Failed to checkout {repo['branch']} in {path}"), fg="red")
-            sys.exit(-1)
+        try:
+            subrepo.X("git", "checkout", "-f", repo_yml["branch"])
+        except Exception:
+            _raise_error(f"Failed to checkout {repo_yml['branch']} in {path}")
         else:
-            rc = subprocess.run(["git", "add", repo["path"]], cwd=main_repo.path)
-            if not rc.returncode:
-                rc = subprocess.run(
-                    ["git", "commit", "-m", (f"updated submodule {repo['path']}")],
-                    cwd=main_repo.path,
-                )
+            _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
-    subprocess.run(["git", "submodule", "update", "--init", "--recursive"], cwd=path)
+    subrepo.X("git", "submodule", "update", "--init", "--recursive")
+    _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
     # check if sha collides with branch
-    subprocess.check_call(["git", "clean", "-xdff"], cwd=path)
-    if not repo.get("sha") or update:
-        subprocess.check_call(["git", "checkout", repo["branch"]], cwd=path)
-        subprocess.check_call(["git", "pull"], cwd=path)
-        diff = subprocess.check_output(
-            ["git", "diff", "--name-only"], cwd=main_repo.path
-        ).splitlines()
-        if [x for x in diff if x == str(path.relative_to(main_repo.path))]:
-            import pudb
-
-            pudb.set_trace()
-            subprocess.check_call(["git", "add", repo["path"]], cwd=main_repo.path)
-            sha = (
-                subprocess.check_output(["git", "log", "-n1", "--format=%H"], cwd=path)
-                .strip()
-                .decode("utf-8")
-            )
-            subprocess.check_call(
-                [
-                    "git",
-                    "commit",
-                    "-m",
-                    f"gimera: updated submodule at {repo['path']} to latest version {repo['branch']} {sha}",
-                ],
-                cwd=main_repo.path,
-            )
+    subrepo.X("git", "clean", "-xdff")
+    if not repo_yml.get("sha") or update:
+        subrepo.X("git", "checkout", repo_yml["branch"])
+        subrepo.pull()
+        _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
 
 def clean_branch_names(arr):
