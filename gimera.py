@@ -9,6 +9,7 @@ import yaml
 import sys
 import subprocess
 from pathlib import Path
+from .gitcommands import GitCommands
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -454,7 +455,16 @@ def _update_integrated_module(main_repo, repo, update):
     if new_sha != sha:
         _store(main_repo, repo, {"sha": new_sha})
 
-def _check_submodule_dirty_and_commit(self):
+def _commit_submodule_inside_clean_but_not_linked(main_repo_path, submodule_path):
+    """
+    If the submodule is clean inside but is not committed, this module does that.
+    """
+    cmd_sub = GitCommands(submodule_path.relative_to(main_repo_path).absoulte())
+    if cmd_sub.is_dirty:
+        return False
+
+    # subprocess.check_output(
+
 
 def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     import pudb;pudb.set_trace()
@@ -664,7 +674,7 @@ def _ensure_existing_submodules(repo, repo_config):
 
 
 def _get_dirty_files(repo, path, mode="all"):
-    # initially used index diff but fucks up when uninintialized submodules exist
+    # initially used index diff but f***s up when uninintialized submodules exist
     assert mode in ["all", "untracked", "existing"]
     cwd = repo.working_dir / path
     if not cwd.exists():
