@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 import click
 import sys
 from curses import wrapper
@@ -27,8 +28,8 @@ def _strip_paths(paths):
 
 def safe_relative_to(path, path2):
     try:
-        Path(path).relative_to(path(path2))
-    except Exception:
+        Path(path).relative_to(path2)
+    except ValueError:
         return False
     else:
         return True

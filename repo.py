@@ -35,7 +35,10 @@ class Repo(GitCommands):
             splitted = line.strip().split("\t", 3)
             yield Submodule(self.path / splitted[-1], self.path)
 
-    def get_submodule(self, path):
+    def get_submodule(self, path, force=False):
+        if force:
+            return Submodule(self.path / path, self.path)
+
         for submodule in self._get_submodules():
             if str(submodule.path.relative_to(self.path)) == str(Path(path)):
                 return submodule

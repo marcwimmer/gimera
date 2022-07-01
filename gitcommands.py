@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from .tools import yieldlist, X
+from .tools import safe_relative_to, yieldlist, X
 
 
 class GitCommands(object):
@@ -23,8 +23,12 @@ class GitCommands(object):
             if path.startswith(".."):
                 continue
             path = Path(path.strip())
-            path = self.path / path
-            yield modifier, path
+            if parent_path := getattr(self, 'parent_path', None):
+                path = parent_path / path
+            else:
+                path = self.path / path
+            if safe_relative_to(path, self.path):
+                yield modifier, path
 
     @property
     @yieldlist
@@ -78,7 +82,7 @@ class GitCommands(object):
         self.X("git", "status")
 
     def get_all_branches(self):
-        return list(map(lambda x: x.strip(), self.O(
+        return list(map(lambda x: x.strip(), self.out(
             "git", "for-each-ref", "--format='%(refname:short)'", "refs/heads"
         ).splitlines()))
 

@@ -49,7 +49,7 @@ def clone_and_commit(repopath, branch):
     path = Path(tempfile.mktemp(suffix="."))
     if path.exists():
         shutil.rmtree(path)
-    subprocess.check_call(["git", "clone", repopath, path])
+    subprocess.check_call(["git", "clone", repopath, path], cwd=repopath)
     subprocess.check_call(["git", "checkout", branch], cwd=path)
     try:
         yield path
@@ -116,7 +116,6 @@ def test_basicbehaviour(temppath, python):
         subprocess.check_call(["git", "add", "file2.txt"], cwd=repopath)
         subprocess.check_call(["git", "commit", "-am", "file2 added"], cwd=repopath)
 
-    import pudb;pudb.set_trace()
     os.chdir(workspace)
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     gimera_apply([], update=True)
@@ -128,7 +127,9 @@ def test_basicbehaviour(temppath, python):
     # check dirty - disabled because the command is_path_dirty is not cool
     (workspace / "integrated" / "sub1" / "file2.txt").write_text("a change!")
     (workspace / "integrated" / "sub1" / "file3.txt").write_text("a new file!")
-    (workspace / "file4.txt").write_text("a new file!")
+    (workspace / "file4.txt").write_text(
+        "a new file!"
+    )  # should not stop the process but should not be committed
 
     # now lets make a patch
     os.chdir(workspace)
@@ -137,12 +138,23 @@ def test_basicbehaviour(temppath, python):
     subprocess.check_call(["git", "commit", "-am", "patches"], cwd=workspace)
 
     # now lets make an update and see if patches are applied
-    (remote_sub_repo / "file5.txt").write_text("I am no 5")
-    subprocess.check_call(["git", "add", "file5.txt"], cwd=remote_sub_repo)
-    subprocess.check_call(["git", "commit", "-am", "file5 added"], cwd=remote_sub_repo)
+    with clone_and_commit(remote_sub_repo, "branch1") as repopath:
+        (repopath / "file5.txt").write_text("This is a new function")
+        subprocess.check_call(["git", "add", "file5.txt"], cwd=repopath)
+        subprocess.check_call(["git", "commit", "-am", "file5 added"], cwd=repopath)
+
     # should apply patches now
-    subprocess.check_call(
-        ["python3", current_dir.parent / "gimera.py", "apply"], cwd=workspace
+    os.chdir(workspace)
+    gimera_apply([], update=False)
+
+    # check if test is applied
+    assert "file4.txt" in [x.name for x in Repo(workspace).untracked_files]
+    assert (workspace / "integrated" / "sub1" / "file3.txt").exists()
+    assert (
+        "a change"
+        in (
+            (workspace / "integrated" / "sub1" / "file3.txt").parent / "file2.txt"
+        ).read_text()
     )
 
 
@@ -169,24 +181,22 @@ def _make_remote_repo(path):
     return path
 
 
-def test_submodule_tree_dirty_files(temppath, python, gimera):
+def test_submodule_tree_dirty_files(temppath, python):
     """
     * put same repo integrated and submodule into main repo
     * add file2.txt on remote
     * check after apply that file exists in both
     * make a patch in integrated version
     """
-    workspace = temppath / "workspace_git_basics"
+    workspace = temppath / "workspace_tree_dirty_files"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
 
     repo_main = _make_remote_repo(temppath / "mainrepo")
     repo_sub = _make_remote_repo(temppath / "sub1")
     repo_subsub = _make_remote_repo(temppath / "subsub1")
     repo_2 = _make_remote_repo(temppath / "repo2")
 
-    subprocess.check_output(
-        ["git", "clone", "file://" + str(repo_main), workspace.name],
-        cwd=workspace.parent,
-    )
     with clone_and_commit(repo_2, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(["git", "add", "file1.txt"], cwd=repopath)
@@ -213,8 +223,10 @@ def test_submodule_tree_dirty_files(temppath, python, gimera):
         )
         subprocess.check_call(["git", "commit", "-am", "file1 added"], cwd=repopath)
 
-    workspace_main = workspace / "main_working"
-    subprocess.check_call(["git", "clone", f"file://{repo_main}", workspace_main])
+    subprocess.check_output(
+        ["git", "clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace,
+    )
     subprocess.check_call(
         ["git", "submodule", "update", "--init", "--recursive"], cwd=workspace_main
     )
@@ -268,13 +280,15 @@ def test_submodule_tree_dirty_files(temppath, python, gimera):
     assert GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
 
-    assert GitCommands(workspace_main / "sub").is_submodule('subsub')
+    assert GitCommands(workspace_main / "sub").is_submodule("subsub")
 
-def test_cleanup_dirty_submodule(temppath, python, gimera):
+
+def test_cleanup_dirty_submodule(temppath, python):
     """
     make dirty submodule then repo.full_clean
     """
     workspace = temppath / "workspace_cleanup_dirty_submodule"
+    os.chdir(workspace.parent)
 
     repo_main = _make_remote_repo(temppath / "mainrepo")
     repo_sub = _make_remote_repo(temppath / "sub1")
@@ -313,8 +327,9 @@ def test_cleanup_dirty_submodule(temppath, python, gimera):
     assert (workspace_main / "sub" / "subsub" / "file1.txt").exists()
 
     # make dirty
-    (workspace_main / 'sub' / 'subsub' / 'file5.txt').write_text("data")
+    (workspace_main / "sub" / "subsub" / "file5.txt").write_text("data")
     Repo(workspace_main).full_clean()
+
 
 # def test_make_sure_gimera_starts_only_if_no_stage_exists():
 #     raise NotImplementedError()

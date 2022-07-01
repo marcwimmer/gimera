@@ -103,11 +103,12 @@ def _apply(repos, update):
 
 
 def _make_patches(main_repo, repo_yml):
-    import pudb
-
-    pudb.set_trace()
-    changed_files = main_repo.filterout_submodules(main_repo.all_dirty_files)
-    untracked_files = main_repo.filterout_submodules(main_repo.untracked_files)
+    subrepo_path = main_repo.path / repo_yml['path']
+    if not subrepo_path.exists():
+        return
+    subrepo = main_repo.get_submodule(repo_yml['path'], force=True)
+    changed_files = subrepo.filterout_submodules(subrepo.all_dirty_files)
+    untracked_files = subrepo.filterout_submodules(subrepo.untracked_files)
     if not changed_files:
         return
 
@@ -142,9 +143,6 @@ def _make_patches(main_repo, repo_yml):
         to_reset.append(untracked_file)
         del untracked_file
 
-    import pudb
-
-    pudb.set_trace()
     subdir_path = Path(main_repo.working_dir) / repo_yml["path"]
     repo.X("git", "add", subdir_path)
     repo.X("git", "commit", "-m", "for patch")
@@ -355,19 +353,22 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
         return False
 
     if not [
-        x
-        for x in main_repo.all_dirty_files
-        if x.absolute() == subrepo.path.absolute()
+        x for x in main_repo.all_dirty_files if x.absolute() == subrepo.path.absolute()
     ]:
         return
 
     main_repo.X("git", "add", subrepo.path)
     sha = subrepo.hex
-    import pudb;pudb.set_trace()
-    main_repo.X("git", "commit", "-m", (
-        f"gimera: updated submodule at {subrepo.path.relative_to(main_repo.path)} "
-        f"to latest version {sha}",
-    ))
+    main_repo.X(
+        "git",
+        "commit",
+        "-m",
+        (
+            f"gimera: updated submodule at {subrepo.path.relative_to(main_repo.path)} "
+            f"to latest version {sha}"
+        ),
+    )
+
 
 def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
     path = Path(main_repo.working_dir) / repo_yml["path"]
