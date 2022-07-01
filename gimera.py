@@ -12,6 +12,7 @@ from .gitcommands import GitCommands
 from .tools import X, _raise_error, _strip_paths
 from .repo import Repo
 from .gitcommands import GitCommands
+from .tools import _raise_error
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -68,6 +69,9 @@ def _get_available_repos(ctx, param, incomplete):
     help="If set, then latest versions are pulled from remotes.",
 )
 def apply(repos, update):
+    return _apply(repos, update)
+
+def _apply(repos, update):
     config = load_config()
     main_repo = Repo(os.getcwd())
     repos = list(_strip_paths(repos))
@@ -201,7 +205,7 @@ def _update_integrated_module(main_repo, repo_yml, update):
                 f"Caching the repository {repo_yml['url']} for quicker reuse",
                 fg="yellow",
             )
-            Repo().X("git", "clone", url, path)
+            Repo(main_repo.path).X("git", "clone", url, path)
         return path
 
     # use a cache directory for pulling the repository and updating it
@@ -210,54 +214,26 @@ def _update_integrated_module(main_repo, repo_yml, update):
         _raise_error(f"No R/W rights on {local_repo_dir}")
     repo = Repo(local_repo_dir)
     repo.fetch()
-    repo.X("git", "checkout", "-f", str(repo["branch"]))
+    repo.X("git", "checkout", "-f", str(repo_yml["branch"]))
     repo.X("git", "clean", "-xdff")
     repo.pull()
 
-    sha = repo.get("sha")
+    sha = repo_yml.get("sha")
     if not update and sha:
-        branches = list(
-            filter(
-                bool,
-                map(
-                    lambda x: x.strip().replace("* ", ""),
-                    subprocess.check_output(
-                        ["git", "branch", "--no-color", "--contains", sha],
-                        cwd=local_repo_dir,
-                        encoding="utf-8",
-                    ).splitlines(),
-                ),
-            )
-        )
-        if repo["branch"] not in branches:
-            subprocess.check_call(["git", "pull"], cwd=local_repo_dir)
-            _store(main_repo, repo, {"sha": None})
+        branches = repo.get_all_branches()
+        if repo_yml["branch"] not in branches:
+            repo.pull()
+            _store(main_repo, repo_yml, {"sha": None})
         else:
             subprocess.check_call(
                 ["git", "config", "advice.detachedHead", "false"], cwd=local_repo_dir
             )
-            subprocess.check_call(["git", "checkout", "-f", sha], cwd=local_repo_dir)
+            repo.checkout(sha, force=True)
 
     new_sha = repo.hex
-    if repo.get("merges"):
-        repo_remotes = dict((x.name, x) for x in repo.remotes)
-        configured_remotes = repo.get("remotes", [])
-        if configured_remotes:
-            for name, url in configured_remotes:
-                if url == repo_remotes.get(name).url:
-                    continue
-                if name in repo_remotes:
-                    repo.remove_remote(name)
-                repo.add_remote(name, url)
+    _apply_merges(repo, repo_yml)
 
-        for remote, ref in repo["merge"]:
-            repo.fetch(remote, ref)
-        for remote, ref in repo["merges"]:
-            repo.pull(remote, ref)
-        for name, url in configured_remotes:
-            repo.remove_remote(name)
-
-    dest_path = Path(main_repo.working_dir) / repo["path"]
+    dest_path = Path(main_repo.path) / repo_yml["path"]
     dest_path.parent.mkdir(exist_ok=True, parents=True)
     subprocess.check_call(
         [
@@ -272,8 +248,50 @@ def _update_integrated_module(main_repo, repo_yml, update):
     )
 
     # apply patches:
-    for dir in repo.get("patches", []) or []:
-        dir = Path(main_repo.working_dir) / dir
+    _apply_patches(main_repo, repo_yml)
+
+    # commit updated directories
+    if list(_get_dirty_files(main_repo, repo_yml["path"], mode="all")):
+        subprocess.check_call(["git", "add", repo_yml["path"]], cwd=main_repo.working_dir)
+        subprocess.check_call(
+            [
+                "git",
+                "commit",
+                "-m",
+                f'updated {REPO_TYPE_INT} submodule: {repo_yml["path"]}',
+            ],
+            cwd=main_repo.working_dir,
+        )
+
+    repo.X("git", "reset", "--hard", f'origin/{repo_yml["branch"]}')
+    if new_sha != sha:
+        _store(main_repo, repo_yml, {"sha": new_sha})
+
+def _apply_merges(repo, repo_yml):
+    if not repo_yml.get("merges"):
+        return
+    repo_remotes = dict((x.name, x) for x in repo.remotes)
+    configured_remotes = repo_yml.get("remotes", [])
+    if configured_remotes:
+        for name, url in configured_remotes:
+            if url == repo_remotes.get(name).url:
+                continue
+            if name in repo_remotes:
+                repo.remove_remote(name)
+            repo.add_remote(name, url)
+
+    for remote, ref in repo["merge"]:
+        repo.fetch(remote, ref)
+    for remote, ref in repo["merges"]:
+        repo.pull(remote, ref)
+    for name, url in configured_remotes:
+        repo.remove_remote(name)
+
+def _apply_patches(main_repo, repo_yml):
+    for dir in repo_yml.get("patches", []) or []:
+        dir = main_repo.working_dir / dir
+        dir.relative_to(main_repo.path)
+
         dir.mkdir(parents=True, exist_ok=True)
         for file in sorted(dir.rglob("*.patch")):
             click.secho(
@@ -281,7 +299,7 @@ def _update_integrated_module(main_repo, repo_yml, update):
             )
             # Git apply fails silently if applied within local repos
             try:
-                cwd = Path(main_repo.working_dir) / repo["path"]
+                cwd = Path(main_repo.working_dir) / repo_yml["path"]
                 output = subprocess.check_output(
                     ["patch", "-p1"],
                     input=file.read_text(),  # bytes().decode('utf-8'),
@@ -312,27 +330,7 @@ def _update_integrated_module(main_repo, repo_yml, update):
                 if not inquirer.confirm("Continue?", default=True):
                     sys.exit(-1)
             except Exception as ex:
-                click.secho(str(ex), fg="red")
-                sys.exit(-1)
-
-    if list(_get_dirty_files(main_repo, repo["path"], mode="all")):
-        subprocess.check_call(["git", "add", repo["path"]], cwd=main_repo.working_dir)
-        subprocess.check_call(
-            [
-                "git",
-                "commit",
-                "-m",
-                f'updated {REPO_TYPE_INT} submodule: {repo["path"]}',
-            ],
-            cwd=main_repo.working_dir,
-        )
-
-    subprocess.check_call(
-        ["git", "reset", "--hard", f'origin/{repo["branch"]}'], cwd=local_repo_dir
-    )
-    if new_sha != sha:
-        _store(main_repo, repo, {"sha": new_sha})
-
+                _raise_error(str(ex))
 
 def _commit_submodule_inside_clean_but_not_linked(main_repo_path, submodule_path):
     """
@@ -597,13 +595,22 @@ def _get_dirty_files(repo, path, mode="all"):
             yield from perhaps_yield(diff_path)
 
 
-def _make_sure_in_root():
-    path = Path(os.getcwd())
-    git_dir = path / ".git"
-    if not git_dir.exists():
-        _raise_error("Please go into the root of the git repository.")
+# def _make_sure_in_root():
+#     path = Path(os.getcwd())
+#     while len(path.parts) > 1:
+#         git_dir = path / ".git"
+#         if git_dir.exists():
+#             break
+#         path = path.parent
+
+#     if git_dir.exists():
+#         os.chdir(git_dir)
+#         return
+
+#     if not git_dir.exists():
+#         _raise_error("Please go into the root of the git repository.")
 
 
 if __name__ == "__main__":
-    _make_sure_in_root()
+    # _make_sure_in_root()
     gimera()

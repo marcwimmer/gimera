@@ -76,3 +76,8 @@ class GitCommands(object):
 
     def output_status(self):
         self.X("git", "status")
+
+    def get_all_branches(self):
+        return list(map(lambda x: x.strip(), self.O(
+            "git", "for-each-ref", "--format='%(refname:short)'", "refs/heads"
+        ).splitlines()))

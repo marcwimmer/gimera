@@ -45,7 +45,7 @@ class Repo(GitCommands):
         )
         for line in submodules:
             splitted = line.strip().split("\t", 3)
-            yield Repo.Submodule(splitted[-1])
+            yield Submodule(self.path / splitted[-1], self.path)
 
     def get_submodules(self):
         return list(self._get_submodules())
@@ -91,9 +91,9 @@ class Remote(object):
 
 class Submodule(Repo):
     def __init__(self, path, parent_path):
-        self.path = path
-        self.parent_path = parent_path
-        assert path.relative_to(parent_path)
+        self.path = Path(path)
+        self.parent_path = Path(parent_path)
+        assert self.path.relative_to(self.parent_path)
 
     def __repr__(self):
         return f"{self.path}"
@@ -102,8 +102,12 @@ class Submodule(Repo):
         return f"{self.path}"
 
     def equals(self, other):
+        relpath = str(self.path.relative_to(self.parent_path))
         if isinstance(other, str):
-            return str(self.path) == other
+            return relpath == other
         if isinstance(other, Path):
             return self.path.absolute() == other.path.absolute()
         raise NotImplementedError(other)
+
+    def checkout(self, ref, force=False):
+        self.X("git", "checkout", "-f" if force else None, ref)

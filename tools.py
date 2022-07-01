@@ -10,8 +10,6 @@ def yieldlist(method):
     return wrapper
 
 def X(*params, output=False, cwd=None):
-    if 'checkout' in params:
-        import pudb;pudb.set_trace()
     params = list(filter(lambda x: x is not None, list(params)))
     if output:
         return subprocess.check_output(params, encoding="utf-8", cwd=cwd).strip()

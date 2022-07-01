@@ -13,6 +13,7 @@ import inspect
 import os
 from pathlib import Path
 import pytest
+from ..gimera import _apply as gimera_apply
 
 current_dir = Path(
     os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -22,11 +23,6 @@ current_dir = Path(
 @pytest.fixture(autouse=True)
 def python():
     return sys.executable
-
-
-@pytest.fixture(autouse=True)
-def gimera():
-    return [sys.executable, current_dir.parent / "gimera.py"]
 
 
 @pytest.fixture(autouse=True)
@@ -64,14 +60,13 @@ def clone_and_commit(repopath, branch):
         shutil.rmtree(path)
 
 
-def test_basicbehaviour(temppath, python, gimera):
+def test_basicbehaviour(temppath, python):
     """
     * put same repo integrated and submodule into main repo
     * add file2.txt on remote
     * check after apply that file exists in both
     * make a patch in integrated version
     """
-    return  # TODO undo
     workspace = temppath / "workspace"
 
     remote_main_repo = _make_remote_repo(temppath / "mainrepo")
@@ -107,26 +102,22 @@ def test_basicbehaviour(temppath, python, gimera):
     subprocess.check_call(["git", "add", "gimera.yml"], cwd=workspace)
     subprocess.check_call(["git", "commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(["git", "push"], cwd=workspace)
-    import pudb
-
-    pudb.set_trace()
-    subprocess.check_call(gimera + ["apply"], cwd=workspace)
+    os.chdir(workspace)
+    gimera_apply([], None)
     subprocess.check_call(["git", "add", "gimera.yml"], cwd=workspace)
     subprocess.check_call(["git", "commit", "-am", "updated gimera"], cwd=workspace)
 
     click.secho(
         "Now we have a repo with two subrepos; now we update the subrepos and pull"
     )
-    import pudb
-
-    pudb.set_trace()
 
     with clone_and_commit(remote_sub_repo, "branch1") as repopath:
         (repopath / "file2.txt").write_text("This is a new function")
         subprocess.check_call(["git", "add", "file2.txt"], cwd=repopath)
         subprocess.check_call(["git", "commit", "-am", "file2 added"], cwd=repopath)
 
-    subprocess.check_call(gimera + ["apply", "--update"], cwd=workspace)
+    os.chdir(workspace)
+    gimera_apply([], update=True)
 
     click.secho(str(workspace), fg="green")
     assert (workspace / "roles" / "sub1" / "file2.txt").exists()
@@ -328,5 +319,8 @@ def test_cleanup_dirty_submodule(temppath, python, gimera):
 
     # make dirty
     (workspace_main / 'sub' / 'subsub' / 'file5.txt').write_text("data")
-    import pudb;pudb.set_trace()
     Repo(workspace_main).full_clean()
+
+# def test_make_sure_gimera_starts_only_if_no_stage_exists():
+#     raise NotImplementedError()
+#     # and in sub sub submodules nothing should be dirty
