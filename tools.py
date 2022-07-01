@@ -24,3 +24,11 @@ def _strip_paths(paths):
         if x.endswith("/"):
             x = x[:-1]
         yield x
+
+def safe_relative_to(path, path2):
+    try:
+        Path(path).relative_to(path(path2))
+    except Exception:
+        return False
+    else:
+        return True

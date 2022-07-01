@@ -124,20 +124,13 @@ def test_basicbehaviour(temppath, python):
     assert (workspace / "roles2" / "sub1" / "file2.txt").exists()
 
     # check dirty - disabled because the command is_path_dirty is not cool
-    os.environ["GIMERA_DEBUG"] = "1"
     (workspace / "roles2" / "sub1" / "file2.txt").write_text("a change!")
     (workspace / "roles2" / "sub1" / "file3.txt").write_text("a new file!")
     (workspace / "file4.txt").write_text("a new file!")
-    test = subprocess.check_output(
-        ["python3", current_dir.parent / "gimera.py", "is_path_dirty", "roles2/sub1"],
-        cwd=workspace,
-    ).decode("utf-8")
-    assert "file2.txt" in test
-    assert "file3.txt" in test
-    assert "file4.txt" not in test
 
     # now lets make a patch
-    subprocess.check_call(gimera + ["apply", "--update"], cwd=workspace)
+    os.chdir(workspace)
+    gimera_apply([], update=True)
     subprocess.check_call(["git", "add", "roles2"], cwd=workspace)
     subprocess.check_call(["git", "commit", "-am", "patches"], cwd=workspace)
 

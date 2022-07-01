@@ -102,21 +102,10 @@ def _apply(repos, update):
 
 
 def _make_patches(main_repo, repo):
-    changed_files = main_repo.all_dirty_files
-    untracked_files = main_repo.untracked_files
+    changed_files = main_repo.filterout_submodules(main_repo.all_dirty_files)
+    untracked_files = main_repo.filterout_submodules(main_repo.untracked_files)
     if not changed_files:
         return
-
-    # avoid handling of a submodule
-    import pudb;pudb.set_trace()
-    for submodule in main_repo.get_submodules():
-        for file in changed_files:
-            try:
-                file.relative_to(submodule.path)
-            except Exception:
-                pass
-            else:
-                _raise_error("There mustnt be changed file in submodule like: {file}")
 
     files_in_lines = "\n".join(map(str, sorted(changed_files)))
     correct = inquirer.confirm(

@@ -1,7 +1,7 @@
 import subprocess
 from .gitcommands import GitCommands
 from pathlib import Path
-from .tools import yieldlist, X
+from .tools import yieldlist, X, safe_relative_to
 
 class Repo(GitCommands):
 
@@ -69,6 +69,16 @@ class Repo(GitCommands):
                     )
                 )
         return result
+
+    @yieldlist
+    def filterout_submodules(self, filelist):
+        submodules = self.get_submodules()
+        for file in filelist:
+            for submodule in submodules:
+                if safe_relative_to(file, submodule.path):
+                    break
+            else:
+                yield file
 
 
 class Remote(object):
