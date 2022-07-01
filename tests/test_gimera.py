@@ -40,6 +40,7 @@ def temppath():
         if path.exists():
             shutil.rmtree(path)
 
+
 @pytest.fixture(autouse=True)
 def cleangimera_cache():
     cache_dir = Path(os.path.expanduser("~")) / ".cache/gimera"
@@ -48,20 +49,28 @@ def cleangimera_cache():
 
 
 @contextmanager
-def clone_and_commit(repopath):
-    path = Path(tempfile.mktemp(suffix='.'))
+def clone_and_commit(repopath, branch):
+    path = Path(tempfile.mktemp(suffix="."))
     if path.exists():
         shutil.rmtree(path)
     subprocess.check_call(["git", "clone", repopath, path])
+    subprocess.check_call(["git", "checkout", branch], cwd=path)
     try:
         yield path
-        branchname = subprocess.check_output(["git", "branch", "--show-current"]).strip()
-        subprocess.check_call(["git", "push", "--set-upstream", "origin", branchname])
+        subprocess.check_call(
+            ["git", "push", "--set-upstream", "origin", branch], cwd=path
+        )
     finally:
         shutil.rmtree(path)
 
 
 def test_basicbehaviour(temppath, python, gimera):
+    """
+    * put same repo integrated and submodule into main repo
+    * add file2.txt on remote
+    * check after apply that file exists in both
+    * make a patch in integrated version
+    """
     workspace = temppath / "workspace"
 
     remote_main_repo = _make_remote_repo(temppath / "mainrepo")
@@ -104,8 +113,9 @@ def test_basicbehaviour(temppath, python, gimera):
     click.secho(
         "Now we have a repo with two subrepos; now we update the subrepos and pull"
     )
+    import pudb;pudb.set_trace()
 
-    with clone_and_commit(remote_sub_repo) as repopath:
+    with clone_and_commit(remote_sub_repo, "branch1") as repopath:
         (repopath / "file2.txt").write_text("This is a new function")
         subprocess.check_call(["git", "add", "file2.txt"], cwd=repopath)
         subprocess.check_call(["git", "commit", "-am", "file2 added"], cwd=repopath)
@@ -130,9 +140,7 @@ def test_basicbehaviour(temppath, python, gimera):
     assert "file4.txt" not in test
 
     # now lets make a patch
-    subprocess.check_call(
-        gimera + ["apply", "--update"], cwd=workspace
-    )
+    subprocess.check_call(gimera + ["apply", "--update"], cwd=workspace)
     subprocess.check_call(["git", "add", "roles2"], cwd=workspace)
     subprocess.check_call(["git", "commit", "-am", "patches"], cwd=workspace)
 
@@ -150,7 +158,7 @@ def _make_remote_repo(path):
     path.mkdir(parents=True)
     subprocess.check_call(["git", "init", "--bare", "--initial-branch=main"], cwd=path)
 
-    tmp = path.parent / 'tmp'
+    tmp = path.parent / "tmp"
     subprocess.check_call(["git", "clone", f"file://{path}", tmp])
     (tmp / "file1.txt").write_text("random repo on main")
     subprocess.check_call(["git", "add", "file1.txt"], cwd=tmp)
@@ -161,7 +169,9 @@ def _make_remote_repo(path):
     (tmp / "file1.txt").write_text("random repo on branch1")
     subprocess.check_call(["git", "add", "file1.txt"], cwd=tmp)
     subprocess.check_call(["git", "commit", "-am", "on branch1"], cwd=tmp)
-    subprocess.check_call(["git", "push", "--set-upstream", "origin", "branch1"], cwd=tmp)
+    subprocess.check_call(
+        ["git", "push", "--set-upstream", "origin", "branch1"], cwd=tmp
+    )
 
     shutil.rmtree(tmp)
     return path

@@ -154,7 +154,7 @@ def apply(repos, update):
     for repo in config["repos"]:
         if repos and repo["path"] not in repos:
             continue
-        _apply_repo(main_repo, repo)
+        _ensure_existing_submodules(main_repo, repo)
         del repo
 
     for repo in config["repos"]:
@@ -454,8 +454,10 @@ def _update_integrated_module(main_repo, repo, update):
     if new_sha != sha:
         _store(main_repo, repo, {"sha": new_sha})
 
+def _check_submodule_dirty_and_commit(self):
 
 def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
+    import pudb;pudb.set_trace()
     path = Path(main_repo.working_dir) / repo["path"]
     if list(_get_dirty_files(main_repo, repo["path"], mode="all")):
         _raise_error(
@@ -502,6 +504,24 @@ def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     if not repo.get("sha") or update:
         subprocess.check_call(["git", "checkout", repo["branch"]], cwd=path)
         subprocess.check_call(["git", "pull"], cwd=path)
+        diff = subprocess.check_output(["git", "diff", "--name-only"], cwd=main_repo.path).splitlines()
+        if [x for x in diff if x == str(path.relative_to(main_repo.path))]:
+            import pudb;pudb.set_trace()
+            subprocess.check_call(["git", "add", repo["path"]], cwd=main_repo.path)
+            sha = (
+                subprocess.check_output(["git", "log", "-n1", "--format=%H"], cwd=path)
+                .strip()
+                .decode("utf-8")
+            )
+            subprocess.check_call(
+                [
+                    "git",
+                    "commit",
+                    "-m",
+                    f"gimera: updated submodule at {repo['path']} to latest version {repo['branch']} {sha}",
+                ],
+                cwd=main_repo.path,
+            )
 
 
 def clean_branch_names(arr):
@@ -622,7 +642,7 @@ class Submodule(object):
         self.path = path
 
 
-def _apply_repo(repo, repo_config):
+def _ensure_existing_submodules(repo, repo_config):
     """
     makes sure that git submodules exist for the repo
     """
