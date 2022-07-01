@@ -337,3 +337,6 @@ def test_cleanup_dirty_submodule(temppath, python):
 
 # def test_check_that_not_patch_possible_at_changed_submodule(temppath, python, gimera):
 #     pass
+
+
+# def test_switch_submodule_to_integrated_and_sub()
