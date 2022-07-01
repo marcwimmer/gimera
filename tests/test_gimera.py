@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import yaml
+from contextlib import contextmanager
 from git import Repo
 import os
 import subprocess
@@ -39,6 +40,26 @@ def temppath():
         if path.exists():
             shutil.rmtree(path)
 
+@pytest.fixture(autouse=True)
+def cleangimera_cache():
+    cache_dir = Path(os.path.expanduser("~")) / ".cache/gimera"
+    if cache_dir.exists():
+        shutil.rmtree(cache_dir)
+
+
+@contextmanager
+def clone_and_commit(repopath):
+    path = Path(tempfile.mktemp(suffix='.'))
+    if path.exists():
+        shutil.rmtree(path)
+    subprocess.check_call(["git", "clone", repopath, path])
+    try:
+        yield path
+        branchname = subprocess.check_output(["git", "branch", "--show-current"]).strip()
+        subprocess.check_call(["git", "push", "--set-upstream", "origin", branchname])
+    finally:
+        shutil.rmtree(path)
+
 
 def test_basicbehaviour(temppath, python, gimera):
     workspace = temppath / "workspace"
@@ -76,34 +97,33 @@ def test_basicbehaviour(temppath, python, gimera):
     subprocess.check_call(["git", "add", "gimera.yml"], cwd=workspace)
     subprocess.check_call(["git", "commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(["git", "push"], cwd=workspace)
-    import pudb;pudb.set_trace()
     subprocess.check_call(gimera + ["apply"], cwd=workspace)
-    subprocess.check_call(["git", "add", "gimera.yml"])
-    subprocess.check_call(["git", "commit", "-am", "updated gimera"])
-    return
+    subprocess.check_call(["git", "add", "gimera.yml"], cwd=workspace)
+    subprocess.check_call(["git", "commit", "-am", "updated gimera"], cwd=workspace)
 
     click.secho(
         "Now we have a repo with two subrepos; now we update the subrepos and pull"
     )
-    (remote_sub_repo / "file2.txt").write_text("This is a new function")
-    subprocess.check_call(["git", "add", "file2.txt"], cwd=remote_sub_repo)
-    subprocess.check_call(["git", "commit", "-am", "file2 added"], cwd=remote_sub_repo)
-    import pudb;pudb.set_trace()
-    return
-    subprocess.check_call(gimera + ["apply", "--update"], cwd=path)
 
-    click.secho(str(path), fg="green")
-    assert (path / "roles" / "sub1" / "file2.txt").exists()
-    assert (path / "roles2" / "sub1" / "file2.txt").exists()
+    with clone_and_commit(remote_sub_repo) as repopath:
+        (repopath / "file2.txt").write_text("This is a new function")
+        subprocess.check_call(["git", "add", "file2.txt"], cwd=repopath)
+        subprocess.check_call(["git", "commit", "-am", "file2 added"], cwd=repopath)
+
+    subprocess.check_call(gimera + ["apply", "--update"], cwd=workspace)
+
+    click.secho(str(workspace), fg="green")
+    assert (workspace / "roles" / "sub1" / "file2.txt").exists()
+    assert (workspace / "roles2" / "sub1" / "file2.txt").exists()
 
     # check dirty - disabled because the command is_path_dirty is not cool
     os.environ["GIMERA_DEBUG"] = "1"
-    (path / "roles2" / "sub1" / "file2.txt").write_text("a change!")
-    (path / "roles2" / "sub1" / "file3.txt").write_text("a new file!")
-    (path / "file4.txt").write_text("a new file!")
+    (workspace / "roles2" / "sub1" / "file2.txt").write_text("a change!")
+    (workspace / "roles2" / "sub1" / "file3.txt").write_text("a new file!")
+    (workspace / "file4.txt").write_text("a new file!")
     test = subprocess.check_output(
         ["python3", current_dir.parent / "gimera.py", "is_path_dirty", "roles2/sub1"],
-        cwd=path,
+        cwd=workspace,
     ).decode("utf-8")
     assert "file2.txt" in test
     assert "file3.txt" in test
@@ -111,10 +131,10 @@ def test_basicbehaviour(temppath, python, gimera):
 
     # now lets make a patch
     subprocess.check_call(
-        ["python3", current_dir.parent / "gimera.py", "apply", "--update"], cwd=path
+        gimera + ["apply", "--update"], cwd=workspace
     )
-    subprocess.check_call(["git", "add", "roles2"], cwd=path)
-    subprocess.check_call(["git", "commit", "-am", "patches"], cwd=path)
+    subprocess.check_call(["git", "add", "roles2"], cwd=workspace)
+    subprocess.check_call(["git", "commit", "-am", "patches"], cwd=workspace)
 
     # now lets make an update and see if patches are applied
     (remote_sub_repo / "file5.txt").write_text("I am no 5")
@@ -122,7 +142,7 @@ def test_basicbehaviour(temppath, python, gimera):
     subprocess.check_call(["git", "commit", "-am", "file5 added"], cwd=remote_sub_repo)
     # should apply patches now
     subprocess.check_call(
-        ["python3", current_dir.parent / "gimera.py", "apply"], cwd=path
+        ["python3", current_dir.parent / "gimera.py", "apply"], cwd=workspace
     )
 
 
