@@ -10,6 +10,7 @@ import sys
 import subprocess
 from pathlib import Path
 from .gitcommands import GitCommands
+from .tools import X
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"

@@ -1,6 +1,6 @@
 import subprocess
 from pathlib import Path
-from .tools import yieldlist
+from .tools import yieldlist, X
 
 
 class GitCommands(object):
@@ -9,12 +9,12 @@ class GitCommands(object):
 
     @property
     def is_dirty(self):
-        dirty = subprocess.check_output(["git", "status", "-s"], cwd=self.path).strip()
+        dirty = X("git", "status", "-s", cwd=self.path, output=True)
         return bool(dirty)
 
     def _parse_git_status(self):
-        for line in subprocess.check_output(
-            ["git", "status", "--porcelain"], encoding="utf8", cwd=self.path
+        for line in X(
+            "git", "status", "--porcelain", cwd=self.path, output=True
         ).splitlines():
             # splits: A  asdas
             #         ??  asasdasd
@@ -50,3 +50,19 @@ class GitCommands(object):
         for modifier, path in self._parse_git_status():
             if modifier == "??" or modifier == "A":
                 yield path
+
+    def is_submodule(self, path):
+        path = self._combine(path)
+        for line in X("git", "submodule", "status", output=True, cwd=self.path).splitlines():
+            line = line.strip()
+            _, _path, _ = line.split(" ", 2)
+            if _path == str(path.relative_to(self.path)):
+                return path
+
+    def _combine(self, path):
+        """
+        Makes a new path
+        """
+        path = self.path / path
+        path.relative_to(self.path)
+        return path

@@ -281,3 +281,5 @@ def test_submodule_tree_dirty_files(temppath, python, gimera):
     assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+
+    assert GitCommands(workspace_main / "sub").is_submodule('subsub')
