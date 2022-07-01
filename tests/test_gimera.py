@@ -183,7 +183,7 @@ def _make_remote_repo(path):
     return path
 
 
-def test_git_basics(temppath, python, gimera):
+def test_submodule_tree_dirty_files(temppath, python, gimera):
     """
     * put same repo integrated and submodule into main repo
     * add file2.txt on remote
@@ -195,7 +195,7 @@ def test_git_basics(temppath, python, gimera):
     repo_main = _make_remote_repo(temppath / "mainrepo")
     repo_sub = _make_remote_repo(temppath / "sub1")
     repo_subsub = _make_remote_repo(temppath / "subsub1")
-    repo_2 = _make_remote_repo(temppath / "subsub1")
+    repo_2 = _make_remote_repo(temppath / "repo2")
 
     subprocess.check_output(
         ["git", "clone", "file://" + str(repo_main), workspace.name],
@@ -227,37 +227,57 @@ def test_git_basics(temppath, python, gimera):
         )
         subprocess.check_call(["git", "commit", "-am", "file1 added"], cwd=repopath)
 
-    workspace_main = workspace / 'main_working'
+    workspace_main = workspace / "main_working"
     subprocess.check_call(["git", "clone", f"file://{repo_main}", workspace_main])
-    subprocess.check_call(["git", "submodule", "update", "--init", "--recursive"], cwd=workspace_main)
-    assert (workspace_main / 'sub' / 'subsub' / 'file1.txt').exists()
+    subprocess.check_call(
+        ["git", "submodule", "update", "--init", "--recursive"], cwd=workspace_main
+    )
+    assert (workspace_main / "sub" / "subsub" / "file1.txt").exists()
 
     from ..gitcommands import GitCommands
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').dirty_existing_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').untracked_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').all_dirty_files
-    (workspace_main / 'sub' / 'subsub' / 'newfile.txt').write_text("new")
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').dirty_existing_files
-    assert GitCommands(workspace_main / 'sub' / 'subsub').untracked_files
-    assert GitCommands(workspace_main / 'sub' / 'subsub').all_dirty_files
-    (workspace_main / 'sub' / 'subsub' / 'newfile.txt').unlink()
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').dirty_existing_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').untracked_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').all_dirty_files
-    (workspace_main / 'sub' / 'newfile.txt').write_text("new")
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').dirty_existing_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').untracked_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').all_dirty_files
-    (workspace_main / 'sub' / 'newfile.txt').unlink()
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').dirty_existing_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').untracked_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').all_dirty_files
-    (workspace_main / 'newfile.txt').write_text("new")
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').dirty_existing_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').untracked_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').all_dirty_files
-    (workspace_main / 'newfile.txt').unlink()
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').dirty_existing_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').untracked_files
-    assert not GitCommands(workspace_main / 'sub' / 'subsub').all_dirty_files
 
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+    (workspace_main / "sub" / "subsub" / "newfile.txt").write_text("new")
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+    assert GitCommands(workspace_main / "sub").dirty_existing_files
+    assert not GitCommands(workspace_main / "sub").untracked_files
+    assert GitCommands(workspace_main / "sub").all_dirty_files
+    assert GitCommands(workspace_main).dirty_existing_files
+    assert not GitCommands(workspace_main).untracked_files
+    assert GitCommands(workspace_main).all_dirty_files
+    (workspace_main / "sub" / "subsub" / "newfile.txt").unlink()
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+    (workspace_main / "sub" / "newfile.txt").write_text("new")
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+    assert GitCommands(workspace_main).dirty_existing_files
+    assert not GitCommands(workspace_main).untracked_files
+    assert GitCommands(workspace_main).all_dirty_files
+    (workspace_main / "sub" / "newfile.txt").unlink()
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+    (workspace_main / "newfile.txt").write_text("new")
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+    (workspace_main / "newfile.txt").unlink()
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
+
+    # make a submodule and check if marked as dirty
+    subprocess.check_call(
+        ["git", "submodule", "add", f"file://{repo_2}", "repo2"],
+        cwd=workspace_main / "sub" / "subsub",
+    )
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
+    assert GitCommands(workspace_main / "sub" / "subsub").untracked_files
+    assert GitCommands(workspace_main / "sub" / "subsub").all_dirty_files

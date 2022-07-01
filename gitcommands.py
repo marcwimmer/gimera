@@ -12,29 +12,32 @@ class GitCommands(object):
         dirty = subprocess.check_output(["git", "status", "-s"], cwd=self.path).strip()
         return bool(dirty)
 
+    def _parse_git_status(self):
+        for line in subprocess.check_output(
+            ["git", "status", "--porcelain"], encoding="utf8", cwd=self.path
+        ).splitlines():
+            # splits: A  asdas
+            #         ??  asasdasd
+            modifier, path = list(filter(bool, line.split(" ")))
+            if path.startswith(".."):
+                continue
+            path = Path(path.strip())
+            path = self.path / path
+            yield modifier, path
+
     @property
     @yieldlist
     def staged_files(self):
-        for file in subprocess.check_output(
-            ["git", "diff", "--name-only", "--cached"], cwd=self.path, encoding="utf-8"
-        ).splitlines():
-            file = self.path / file
-            file = file.relative_to(self.path)
-            if not file:
-                continue
-            yield file
+        for modifier, path in self._parse_git_status():
+            if modifier == "A":
+                yield path
 
     @property
     @yieldlist
     def dirty_existing_files(self):
-        for file in subprocess.check_output(
-            ["git", "diff", "--name-only"], cwd=self.path, encoding="utf-8"
-        ).splitlines():
-            file = self.path / file
-            file = file.relative_to(self.path)
-            if not file:
-                continue
-            yield file
+        for modifier, path in self._parse_git_status():
+            if modifier == "M":
+                yield path
 
     @property
     @yieldlist
@@ -44,11 +47,6 @@ class GitCommands(object):
     @property
     @yieldlist
     def untracked_files(self):
-        for file in subprocess.check_output(
-            ["git", "ls-files", "--others", "--exclude-standard", "."], cwd=self.path, encoding="utf-8"
-        ).splitlines():
-            file = self.path / file
-            file = file.relative_to(self.path)
-            if not file:
-                continue
-            yield file
+        for modifier, path in self._parse_git_status():
+            if modifier == "??" or modifier == "A":
+                yield path
