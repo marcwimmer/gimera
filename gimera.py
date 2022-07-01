@@ -102,10 +102,21 @@ def _apply(repos, update):
 
 
 def _make_patches(main_repo, repo):
-    changed_files = list(_get_dirty_files(main_repo, repo["path"], mode="all"))
-    untracked_files = list(_get_dirty_files(main_repo, repo["path"], mode="untracked"))
+    changed_files = main_repo.all_dirty_files
+    untracked_files = main_repo.untracked_files
     if not changed_files:
         return
+
+    # avoid handling of a submodule
+    import pudb;pudb.set_trace()
+    for submodule in main_repo.get_submodules():
+        for file in changed_files:
+            try:
+                file.relative_to(submodule.path)
+            except Exception:
+                pass
+            else:
+                _raise_error("There mustnt be changed file in submodule like: {file}")
 
     files_in_lines = "\n".join(map(str, sorted(changed_files)))
     correct = inquirer.confirm(
@@ -433,7 +444,7 @@ def _store(main_repo, repo, value):
     """
     Makes a commit of the changes.
     """
-    if main_repo.dirty:
+    if main_repo.staged_files:
         _raise_error("There mustnt be any staged files when updating gimera.yml")
 
     config_file = _get_config_file()

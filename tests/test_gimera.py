@@ -324,3 +324,6 @@ def test_cleanup_dirty_submodule(temppath, python, gimera):
 # def test_make_sure_gimera_starts_only_if_no_stage_exists():
 #     raise NotImplementedError()
 #     # and in sub sub submodules nothing should be dirty
+
+# def test_check_that_not_patch_possible_at_changed_submodule(temppath, python, gimera):
+#     pass
