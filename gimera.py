@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from ctypes.wintypes import PUSHORT
 import os
 from datetime import datetime
 import inquirer
@@ -10,75 +9,12 @@ import sys
 import subprocess
 from pathlib import Path
 from .gitcommands import GitCommands
-from .tools import X
+from .tools import X, _raise_error, _strip_paths
+from .repo import Repo
+from .gitcommands import GitCommands
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
-
-
-class Repo(object):
-    class Submodule(object):
-        def __init__(self, path):
-            assert not str(path).startswith("/")
-            self.path = Path(path)
-
-        def __repr__(self):
-            return f"{self.path}"
-
-        def __str__(self):
-            return f"{self.path}"
-
-        def equals(self, other):
-            if isinstance(other, str):
-                return str(self.path) == other
-            if isinstance(other, Path):
-                return self.path.absolute() == other.path.absolute()
-            raise NotImplementedError(other)
-
-    def __init__(self, path):
-        self.path = Path(path)
-        self.working_dir = Path(path)
-
-    def __repr__(self):
-        return f"{self.path}"
-
-    def __str__(self):
-        return f"{self.path}"
-
-    @property
-    def dirty(self):
-        status = (
-            subprocess.check_output(
-                ["git", "status", "-s"], encoding="utf-8", cwd=self.path
-            )
-            .strip()
-            .splitlines()
-        )
-        status = [x for x in status if "gimera.yml" not in x]
-        return bool(status)
-
-    @property
-    def hex(self):
-        hex = subprocess.check_output(
-            ["git", "log", "-n", "1", "--pretty=%H"], encoding="utf-8", cwd=self.path
-        ).strip()
-        if hex:
-            return hex.strip()
-
-    def _get_submodules(self):
-        submodules = (
-            subprocess.check_output(
-                ["git", "submodule--helper", "list"], encoding="utf-8", cwd=self.path
-            )
-            .strip()
-            .splitlines()
-        )
-        for line in submodules:
-            splitted = line.strip().split("\t", 3)
-            yield Repo.Submodule(splitted[-1])
-
-    def get_submodules(self):
-        return list(self._get_submodules())
 
 
 @click.group()
@@ -86,27 +22,21 @@ def gimera():
     pass
 
 
-def _raise_error(msg):
-    click.secho(msg, fg="red")
-    sys.exit(-1)
-
-
 @gimera.command(name="clean", help="Removes all dirty")
 def clean():
-    changes = subprocess.check_output(["git", "status", "-s"], encoding="utf8").strip()
-    if not changes:
+    Cmd = GitCommands()
+    if not Cmd.dirty:
         click.secho("Everything already clean!", fg="green")
         return
-    subprocess.check_call(["git", "status"])
+    Cmd.output_status()
     doit = inquirer.confirm(
         f"Continue cleaning? All local changes are lost.", default=True
     )
     if not doit:
         return
-    subprocess.check_call(["git", "checkout", "-f"])
-    subprocess.check_call(["git", "clean", "-xdff"])
+    Repo(Cmd.path).full_clean()
     click.secho("Cleaning done.", fg="green")
-    subprocess.check_call(["git", "status"])
+    Cmd.output_status()
 
 
 @gimera.command(name="combine-patch", help="Combine patches")
@@ -127,13 +57,6 @@ def _get_available_repos(ctx, param, incomplete):
                 continue
         repos.append(repo["path"])
     return sorted(repos)
-
-
-def _strip_paths(paths):
-    for x in paths:
-        if x.endswith("/"):
-            x = x[:-1]
-        yield x
 
 
 @gimera.command(name="apply", help="Applies configuration from gimera.yml")
@@ -259,94 +182,37 @@ def _make_patches(main_repo, repo):
     # subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
 
 
-def _get_remotes(repo_dir):
-    lines = subprocess.check_output(
-        ["git", "remote", "-v"], encoding="utf-8", cwd=repo_dir
-    ).splitlines()
-    remotes = {}
-    for line in lines:
-        line = line
-        name, url = line.split("\t")
-        url = url.split(" ")[0]
-        v = remotes.setdefault(name, url)
-        if v != url:
-            raise NotImplementedError(
-                "Different urls gor push and fetch for remote %s\n"
-                "%s != %s" % (name, url, v)
-            )
-    return remotes
-
-
-def _add_remotes(remotes, repo_dir):
-    if not remotes:
-        return
-    _remotes = _get_remotes(repo_dir)
-    for name, url in remotes:
-        _add_remote(name, url, _remotes, repo_dir)
-
-
-def _add_remote(name, url, remotes, repo_dir):
-    existing_url = remotes.get(name)
-    if existing_url == url:
-        return
-
-    if not existing_url:
-        subprocess.check_call(["git", "remote", "add", name, url], cwd=repo_dir)
-    else:
-        _remove_remote(name, repo_dir)
-        subprocess.check_call(["git", "remote", "add", name, url], cwd=repo_dir)
-
-
-def _fetch_remotes(remotes, merges, repo_dir):
-    for remote, ref in merges:
-        subprocess.check_call(["git", "fetch", remote, ref], cwd=repo_dir)
-
-
-def _remove_remote(name, repo_dir):
-    subprocess.check_call(["git", "remote", "rm", name], cwd=repo_dir)
-
-
-def _remove_remotes(remotes, repo_dir):
-    for name, url in remotes:
-        _remove_remote(name, repo_dir)
-
-
-def _merge(merges, repo_dir):
-    for remote, ref in merges:
-        subprocess.check_call(["git", "pull", "--no-edit", remote, ref], cwd=repo_dir)
-
-
-def _update_integrated_module(main_repo, repo, update):
+def _update_integrated_module(main_repo, repo_yml, update):
     """
     Put contents of a git repository inside the main repository.
     """
 
     def _get_cache_dir():
-        if not repo.get("url"):
+        url = repo_yml.get("url")
+        if not url:
             click.secho(f"Missing url: {json.dumps(repo, indent=4)}")
             sys.exit(-1)
-        path = Path(os.path.expanduser("~/.cache/gimera")) / repo["url"].replace(
+        path = Path(os.path.expanduser("~/.cache/gimera")) / url.replace(
             ":", "_"
         ).replace("/", "_")
         path.parent.mkdir(exist_ok=True, parents=True)
         if not path.exists():
             click.secho(
-                f"Caching the repository {repo['url']} for quicker reuse", fg="yellow"
+                f"Caching the repository {repo_yml['url']} for quicker reuse",
+                fg="yellow",
             )
-            subprocess.check_call(["git", "clone", repo["url"], path])
+            Repo().X("git", "clone", url, path)
         return path
 
     # use a cache directory for pulling the repository and updating it
     local_repo_dir = _get_cache_dir()
     if not os.access(local_repo_dir, os.W_OK):
         _raise_error(f"No R/W rights on {local_repo_dir}")
-
-    subprocess.check_call(["git", "fetch"], cwd=local_repo_dir)
-    subprocess.check_call(
-        ["git", "checkout", "-f", str(repo["branch"])], cwd=local_repo_dir
-    )
-    subprocess.check_call(["git", "clean", "-xdff"], cwd=local_repo_dir)
-    subprocess.check_call(["git", "pull"], cwd=local_repo_dir)
+    repo = Repo(local_repo_dir)
+    repo.fetch()
+    repo.X("git", "checkout", "-f", str(repo["branch"]))
+    repo.X("git", "clean", "-xdff")
+    repo.pull()
 
     sha = repo.get("sha")
     if not update and sha:
@@ -372,13 +238,24 @@ def _update_integrated_module(main_repo, repo, update):
             )
             subprocess.check_call(["git", "checkout", "-f", sha], cwd=local_repo_dir)
 
-    new_sha = Repo(local_repo_dir).hex
+    new_sha = repo.hex
     if repo.get("merges"):
-        remotes = repo.get("remotes", [])
-        _add_remotes(remotes, local_repo_dir)
-        _fetch_remotes(remotes, repo["merges"], local_repo_dir)
-        _merge(repo["merges"], local_repo_dir)
-        _remove_remotes(remotes, local_repo_dir)
+        repo_remotes = dict((x.name, x) for x in repo.remotes)
+        configured_remotes = repo.get("remotes", [])
+        if configured_remotes:
+            for name, url in configured_remotes:
+                if url == repo_remotes.get(name).url:
+                    continue
+                if name in repo_remotes:
+                    repo.remove_remote(name)
+                repo.add_remote(name, url)
+
+        for remote, ref in repo["merge"]:
+            repo.fetch(remote, ref)
+        for remote, ref in repo["merges"]:
+            repo.pull(remote, ref)
+        for name, url in configured_remotes:
+            repo.remove_remote(name)
 
     dest_path = Path(main_repo.working_dir) / repo["path"]
     dest_path.parent.mkdir(exist_ok=True, parents=True)
@@ -456,19 +333,19 @@ def _update_integrated_module(main_repo, repo, update):
     if new_sha != sha:
         _store(main_repo, repo, {"sha": new_sha})
 
+
 def _commit_submodule_inside_clean_but_not_linked(main_repo_path, submodule_path):
     """
     If the submodule is clean inside but is not committed, this module does that.
     """
     cmd_sub = GitCommands(submodule_path.relative_to(main_repo_path).absoulte())
-    if cmd_sub.is_dirty:
+    if cmd_sub.dirty:
         return False
 
     # subprocess.check_output(
 
 
 def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
-    import pudb;pudb.set_trace()
     path = Path(main_repo.working_dir) / repo["path"]
     if list(_get_dirty_files(main_repo, repo["path"], mode="all")):
         _raise_error(
@@ -515,9 +392,13 @@ def _fetch_latest_commit_in_submodule(main_repo, repo, update=False):
     if not repo.get("sha") or update:
         subprocess.check_call(["git", "checkout", repo["branch"]], cwd=path)
         subprocess.check_call(["git", "pull"], cwd=path)
-        diff = subprocess.check_output(["git", "diff", "--name-only"], cwd=main_repo.path).splitlines()
+        diff = subprocess.check_output(
+            ["git", "diff", "--name-only"], cwd=main_repo.path
+        ).splitlines()
         if [x for x in diff if x == str(path.relative_to(main_repo.path))]:
-            import pudb;pudb.set_trace()
+            import pudb
+
+            pudb.set_trace()
             subprocess.check_call(["git", "add", repo["path"]], cwd=main_repo.path)
             sha = (
                 subprocess.check_output(["git", "log", "-n1", "--format=%H"], cwd=path)
@@ -648,11 +529,6 @@ def __add_submodule(repo, config):
         pass
 
 
-class Submodule(object):
-    def __init__(self, path):
-        self.path = path
-
-
 def _ensure_existing_submodules(repo, repo_config):
     """
     makes sure that git submodules exist for the repo
@@ -675,7 +551,8 @@ def _ensure_existing_submodules(repo, repo_config):
 
 
 def _get_dirty_files(repo, path, mode="all"):
-    # initially used index diff but f***s up when uninintialized submodules exist
+    # initially used index diff but f***s up when uninintialized
+    # submodules exist
     assert mode in ["all", "untracked", "existing"]
     cwd = repo.working_dir / path
     if not cwd.exists():
