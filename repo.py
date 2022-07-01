@@ -16,18 +16,6 @@ class Repo(GitCommands):
         return f"{self.path}"
 
     @property
-    def dirty(self):
-        status = (
-            subprocess.check_output(
-                ["git", "status", "-s"], encoding="utf-8", cwd=self.path
-            )
-            .strip()
-            .splitlines()
-        )
-        status = [x for x in status if "gimera.yml" not in x]
-        return bool(status)
-
-    @property
     def hex(self):
         hex = subprocess.check_output(
             ["git", "log", "-n", "1", "--pretty=%H"], encoding="utf-8", cwd=self.path

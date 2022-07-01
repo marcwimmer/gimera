@@ -81,3 +81,12 @@ class GitCommands(object):
         return list(map(lambda x: x.strip(), self.O(
             "git", "for-each-ref", "--format='%(refname:short)'", "refs/heads"
         ).splitlines()))
+
+    @property
+    def dirty(self):
+        files = []
+        for modifier, path in self._parse_git_status():
+            if str(path.relative_to(self.path)) == 'gimera.yml':
+                continue
+            files.append(path)
+        return bool(files)
