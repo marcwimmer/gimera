@@ -13,7 +13,7 @@ def yieldlist(method):
 def X(*params, output=False, cwd=None):
     params = list(filter(lambda x: x is not None, list(params)))
     if output:
-        return subprocess.check_output(params, encoding="utf-8", cwd=cwd).strip()
+        return subprocess.check_output(params, encoding="utf-8", cwd=cwd).rstrip()
     return subprocess.check_call(params, cwd=cwd)
 
 def _raise_error(msg):

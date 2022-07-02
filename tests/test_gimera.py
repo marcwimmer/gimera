@@ -61,6 +61,27 @@ def clone_and_commit(repopath, branch):
         shutil.rmtree(path)
 
 
+def test_git_status(temppath):
+    """
+    make dirty submodule then repo.full_clean
+    """
+    workspace = temppath / "workspace_cleanup_dirty_submodule"
+    os.chdir(workspace.parent)
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+
+    with clone_and_commit(repo_main, "main") as repopath:
+        (repopath / "file1.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    workspace_main = workspace / "main_working"
+    subprocess.check_call(["git", "clone", f"file://{repo_main}", workspace_main])
+    (workspace_main / 'file8.txt').write_text("Newfile")
+    repo = Repo(workspace_main)
+    assert not repo.staged_files
+    assert repo.untracked_files
+
+
 def test_basicbehaviour(temppath):
     """
     * put same repo integrated and submodule into main repo
@@ -106,7 +127,8 @@ def test_basicbehaviour(temppath):
     os.chdir(workspace)
     gimera_apply([], None)
     subprocess.check_call(["git", "add", "gimera.yml"], cwd=workspace)
-    subprocess.check_call(["git", "commit", "-am", "updated gimera"], cwd=workspace)
+    assert not Repo(workspace).staged_files
+    # subprocess.check_call(["git", "commit", "-am", "updated gimera"], cwd=workspace)
 
     click.secho(
         "Now we have a repo with two subrepos; now we update the subrepos and pull"
@@ -284,7 +306,7 @@ def test_submodule_tree_dirty_files(temppath):
     assert GitCommands(workspace_main / "sub").is_submodule("subsub")
 
 
-def test_cleanup_dirty_submodule(temppath, python):
+def test_cleanup_dirty_submodule(temppath):
     """
     make dirty submodule then repo.full_clean
     """
@@ -390,8 +412,6 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
         with clone_and_commit(repo_sub, "branch1") as repopath:
             assert (repopath / file.name).exists()
 
-    test_if_change_is_pushed_back()
-
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
     os.chdir(workspace_main)
     gimera_apply([], None)
@@ -399,6 +419,7 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
         repo.get_submodule("sub1")
     except ValueError:
         raise Exception("Should be found")
+    test_if_change_is_pushed_back()
 
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
     os.chdir(workspace_main)
@@ -409,6 +430,15 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
         pass
     else:
         raise Exception("Should not be found")
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    try:
+        repo.get_submodule("sub1")
+    except ValueError:
+        raise Exception("Should be found")
+    test_if_change_is_pushed_back()
 
 def test_switch_submodule_to_other_url(temppath):
     """

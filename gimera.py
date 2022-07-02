@@ -12,7 +12,7 @@ from .gitcommands import GitCommands
 from .tools import X, _raise_error, _strip_paths
 from .repo import Repo
 from .gitcommands import GitCommands
-from .tools import _raise_error
+from .tools import _raise_error, safe_relative_to
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -496,10 +496,12 @@ def __add_submodule(repo, config):
         try:
             submodule = repo.get_submodule(relpath)
         except ValueError:
+            repo.output_status()
             repo.please_no_staged_files()
             # remove current path
             repo.X("git", "rm", "-f", "-r", relpath)
-            if not [x for x in repo.staged_files if x == relpath]:
+            repo.output_status()
+            if not [x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)]:
                 repo.X("git", "add", relpath)
             repo.X("git", "commit", "-m", f"removed path {relpath} to insert submodule")
         else:

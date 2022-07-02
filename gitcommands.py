@@ -18,8 +18,11 @@ class GitCommands(object):
             "git", "status", "--porcelain", cwd=self.path, output=True
         ).splitlines():
             # splits: A  asdas
+            #         M   asdasd
+            #          M  asdsad
             #         ??  asasdasd
-            modifier, path = list(filter(bool, line.split(" ")))
+            modifier  = line[:2]
+            path = line.strip().split(" ", 1)[1]
             if path.startswith(".."):
                 continue
             path = Path(path.strip())
@@ -34,14 +37,14 @@ class GitCommands(object):
     @yieldlist
     def staged_files(self):
         for modifier, path in self._parse_git_status():
-            if modifier == "A":
+            if modifier[0] in ["A", "M", "D"]:
                 yield path
 
     @property
     @yieldlist
     def dirty_existing_files(self):
         for modifier, path in self._parse_git_status():
-            if modifier == "M":
+            if modifier[0] == "M" or modifier[1] == 'M' or modifier[1] == "D":
                 yield path
 
     @property
@@ -53,7 +56,7 @@ class GitCommands(object):
     @yieldlist
     def untracked_files(self):
         for modifier, path in self._parse_git_status():
-            if modifier == "??" or modifier == "A":
+            if modifier == "??" or modifier[0] == "A":
                 yield path
 
     @property
