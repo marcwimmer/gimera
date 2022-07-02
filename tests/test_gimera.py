@@ -364,7 +364,7 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
                 "branch": "branch1",
                 "path": "sub1",
                 "patches": [],
-                "type": "submodule",
+                "type": "integrated",
             },
         ]
     }
@@ -408,7 +408,7 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
     except ValueError:
         pass
     else:
-        raise Exception("Should be found")
+        raise Exception("Should not be found")
 
 def test_switch_submodule_to_other_url(temppath):
     """
