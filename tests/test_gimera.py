@@ -65,7 +65,7 @@ def test_git_status(temppath):
     """
     make dirty submodule then repo.full_clean
     """
-    workspace = temppath / "workspace_cleanup_dirty_submodule"
+    workspace = temppath / "workspace_git_status"
     os.chdir(workspace.parent)
 
     repo_main = _make_remote_repo(temppath / "mainrepo")
@@ -512,61 +512,115 @@ def test_recursive_gimeras(temppath):
     workspace.mkdir()
     workspace_main = workspace / "main_working"
 
-    repo_main = _make_remote_repo(temppath / "mainrepo")
-    repo_sub = _make_remote_repo(temppath / "sub1")
-    repo_subsub = _make_remote_repo(temppath / "subsub1")
+    repo_main = None
+    repo_sub = None
+    repo_subsub = None
 
-    #region gimera config
-    gimera_main = {
-        "repos": [
-            {
-                "url": f"file://{repo_sub}",
-                "branch": "main",
-                "path": "sub",
-                "patches": [],
-                "type": "integrated",
-            },
-        ]
-    }
-    gimera_sub = {
-        "repos": [
-            {
-                "url": f"file://{repo_subsub}",
-                "branch": "main",
-                "path": "sub",
-                "patches": [],
-                "type": "integrated",
-            },
-        ]
-    }
-    #endregion
+    gimera_main = None
+    gimera_sub = None
 
     #region prepare repos
-    with clone_and_commit(repo_main, "main") as repopath:
-        (repopath / 'gimera.yml').write_text(yaml.dump(gimera_main))
-        (repopath / "main.txt").write_text("This is a new function")
-        Repo(repopath).simple_commit_all()
+    def prepare_repos(ttype_sub, ttype_subsub):
+        if workspace_main.exists():
+            shutil.rmtree(workspace_main)
+        nonlocal repo_main, repo_sub, repo_subsub, gimera_main, gimera_sub
+        if repo_main:
+            shutil.rmtree(repo_main)
+        if repo_sub:
+            shutil.rmtree(repo_sub)
+        if repo_subsub:
+            shutil.rmtree(repo_subsub)
+        repo_main = _make_remote_repo(temppath / "mainrepo")
+        repo_sub = _make_remote_repo(temppath / "sub1")
+        repo_subsub = _make_remote_repo(temppath / "subsub1")
+        path = Path(os.path.expanduser("~/.cache/gimera"))
+        if path.exists():
+            shutil.rmtree(path)
 
-    with clone_and_commit(repo_sub, "main") as repopath:
-        (repopath / 'gimera.yml').write_text(yaml.dump(gimera_sub))
-        (repopath / "sub.txt").write_text("This is a new function")
-        Repo(repopath).simple_commit_all()
+        #region gimera config
+        gimera_main = {
+            "repos": [
+                {
+                    "url": f"file://{repo_sub}",
+                    "branch": "main",
+                    "path": "sub",
+                    "patches": [],
+                    "type": ttype_sub,
+                },
+            ]
+        }
+        gimera_sub = {
+            "repos": [
+                {
+                    "url": f"file://{repo_subsub}",
+                    "branch": "main",
+                    "path": "subsub",
+                    "patches": [],
+                    "type": ttype_subsub,
+                },
+            ]
+        }
+        #endregion
 
-    with clone_and_commit(repo_subsub, "main") as repopath:
-        (repopath / "subsub.txt").write_text("This is a new function")
-        Repo(repopath).simple_commit_all()
+        with clone_and_commit(repo_main, "main") as repopath:
+            (repopath / 'gimera.yml').write_text(yaml.dump(gimera_main))
+            (repopath / "main.txt").write_text("This is a new function")
+            Repo(repopath).simple_commit_all()
+
+        with clone_and_commit(repo_sub, "main") as repopath:
+            (repopath / 'gimera.yml').write_text(yaml.dump(gimera_sub))
+            (repopath / "sub.txt").write_text("This is a new function")
+            Repo(repopath).simple_commit_all()
+
+        with clone_and_commit(repo_subsub, "main") as repopath:
+            (repopath / "subsub.txt").write_text("This is a new function")
+            Repo(repopath).simple_commit_all()
+
+        subprocess.check_output(
+            ["git", "clone", "file://" + str(repo_main), workspace_main],
+            cwd=workspace,
+        )
     #endregion
 
-    subprocess.check_output(
-        ["git", "clone", "file://" + str(repo_main), workspace_main],
-        cwd=workspace,
-    )
+    #region: case 1: all integrated
+    prepare_repos('integrated', 'integrated')
     os.chdir(workspace_main)
     gimera_apply([], None)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
-    assert (workspace_main / "sub" / "sub" / "subsub.txt").exists()
+    assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    #endregion
+
+    #region: case 2: submodule then integrated
+    prepare_repos('submodule', 'integrated')
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    assert (workspace_main / "sub" / "sub.txt").exists()
+    assert (workspace_main / "sub" / "gimera.yml").exists()
+    assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    #endregion
+
+    #region: case 3: integrated then submodule
+    prepare_repos('integrated', 'submodule')
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    assert (workspace_main / "sub" / "sub.txt").exists()
+    assert (workspace_main / "sub" / "gimera.yml").exists()
+    assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    #endregion
+
+    #region: case 4: submodule submodule
+    prepare_repos('submodule', 'submodule')
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    assert (workspace_main / "sub" / "sub.txt").exists()
+    assert (workspace_main / "sub" / "gimera.yml").exists()
+    assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    #endregion
 
 # def test_check_that_not_patch_possible_at_changed_submodule(temppath, python, gimera):
 #     pass

@@ -38,7 +38,7 @@ class Repo(GitCommands):
             )
 
         self.X("rm", "-rf", path)
-        self.X("git", "add", "-A", path, '.gitmodules')
+        self.X("git", "add", "-A", path, ".gitmodules")
         self.X("git", "commit", "-m", f"removed submodule {path}")
         self.X("rm", "-rf", f".git/modules/{path}")
 
@@ -50,29 +50,35 @@ class Repo(GitCommands):
         if hex:
             return hex.strip()
 
-    def _get_submodules(self):
-        submodules = (
-            subprocess.check_output(
-                ["git", "submodule--helper", "list"], encoding="utf-8", cwd=self.path
-            )
-            .strip()
-            .splitlines()
-        )
+    @property
+    def next_module_root(self):
+        if not self.path.exists():
+            return None
+
+        p = self.path
+        for i in range(len(p.parts)):
+            if (p / ".gitmodules").exists():
+                return p
+            if (p / ".git").is_dir():
+                return p
+            p = p.parent
+        return self.path
+
+    @yieldlist
+    def get_submodules(self):
+        submodules = self.out("git", "submodule--helper", "list").splitlines()
         for line in submodules:
             splitted = line.strip().split("\t", 3)
-            yield Submodule(self.path / splitted[-1], self.path)
+            yield Submodule(self.next_module_root / splitted[-1], self.next_module_root)
 
     def get_submodule(self, path, force=False):
         if force:
             return Submodule(self.path / path, self.path)
 
-        for submodule in self._get_submodules():
+        for submodule in self.get_submodules():
             if str(submodule.path.relative_to(self.path)) == str(Path(path)):
                 return submodule
         raise ValueError(f"Path not found: {path}")
-
-    def get_submodules(self):
-        return list(self._get_submodules())
 
     def fetch(self, remote=None, ref=None):
         self.X("git", "fetch", remote, ref or None)
@@ -154,7 +160,7 @@ class Submodule(Repo):
         if isinstance(other, str):
             return relpath == other
         if isinstance(other, Path):
-            return self.path.absolute() == other.path.absolute()
+            return self.path.absolute() == other.absolute()
         raise NotImplementedError(other)
 
     def checkout(self, ref, force=False):

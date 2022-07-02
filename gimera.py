@@ -534,7 +534,7 @@ def __add_submodule(repo, config):
         config["url"],
         path.relative_to(repo.path),
     )
-    repo.X("git", "add", ".gitmodules", relpath)
+    # repo.X("git", "add", ".gitmodules", relpath)
     click.secho(f"Added submodule {relpath} pointing to {config['url']}", fg="yellow")
     repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
 
@@ -561,7 +561,7 @@ def _turn_into_correct_repotype(repo, repo_config):
     else:
         __add_submodule(repo, repo_config)
         submodules = repo.get_submodules()
-        existing_submodules = list(filter(lambda x: x.equals(path), submodules))
+        existing_submodules = list(filter(lambda x: x.equals(repo.path / path), submodules))
         if not existing_submodules:
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
