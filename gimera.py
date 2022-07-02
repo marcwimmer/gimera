@@ -73,13 +73,23 @@ def apply(repos, update):
 
 
 def _apply(repos, update):
+    """
+    :param repos: user input parameter from commandline
+    :param update: bool - flag from command line
+    """
     config = load_config()
-    main_repo = Repo(os.getcwd())
-    repos = list(_strip_paths(repos))
 
+    repos = list(_strip_paths(repos))
     for check in repos:
         if check not in map(lambda x: x["path"], config["repos"]):
             _raise_error(f"Invalid path: {check}")
+
+    _internal_apply(repos, update)
+
+
+def _internal_apply(repos, update):
+    main_repo = Repo(os.getcwd())
+    config = load_config()
 
     for repo in config["repos"]:
         if repos and repo["path"] not in repos:
@@ -100,6 +110,13 @@ def _apply(repos, update):
         elif repo.get("type") == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
+
+        subgimera = Path(repo["path"]) / "gimera.yml"
+        pwd = os.getcwd()
+        if subgimera.exists():
+            os.chdir(main_repo.path / repo["path"])
+            _internal_apply([], update)
+        os.chdir(pwd)
 
 
 def _make_patches(main_repo, repo_yml):
@@ -259,17 +276,12 @@ def _update_integrated_module(main_repo, repo_yml, update):
 
     # commit updated directories
     if list(_get_dirty_files(main_repo, repo_yml["path"], mode="all")):
-        subprocess.check_call(
-            ["git", "add", repo_yml["path"]], cwd=main_repo.working_dir
-        )
-        subprocess.check_call(
-            [
-                "git",
-                "commit",
-                "-m",
-                f'updated {REPO_TYPE_INT} submodule: {repo_yml["path"]}',
-            ],
-            cwd=main_repo.working_dir,
+        main_repo.X("git", "add", repo_yml["path"])
+        main_repo.X(
+            "git",
+            "commit",
+            "-m",
+            f'updated {REPO_TYPE_INT} submodule: {repo_yml["path"]}',
         )
 
     repo.X("git", "reset", "--hard", f'origin/{repo_yml["branch"]}')
@@ -501,7 +513,9 @@ def __add_submodule(repo, config):
             # remove current path
             repo.X("git", "rm", "-f", "-r", relpath)
             repo.output_status()
-            if not [x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)]:
+            if not [
+                x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)
+            ]:
                 repo.X("git", "add", relpath)
             repo.X("git", "commit", "-m", f"removed path {relpath} to insert submodule")
         else:

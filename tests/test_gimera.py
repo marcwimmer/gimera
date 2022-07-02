@@ -76,7 +76,7 @@ def test_git_status(temppath):
 
     workspace_main = workspace / "main_working"
     subprocess.check_call(["git", "clone", f"file://{repo_main}", workspace_main])
-    (workspace_main / 'file8.txt').write_text("Newfile")
+    (workspace_main / "file8.txt").write_text("Newfile")
     repo = Repo(workspace_main)
     assert not repo.staged_files
     assert repo.untracked_files
@@ -99,6 +99,7 @@ def test_basicbehaviour(temppath):
         cwd=workspace.parent,
     )
 
+    #region gimera config
     repos = {
         "repos": [
             {
@@ -117,6 +118,7 @@ def test_basicbehaviour(temppath):
             },
         ]
     }
+    #endregion
 
     (workspace / "gimera.yml").write_text(yaml.dump(repos))
     (workspace / "main.txt").write_text("main repo")
@@ -354,12 +356,6 @@ def test_cleanup_dirty_submodule(temppath):
     Repo(workspace_main).full_clean()
 
 
-# def test_check_that_not_patch_possible_at_changed_submodule(temppath, python, gimera):
-#     pass
-
-# def test_recursive_gimeras()
-
-
 def test_switch_submodule_to_integrated_and_sub(temppath):
     workspace = temppath / "workspace_switch_submodule"
     workspace.mkdir()
@@ -440,6 +436,7 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
         raise Exception("Should be found")
     test_if_change_is_pushed_back()
 
+
 def test_switch_submodule_to_other_url(temppath):
     """
     switch url of sub repo and check if redirected
@@ -508,3 +505,70 @@ def test_switch_submodule_to_other_url(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo2.txt").exists()
+
+
+def test_recursive_gimeras(temppath):
+    workspace = temppath / "workspace_tree_dirty_files"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+    repo_subsub = _make_remote_repo(temppath / "subsub1")
+
+    #region gimera config
+    gimera_main = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "main",
+                "path": "sub",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    gimera_sub = {
+        "repos": [
+            {
+                "url": f"file://{repo_subsub}",
+                "branch": "main",
+                "path": "sub",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    #endregion
+
+    #region prepare repos
+    with clone_and_commit(repo_main, "main") as repopath:
+        (repopath / 'gimera.yml').write_text(yaml.dump(gimera_main))
+        (repopath / "main.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / 'gimera.yml').write_text(yaml.dump(gimera_sub))
+        (repopath / "sub.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    with clone_and_commit(repo_subsub, "main") as repopath:
+        (repopath / "subsub.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+    #endregion
+
+    subprocess.check_output(
+        ["git", "clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace,
+    )
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    assert (workspace_main / "sub" / "sub.txt").exists()
+    assert (workspace_main / "sub" / "gimera.yml").exists()
+    assert (workspace_main / "sub" / "sub" / "subsub.txt").exists()
+
+# def test_check_that_not_patch_possible_at_changed_submodule(temppath, python, gimera):
+#     pass
+
+# def test dont loose data
