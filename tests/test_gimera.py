@@ -447,7 +447,7 @@ def test_switch_submodule_to_other_url(temppath):
         "repos": [
             {
                 "url": f"file://{repo_1}",
-                "branch": "branch1",
+                "branch": "main",
                 "path": "subby",
                 "patches": [],
                 "type": "submodule",
@@ -458,7 +458,7 @@ def test_switch_submodule_to_other_url(temppath):
         "repos": [
             {
                 "url": f"file://{repo_2}",
-                "branch": "branch1",
+                "branch": "main",
                 "path": "subby",
                 "patches": [],
                 "type": "submodule",
@@ -471,11 +471,10 @@ def test_switch_submodule_to_other_url(temppath):
     main_repo.simple_commit_all()
     os.chdir(workspace_main)
     gimera_apply([], None)
-    assert (workspace_main / "subby" / "file1.txt").exists()
+    assert (workspace_main / "subby" / "repo1.txt").exists()
 
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos2))
     main_repo.simple_commit_all()
     os.chdir(workspace_main)
-    import pudb;pudb.set_trace()
     gimera_apply([], None)
-    assert (workspace_main / "subby" / "file2.txt").exists()
+    assert (workspace_main / "subby" / "repo2.txt").exists()

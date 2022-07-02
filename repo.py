@@ -41,6 +41,7 @@ class Repo(GitCommands):
         self.X("git", "add", "-A", path, '.gitmodules')
         self.X("git", "commit", "-m", f"removed submodule {path}")
         self.X("rm", "-rf", f".git/modules/{path}")
+        import pudb;pudb.set_trace()
 
     @property
     def hex(self):
