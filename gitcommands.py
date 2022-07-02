@@ -94,3 +94,7 @@ class GitCommands(object):
                 continue
             files.append(path)
         return bool(files)
+
+    def simple_commit_all(self, msg='.'):
+        self.X("git", "add", ".")
+        self.X("git", "commit", "-am", msg)

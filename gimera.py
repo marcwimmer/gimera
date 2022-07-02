@@ -84,7 +84,7 @@ def _apply(repos, update):
     for repo in config["repos"]:
         if repos and repo["path"] not in repos:
             continue
-        _ensure_existing_submodules(main_repo, repo)
+        _turn_into_correct_repotype(main_repo, repo)
         del repo
 
     for repo in config["repos"]:
@@ -103,10 +103,10 @@ def _apply(repos, update):
 
 
 def _make_patches(main_repo, repo_yml):
-    subrepo_path = main_repo.path / repo_yml['path']
+    subrepo_path = main_repo.path / repo_yml["path"]
     if not subrepo_path.exists():
         return
-    subrepo = main_repo.get_submodule(repo_yml['path'], force=True)
+    subrepo = main_repo.get_submodule(repo_yml["path"], force=True)
     changed_files = subrepo.filterout_submodules(subrepo.all_dirty_files)
     untracked_files = subrepo.filterout_submodules(subrepo.untracked_files)
     if not changed_files:
@@ -447,11 +447,10 @@ def _store(main_repo, repo, value):
         if repo["path"] == param_repo["path"]:
             repo.update(value)
     config_file.write_text(yaml.dump(config, default_flow_style=False))
-    subprocess.check_call(["git", "add", config_file], cwd=main_repo.working_dir)
-    if main_repo.dirty:
-        subprocess.check_call(
-            ["git", "commit", "-m", "auto update gimera.yml"], cwd=main_repo.working_dir
-        )
+    main_repo.please_no_staged_files()
+    main_repo.X("git", "add", config_file)
+    if main_repo.staged_files:
+        main_repo.X("git", "commit", "-m", "auto update gimera.yml")
 
 
 def load_config():
@@ -479,77 +478,77 @@ def load_config():
 
         if repo.get("type") not in [REPO_TYPE_SUB, REPO_TYPE_INT]:
             _raise_error(
-                f"Please provide type for repo {config['path']}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'"
+                "Please provide type for repo "
+                f"{config['path']}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'"
             )
 
     return config
 
 
 def __add_submodule(repo, config):
-    path = config["path"]
 
-    # branch is added with refs/head/branch1 then instead of branch1 in .gitmodules; makes problems at pull then
-    # submodule = repo.create_submodule(name=path, path=path, url=config['url'], branch=config['branch'],)
-    if config.get("type") == REPO_TYPE_SUB:
-        if Path(path).exists():
-            try:
-                subprocess.check_call(
-                    ["git", "rm", "-f", "-r", path], cwd=repo.working_dir
-                )
-            except subprocess.CalledProcessError:
-                subprocess.check_call(["rm", "-Rf"], cwd=repo.working_dir)
-                subprocess.check_call(["git", "add", path], cwd=repo.working_dir)
-            subprocess.check_call(
-                [
-                    "git",
-                    "commit",
-                    "-m",
-                    f"removed existing path as inserted as submodule: {path}",
-                ]
-            )
-        subprocess.check_call(
-            [
-                "git",
-                "submodule",
-                "add",
-                "--force",
-                "-b",
-                str(config["branch"]),
-                config["url"],
-                path,
-            ],
-            cwd=repo.working_dir,
-        )
-        subprocess.check_call(["git", "add", ".gitmodules"], cwd=repo.path)
-        subprocess.check_call(["git", "add", path], cwd=repo.path)
-        click.secho(f"Added submodule {path} pointing to {config['url']}", fg="yellow")
-        subprocess.check_call(
-            ["git", "commit", "-m", f"gimera added submodule: {path}"]
-        )
-    elif config.get("type") == REPO_TYPE_INT:
-        # nothing to do here - happens at update
-        pass
-
-
-def _ensure_existing_submodules(repo, repo_config):
-    """
-    makes sure that git submodules exist for the repo
-    """
-    if repo_config.get("type") != REPO_TYPE_SUB:
+    if config.get("type") != REPO_TYPE_SUB:
         return
-    submodules = repo.get_submodules()
-    existing_submodules = list(
-        filter(lambda x: x.equals(repo_config["path"]), submodules)
+    path = repo.path / config["path"]
+    relpath = path.relative_to(repo.path)
+    if path.exists():
+        # if it is already a submodule, dont touch
+        try:
+            submodule = repo.get_submodule(relpath)
+        except ValueError:
+            repo.please_no_staged_files()
+            # remove current path
+            repo.X("git", "rm", "-f", "-r", relpath)
+            if not [x for x in repo.staged_files if x == relpath]:
+                repo.X("git", "add", relpath)
+            repo.X("git", "commit", "-m", f"removed path {relpath} to insert submodule")
+        else:
+            # if submodule points to another url, also remove
+            if submodule.get_url() != config["url"]:
+                repo.force_remove_submodule(submodule.path.relative_to(repo.path))
+            else:
+                return
+    repo.X(
+        "git",
+        "submodule",
+        "add",
+        "--force",
+        "-b",
+        str(config["branch"]),
+        config["url"],
+        path.relative_to(repo.path),
     )
-    if not existing_submodules:
+    repo.X("git", "add", ".gitmodules", relpath)
+    click.secho(f"Added submodule {relpath} pointing to {config['url']}", fg="yellow")
+    repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
+
+
+def _turn_into_correct_repotype(repo, repo_config):
+    """
+    if git submodule and exists: nothing todo
+    if git submodule and not exists: cloned
+    if git submodule and already exists a path: path removed, submodule added
+
+    if integrated and exists no sub: nothing todo
+    if integrated and not exists: cloned (later not here)
+    if integrated and git submodule and already exists a path: submodule removed
+
+    """
+    path = repo_config["path"]
+    if repo_config.get("type") == REPO_TYPE_INT:
+        try:
+            repo.get_submodule(path)
+        except ValueError:
+            pass
+        else:
+            repo.force_remove_submodule(path)  # updated at apply
+    else:
         __add_submodule(repo, repo_config)
         submodules = repo.get_submodules()
-    existing_submodules = list(
-        filter(lambda x: x.equals(repo_config["path"]), submodules)
-    )
-    if not existing_submodules:
-        _raise_error(f"Error with submodule {repo_config['path']}")
-    del existing_submodules
+        existing_submodules = list(filter(lambda x: x.equals(path), submodules))
+        if not existing_submodules:
+            _raise_error(f"Error with submodule {path}")
+        del existing_submodules
 
 
 def _get_dirty_files(repo, path, mode="all"):

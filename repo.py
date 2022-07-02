@@ -1,10 +1,10 @@
 import subprocess
 from .gitcommands import GitCommands
 from pathlib import Path
-from .tools import yieldlist, X, safe_relative_to
+from .tools import yieldlist, X, safe_relative_to, _raise_error
+
 
 class Repo(GitCommands):
-
     def __init__(self, path):
         self.path = Path(path)
         self.working_dir = Path(path)
@@ -14,6 +14,33 @@ class Repo(GitCommands):
 
     def __str__(self):
         return f"{self.path}"
+
+    def force_remove_submodule(self, path):
+        # https://github.com/jeremysears/scripts/blob/master/bin/git-submodule-rewrite
+        self.X(
+            "git",
+            "config",
+            "-f",
+            ".gitmodules",
+            "--remove-section",
+            f"submodule.{path}",
+        )
+        if self.out(
+            "git", "config", "-f", ".git/config", "--get", f"submodule.{path}.url"
+        ):
+            self.X(
+                "git",
+                "config",
+                "-f",
+                ".git/config",
+                "--remove-section",
+                f"submodule.{path}",
+            )
+
+        self.X("rm", "-rf", path)
+        self.X("git", "add", "-A", path, '.gitmodules')
+        self.X("git", "commit", "-m", f"removed submodule {path}")
+        self.X("rm", "-rf", f".git/modules/{path}")
 
     @property
     def hex(self):
@@ -42,7 +69,7 @@ class Repo(GitCommands):
         for submodule in self._get_submodules():
             if str(submodule.path.relative_to(self.path)) == str(Path(path)):
                 return submodule
-        raise Exception(f"Path not found: {path}")
+        raise ValueError(f"Path not found: {path}")
 
     def get_submodules(self):
         return list(self._get_submodules())
@@ -62,6 +89,13 @@ class Repo(GitCommands):
     def full_clean(self):
         self.X("git", "checkout", "-f")
         self.X("git", "clean", "-xdff")
+
+    def please_no_staged_files(self):
+        if not (staged := self.staged_files):
+            return
+        _raise_error(
+            "For the operation there mustnt be " f"any staged files like {staged}"
+        )
 
     @property
     @yieldlist
@@ -96,17 +130,24 @@ class Remote(object):
         self.name = name
         self.ref = ref
 
+
 class Submodule(Repo):
     def __init__(self, path, parent_path):
         self.path = Path(path)
         self.parent_path = Path(parent_path)
-        assert self.path.relative_to(self.parent_path)
+        self.relpath = self.path.relative_to(self.parent_path)
 
     def __repr__(self):
         return f"{self.path}"
 
     def __str__(self):
         return f"{self.path}"
+
+    def get_url(self):
+        url = Repo(self.parent_path).out(
+            "git", "config", "-f", ".gitmodules", f"submodule.{self.relpath}.url"
+        )
+        return url
 
     def equals(self, other):
         relpath = str(self.path.relative_to(self.parent_path))
