@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import uuid
 import yaml
 from contextlib import contextmanager
 from ..repo import Repo
@@ -338,5 +339,50 @@ def test_cleanup_dirty_submodule(temppath, python):
 # def test_check_that_not_patch_possible_at_changed_submodule(temppath, python, gimera):
 #     pass
 
+# def test_recursive_gimeras()
 
-# def test_switch_submodule_to_integrated_and_sub()
+
+def test_switch_submodule_to_integrated_and_sub(temppath):
+    workspace = temppath / "workspace_switch_submodule"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    subprocess.check_output(
+        ["git", "clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
+    (workspace_main / "main.txt").write_text("main repo")
+    repo = Repo(workspace_main)
+    repo.X("git", "add", "main.txt", "gimera.yml")
+    repo.X("git", "commit", "-am", "init")
+    repo.X("git", "push")
+
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    def test_if_change_is_pushed_back():
+        file = workspace_main / "sub1" / str(uuid.uuid4())
+        file.write_text("content")
+        subrepo = repo.get_submodule('sub1')
+        subrepo.X("git", "add", file.name)
+        subrepo.X("git", "commit", "-am", "newfile")
+        subrepo.X("git", "push")
+        with clone_and_commit(repo_sub, "branch1") as repopath:
+            assert (repopath / file.name).exists()
+
+    test_if_change_is_pushed_back()
