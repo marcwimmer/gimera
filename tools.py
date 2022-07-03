@@ -33,3 +33,6 @@ def safe_relative_to(path, path2):
         return False
     else:
         return True
+
+def is_empty_dir(path):
+    return not any(Path(path).rglob("*"))

@@ -626,3 +626,72 @@ def test_recursive_gimeras(temppath):
 #     pass
 
 # def test dont loose data
+
+
+def test_switch_submodule_to_integrated_on_different_branches(temppath):
+    """
+    switch url of sub repo and check if redirected
+    """
+    workspace = temppath / "workspace_switch_subrepo"
+    os.chdir(workspace.parent)
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_1 = _make_remote_repo(temppath / "repo1")
+
+    subprocess.check_output(
+        ["git", "clone", "file://" + str(repo_main), workspace.name],
+        cwd=workspace.parent,
+    )
+    with clone_and_commit(repo_1, "main") as repopath:
+        (repopath / "repo1.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    with clone_and_commit(repo_main, "main") as repopath:
+        (repopath / "dummy.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    workspace_main = workspace / "main_working"
+    subprocess.check_call(["git", "clone", f"file://{repo_main}", workspace_main])
+    subprocess.check_call(
+        ["git", "submodule", "update", "--init", "--recursive"], cwd=workspace_main
+    )
+
+    repos = {
+        "repos": [
+            {
+                "url": f"file://{repo_1}",
+                "branch": "main",
+                "path": "subby",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+
+    main_repo = Repo(workspace_main)
+    main_repo.X("git", "checkout", "-b", "as_submodule")
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
+    main_repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    assert (workspace_main / "subby" / "repo1.txt").exists()
+
+    main_repo.X("git", "checkout", "-b", "as_integrated")
+    repos['repos'][0]['type'] = 'integrated'
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
+    main_repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    assert (workspace_main / "subby" / "repo1.txt").exists()
+    assert not (workspace_main / ".gitmodules").read_text()
+
+    main_repo.X("git", "checkout", "as_submodule")
+    assert (workspace_main / ".gitmodules").read_text()
+
+    with clone_and_commit(repo_1, "main") as repopath:
+        (repopath / "repo2.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    os.chdir(workspace_main)
+    gimera_apply([], True)
+    assert (workspace_main / "subby" / "repo2.txt").exists()

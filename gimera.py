@@ -12,7 +12,7 @@ from .gitcommands import GitCommands
 from .tools import X, _raise_error, _strip_paths
 from .repo import Repo
 from .gitcommands import GitCommands
-from .tools import _raise_error, safe_relative_to
+from .tools import _raise_error, safe_relative_to, is_empty_dir
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -106,6 +106,7 @@ def _internal_apply(repos, update):
         repo["branch"] = str(repo["branch"])  # e.g. if 15.0
 
         if repo.get("type") == REPO_TYPE_SUB:
+            _make_sure_subrepo_is_checked_out(main_repo, repo)
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
         elif repo.get("type") == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
@@ -117,6 +118,19 @@ def _internal_apply(repos, update):
             os.chdir(main_repo.path / repo["path"])
             _internal_apply([], update)
         os.chdir(pwd)
+
+
+def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
+    """
+    Could be, that git submodule update was not called yet.
+    """
+    assert repo_yml["type"] == REPO_TYPE_SUB
+    path = main_repo.path / repo_yml["path"]
+    if path.exists() and not is_empty_dir(path):
+        return
+    main_repo.X("git", "submodule", "update", "--init", "--recursive", repo_yml["path"])
+    if not path.exists():
+        _raise_error("After submodule update the path {repo_yml['path']} did not exist")
 
 
 def _make_patches(main_repo, repo_yml):
@@ -561,7 +575,9 @@ def _turn_into_correct_repotype(repo, repo_config):
     else:
         __add_submodule(repo, repo_config)
         submodules = repo.get_submodules()
-        existing_submodules = list(filter(lambda x: x.equals(repo.path / path), submodules))
+        existing_submodules = list(
+            filter(lambda x: x.equals(repo.path / path), submodules)
+        )
         if not existing_submodules:
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
