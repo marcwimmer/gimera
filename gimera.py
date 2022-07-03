@@ -289,7 +289,14 @@ def _update_integrated_module(main_repo, repo_yml, update):
     _apply_patches(main_repo, repo_yml)
 
     # commit updated directories
-    if list(_get_dirty_files(main_repo, repo_yml["path"], mode="all")):
+    if any(
+        map(
+            lambda filepath: safe_relative_to(
+                filepath, main_repo.path / repo_yml["path"]
+            ),
+            main_repo.all_dirty_files,
+        )
+    ):
         main_repo.X("git", "add", repo_yml["path"])
         main_repo.X(
             "git",
@@ -445,7 +452,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
 
     # update gimera.yml on demand
 
-    _store(main_repo, repo_yml, {'sha': subrepo.hex})
+    _store(main_repo, repo_yml, {"sha": subrepo.hex})
 
 
 def clean_branch_names(arr):
@@ -585,69 +592,6 @@ def _turn_into_correct_repotype(repo, repo_config):
         if not existing_submodules:
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
-
-
-def _get_dirty_files(repo, path, mode="all"):
-    # initially used index diff but f***s up when uninintialized
-    # submodules exist
-    assert mode in ["all", "untracked", "existing"]
-    cwd = repo.working_dir / path
-    if not cwd.exists():
-        return
-
-    def perhaps_yield(x):
-        try:
-            x.relative_to(Path(repo.working_dir) / path)
-        except ValueError:
-            pass
-        else:
-            yield x.relative_to(Path(repo.working_dir))
-
-    if mode in ["all", "existing"]:
-        files = list(
-            filter(
-                bool,
-                subprocess.check_output(
-                    ["git", "diff", "--name-only", "."], encoding="utf-8", cwd=cwd
-                ).splitlines(),
-            )
-        )
-
-        for diff in files:
-            diff_path = cwd / Path(diff)
-            yield from perhaps_yield(diff_path)
-            del diff
-
-    if mode in ["all", "untracked"]:
-        untracked_files = list(
-            filter(
-                bool,
-                subprocess.check_output(
-                    ["git", "ls-files", "--others", "--exclude-standard", "."],
-                    cwd=cwd,
-                    encoding="utf8",
-                ).splitlines(),
-            )
-        )
-        for untracked_file in untracked_files:
-            diff_path = cwd / Path(untracked_file)
-            yield from perhaps_yield(diff_path)
-
-
-# def _make_sure_in_root():
-#     path = Path(os.getcwd())
-#     while len(path.parts) > 1:
-#         git_dir = path / ".git"
-#         if git_dir.exists():
-#             break
-#         path = path.parent
-
-#     if git_dir.exists():
-#         os.chdir(git_dir)
-#         return
-
-#     if not git_dir.exists():
-#         _raise_error("Please go into the root of the git repository.")
 
 
 if __name__ == "__main__":

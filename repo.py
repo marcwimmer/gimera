@@ -155,5 +155,3 @@ class Submodule(Repo):
             return self.path.absolute() == other.absolute()
         raise NotImplementedError(other)
 
-    def checkout(self, ref, force=False):
-        self.X("git", "checkout", "-f" if force else None, ref)

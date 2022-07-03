@@ -85,9 +85,10 @@ class GitCommands(object):
         self.X("git", "status")
 
     def get_all_branches(self):
-        return list(map(lambda x: x.strip(), self.out(
-            "git", "for-each-ref", "--format='%(refname:short)'", "refs/heads"
+        res = list(map(lambda x: x.strip(), self.out(
+            "git", "for-each-ref", "--format=%(refname:short)", "refs/heads"
         ).splitlines()))
+        return res
 
     @property
     def dirty(self):
@@ -105,3 +106,6 @@ class GitCommands(object):
     @property
     def hex(self):
         return self.out("git", "log", "-n", "1", "--pretty=%H")
+
+    def checkout(self, ref, force=False):
+        self.X("git", "checkout", "-f" if force else None, ref)

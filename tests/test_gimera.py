@@ -675,7 +675,8 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo1.txt").exists()
-    assert yaml.load((workspace_main / 'gimera.yml').read_text())['repos'][0]['sha']
+    sha_submodule_step1 = yaml.load((workspace_main / 'gimera.yml').read_text())['repos'][0]['sha']
+    assert sha_submodule_step1
 
     main_repo.X("git", "checkout", "-b", "as_integrated")
     repos['repos'][0]['type'] = 'integrated'
@@ -684,6 +685,7 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo1.txt").exists()
+    assert not (workspace_main / "subby" / "repo2.txt").exists()
     assert not (workspace_main / ".gitmodules").read_text()
 
     main_repo.X("git", "checkout", "as_submodule")
@@ -703,3 +705,9 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     gimera_apply([], True)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert (workspace_main / "subby" / "repo2.txt").exists()
+
+    main_repo.X("git", "checkout", "-f", "as_integrated")
+    main_repo.X("git", "clean", "-xdff")
+    gimera_apply([], False)
+    assert (workspace_main / "subby" / "repo1.txt").exists()
+    assert not (workspace_main / "subby" / "repo2.txt").exists()
