@@ -101,3 +101,7 @@ class GitCommands(object):
     def simple_commit_all(self, msg='.'):
         self.X("git", "add", ".")
         self.X("git", "commit", "-am", msg)
+
+    @property
+    def hex(self):
+        return self.out("git", "log", "-n", "1", "--pretty=%H")

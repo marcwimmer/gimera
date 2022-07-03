@@ -413,7 +413,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
                     subrepo.out("git", "branch", "--contains", sha).splitlines()
                 )
             )
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             _raise_error(
                 f"SHA {sha} does not seem to belong to a "
                 f"branch at module {repo_yml['path']}"
@@ -428,7 +428,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
     else:
         try:
             subrepo.X("git", "checkout", "-f", repo_yml["branch"])
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             _raise_error(f"Failed to checkout {repo_yml['branch']} in {path}")
         else:
             _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
@@ -442,6 +442,10 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
         subrepo.X("git", "checkout", repo_yml["branch"])
         subrepo.pull()
         _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
+
+    # update gimera.yml on demand
+
+    _store(main_repo, repo_yml, {'sha': subrepo.hex})
 
 
 def clean_branch_names(arr):

@@ -43,14 +43,6 @@ class Repo(GitCommands):
         self.X("rm", "-rf", f".git/modules/{path}")
 
     @property
-    def hex(self):
-        hex = subprocess.check_output(
-            ["git", "log", "-n", "1", "--pretty=%H"], encoding="utf-8", cwd=self.path
-        ).strip()
-        if hex:
-            return hex.strip()
-
-    @property
     def next_module_root(self):
         if not self.path.exists():
             return None
