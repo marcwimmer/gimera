@@ -624,11 +624,6 @@ def test_recursive_gimeras(temppath):
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
     #endregion
 
-# def test_check_that_not_patch_possible_at_changed_submodule(temppath, python, gimera):
-#     pass
-
-# def test dont loose data
-
 
 def test_switch_submodule_to_integrated_on_different_branches(temppath):
     """

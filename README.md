@@ -3,7 +3,9 @@
 Advanced handling of submodules by integrating them or handling as submodules as you know
 but provide auto merge functions of hotfixes from other repositories or inside.
 
-Rule of thumb: no data is lost, it is safe to call gimera.
+Rule of thumb:
+
+ * no data is lost, it is safe to call gimera.
 If there are staged files, gimera wont continue.
 
 During run of gimera commits are done for example after pulling submodules or updating
