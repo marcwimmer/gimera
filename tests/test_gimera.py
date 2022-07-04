@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import itertools
 import uuid
 import yaml
 from contextlib import contextmanager
@@ -99,7 +100,7 @@ def test_basicbehaviour(temppath):
         cwd=workspace.parent,
     )
 
-    #region gimera config
+    # region gimera config
     repos = {
         "repos": [
             {
@@ -118,7 +119,7 @@ def test_basicbehaviour(temppath):
             },
         ]
     }
-    #endregion
+    # endregion
 
     (workspace / "gimera.yml").write_text(yaml.dump(repos))
     (workspace / "main.txt").write_text("main repo")
@@ -509,7 +510,7 @@ def test_switch_submodule_to_other_url(temppath):
     assert (workspace_main / "subby" / "repo2.txt").exists()
 
 
-def test_recursive_gimeras(temppath):
+def test_recursive_gimeras_2_levels(temppath):
     workspace = temppath / "workspace_tree_dirty_files"
     workspace.mkdir()
     workspace_main = workspace / "main_working"
@@ -521,7 +522,7 @@ def test_recursive_gimeras(temppath):
     gimera_main = None
     gimera_sub = None
 
-    #region prepare repos
+    # region prepare repos
     def prepare_repos(ttype_sub, ttype_subsub):
         if workspace_main.exists():
             shutil.rmtree(workspace_main)
@@ -539,7 +540,7 @@ def test_recursive_gimeras(temppath):
         if path.exists():
             shutil.rmtree(path)
 
-        #region gimera config
+        # region gimera config
         gimera_main = {
             "repos": [
                 {
@@ -562,15 +563,15 @@ def test_recursive_gimeras(temppath):
                 },
             ]
         }
-        #endregion
+        # endregion
 
         with clone_and_commit(repo_main, "main") as repopath:
-            (repopath / 'gimera.yml').write_text(yaml.dump(gimera_main))
+            (repopath / "gimera.yml").write_text(yaml.dump(gimera_main))
             (repopath / "main.txt").write_text("This is a new function")
             Repo(repopath).simple_commit_all()
 
         with clone_and_commit(repo_sub, "main") as repopath:
-            (repopath / 'gimera.yml').write_text(yaml.dump(gimera_sub))
+            (repopath / "gimera.yml").write_text(yaml.dump(gimera_sub))
             (repopath / "sub.txt").write_text("This is a new function")
             Repo(repopath).simple_commit_all()
 
@@ -582,47 +583,161 @@ def test_recursive_gimeras(temppath):
             ["git", "clone", "file://" + str(repo_main), workspace_main],
             cwd=workspace,
         )
-    #endregion
 
-    #region: case 1: all integrated
-    prepare_repos('integrated', 'integrated')
+    # endregion
+
+    # region: case 1: all integrated
+    prepare_repos("integrated", "integrated")
     os.chdir(workspace_main)
     gimera_apply([], None)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    #endregion
+    # endregion
 
-    #region: case 2: submodule then integrated
-    prepare_repos('submodule', 'integrated')
+    # region: case 2: submodule then integrated
+    prepare_repos("submodule", "integrated")
     os.chdir(workspace_main)
     gimera_apply([], None)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    #endregion
+    # endregion
 
-    #region: case 3: integrated then submodule
-    prepare_repos('integrated', 'submodule')
+    # region: case 3: integrated then submodule
+    prepare_repos("integrated", "submodule")
     os.chdir(workspace_main)
     gimera_apply([], None)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    #endregion
+    # endregion
 
-    #region: case 4: submodule submodule
-    prepare_repos('submodule', 'submodule')
+    # region: case 4: submodule submodule
+    prepare_repos("submodule", "submodule")
     os.chdir(workspace_main)
     gimera_apply([], None)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    #endregion
+    # endregion
+
+
+def test_recursive_gimeras_3_levels(temppath):
+    workspace = temppath / "workspace_tree_dirty_files_3"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = None
+    repo_sub1 = None
+    repo_sub2 = None
+    repo_sub3 = None
+
+    gimera_main = None
+    gimera_sub = None
+
+    # region prepare repos
+    def prepare_repos(ttype_sub1, ttype_sub2, ttype_sub3):
+        if workspace_main.exists():
+            shutil.rmtree(workspace_main)
+        nonlocal repo_main, repo_sub1, repo_sub2, repo_sub3, gimera_main, gimera_sub
+        if repo_main:
+            shutil.rmtree(repo_main)
+        if repo_sub1:
+            shutil.rmtree(repo_sub1)
+        if repo_sub2:
+            shutil.rmtree(repo_sub2)
+        if repo_sub3:
+            shutil.rmtree(repo_sub3)
+        repo_main = _make_remote_repo(temppath / "mainrepo")
+        repo_sub1 = _make_remote_repo(temppath / "sub1")
+        repo_sub2 = _make_remote_repo(temppath / "sub2")
+        repo_sub3 = _make_remote_repo(temppath / "sub3")
+        path = Path(os.path.expanduser("~/.cache/gimera"))
+        if path.exists():
+            shutil.rmtree(path)
+
+        # region gimera config
+        gimera_main = {
+            "repos": [
+                {
+                    "url": f"file://{repo_sub1}",
+                    "branch": "main",
+                    "path": "sub1",
+                    "patches": [],
+                    "type": ttype_sub1,
+                },
+            ]
+        }
+        gimera_sub = {
+            "repos": [
+                {
+                    "url": f"file://{repo_sub2}",
+                    "branch": "main",
+                    "path": "sub2",
+                    "patches": [],
+                    "type": ttype_sub2,
+                },
+            ]
+        }
+        gimera_sub2 = {
+            "repos": [
+                {
+                    "url": f"file://{repo_sub3}",
+                    "branch": "main",
+                    "path": "sub3",
+                    "patches": [],
+                    "type": ttype_sub3,
+                },
+            ]
+        }
+        # endregion
+
+        with clone_and_commit(repo_main, "main") as repopath:
+            (repopath / "gimera.yml").write_text(yaml.dump(gimera_main))
+            (repopath / "main.txt").write_text("This is a new function")
+            Repo(repopath).simple_commit_all()
+
+        with clone_and_commit(repo_sub1, "main") as repopath:
+            (repopath / "gimera.yml").write_text(yaml.dump(gimera_sub))
+            (repopath / "sub1.txt").write_text("This is a new function")
+            Repo(repopath).simple_commit_all()
+
+        with clone_and_commit(repo_sub2, "main") as repopath:
+            (repopath / "gimera.yml").write_text(yaml.dump(gimera_sub2))
+            (repopath / "sub2.txt").write_text("This is a new function")
+            Repo(repopath).simple_commit_all()
+
+        with clone_and_commit(repo_sub3, "main") as repopath:
+            (repopath / "sub3.txt").write_text("This is a new function")
+            Repo(repopath).simple_commit_all()
+
+        subprocess.check_output(
+            ["git", "clone", "file://" + str(repo_main), workspace_main],
+            cwd=workspace,
+        )
+
+    # endregion
+
+    permutations = list(sorted(set(itertools.permutations("000111", 3))))
+
+    for permutation in permutations:
+
+        def ttype(x):
+            return "integrated" if int(x) else "submodule"
+
+        prepare_repos(*tuple(map(ttype, permutation)))
+        os.chdir(workspace_main)
+        gimera_apply([], None)
+
+        assert (workspace_main / "sub1" / "sub1.txt").exists()
+        assert (workspace_main / "sub1" / "gimera.yml").exists()
+        assert (workspace_main / "sub1" / "sub2" / "sub2.txt").exists()
+        assert (workspace_main / "sub1" / "sub2" / "sub3" / "sub3.txt").exists()
 
 
 def test_switch_submodule_to_integrated_on_different_branches(temppath):
@@ -672,11 +787,13 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo1.txt").exists()
-    sha_submodule_step1 = yaml.load((workspace_main / 'gimera.yml').read_text())['repos'][0]['sha']
+    sha_submodule_step1 = yaml.load((workspace_main / "gimera.yml").read_text())[
+        "repos"
+    ][0]["sha"]
     assert sha_submodule_step1
 
     main_repo.X("git", "checkout", "-b", "as_integrated")
-    repos['repos'][0]['type'] = 'integrated'
+    repos["repos"][0]["type"] = "integrated"
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
     main_repo.simple_commit_all()
     os.chdir(workspace_main)
@@ -693,7 +810,7 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
         Repo(repopath).simple_commit_all()
 
     os.chdir(workspace_main)
-    assert yaml.load((workspace_main / 'gimera.yml').read_text())['repos'][0]['sha']
+    assert yaml.load((workspace_main / "gimera.yml").read_text())["repos"][0]["sha"]
     gimera_apply([], False)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert not (workspace_main / "subby" / "repo2.txt").exists()
@@ -708,6 +825,7 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     gimera_apply([], False)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert not (workspace_main / "subby" / "repo2.txt").exists()
+
 
 def test_merges(temppath):
     workspace = temppath / "workspace_switch_subrepo"
@@ -753,11 +871,9 @@ def test_merges(temppath):
                 "branch": "main",
                 "path": "subby",
                 "remotes": {
-                    'repo_variant': str(repo_1variant),
+                    "repo_variant": str(repo_1variant),
                 },
-                "merges": [
-                    "repo_variant variant"
-                ],
+                "merges": ["repo_variant variant"],
                 "patches": [],
                 "type": "integrated",
             },
