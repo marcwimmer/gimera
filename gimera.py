@@ -10,9 +10,10 @@ import subprocess
 from pathlib import Path
 from .gitcommands import GitCommands
 from .tools import X, _raise_error, _strip_paths
-from .repo import Repo
+from .repo import Repo, Remote
 from .gitcommands import GitCommands
 from .tools import _raise_error, safe_relative_to, is_empty_dir
+from .tools import yieldlist
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -309,27 +310,30 @@ def _update_integrated_module(main_repo, repo_yml, update):
     if new_sha != sha:
         _store(main_repo, repo_yml, {"sha": new_sha})
 
+@yieldlist
+def _get_remotes(repo_yml):
+    config = repo_yml.get('remotes')
+    if not config:
+        return
+
+    for name, url in dict(config).items():
+        yield Remote(None, name, url)
 
 def _apply_merges(repo, repo_yml):
     if not repo_yml.get("merges"):
         return
-    repo_remotes = dict((x.name, x) for x in repo.remotes)
-    configured_remotes = repo_yml.get("remotes", [])
-    if configured_remotes:
-        for name, url in configured_remotes:
-            if url == repo_remotes.get(name).url:
-                continue
-            if name in repo_remotes:
-                repo.remove_remote(name)
-            repo.add_remote(name, url)
+    configured_remotes = _get_remotes(repo_yml)
+    for remote in configured_remotes:
+        if list(filter(lambda x: x.name == remote.name, repo.remotes)):
+            repo.remove_remote(remote)
+        repo.add_remote(remote)
 
-    for remote, ref in repo["merge"]:
+    for remote, ref in repo_yml["merges"]:
+        remote = repo.get_remote(remote)
         repo.fetch(remote, ref)
-    for remote, ref in repo["merges"]:
+    for remote, ref in repo_yml["merges"]:
+        remote = repo.get_remote(remote)
         repo.pull(remote, ref)
-    for name, url in configured_remotes:
-        repo.remove_remote(name)
-
 
 def _apply_patches(main_repo, repo_yml):
     for dir in repo_yml.get("patches", []) or []:

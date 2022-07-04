@@ -73,16 +73,19 @@ class Repo(GitCommands):
         raise ValueError(f"Path not found: {path}")
 
     def fetch(self, remote=None, ref=None):
-        self.X("git", "fetch", remote, ref or None)
+        self.X("git", "fetch", remote and remote.name or None, ref or None)
+
+    def get_remote(self, name):
+        return [x for x in self.remotes if x.name == name][0]
 
     def remove_remote(self, remote):
-        self.X("git", "remote", "rm", remote)
+        self.X("git", "remote", "rm", remote and remote.name or None)
 
-    def add_remote(self, name, url):
-        self.X("git", "remote", "add", name, url)
+    def add_remote(self, repo):
+        self.X("git", "remote", "add", repo.name, repo.url)
 
     def pull(self, remote=None, ref=None):
-        self.X("git", "pull", "--no-edit", remote, ref)
+        self.X("git", "pull", "--no-edit", remote and remote.name or None, ref)
 
     def full_clean(self):
         self.X("git", "checkout", "-f")
@@ -101,14 +104,16 @@ class Repo(GitCommands):
         result = {}
         for line in self.out("git", "remote", "-v").splitlines():
             name, url = line.strip().split("\t")
+            url = url.split("(")[0].rstrip()
             v = result.setdefault(name, url)
-            if v != url:
+            if str(v) != str(url):
                 raise NotImplementedError(
                     (
                         "Different urls for push and fetch for remote {name}\n"
                         f"{url} != {v}"
                     )
                 )
+            yield Remote(self, name, url)
         return result
 
     @yieldlist
@@ -123,10 +128,10 @@ class Repo(GitCommands):
 
 
 class Remote(object):
-    def __init__(self, repo, name, ref):
+    def __init__(self, repo, name, url):
         self.repo = repo
         self.name = name
-        self.ref = ref
+        self.url = url
 
 
 class Submodule(Repo):

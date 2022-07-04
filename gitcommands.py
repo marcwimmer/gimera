@@ -15,18 +15,23 @@ class GitCommands(object):
 
     def _parse_git_status(self):
         for line in X(
-            "git", "status", "--porcelain", cwd=self.path, output=True
+            "git",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            cwd=self.path,
+            output=True,
         ).splitlines():
             # splits: A  asdas
             #         M   asdasd
             #          M  asdsad
             #         ??  asasdasd
-            modifier  = line[:2]
+            modifier = line[:2]
             path = line.strip().split(" ", 1)[1]
             if path.startswith(".."):
                 continue
             path = Path(path.strip())
-            if parent_path := getattr(self, 'parent_path', None):
+            if parent_path := getattr(self, "parent_path", None):
                 path = parent_path / path
             else:
                 path = self.path / path
@@ -44,7 +49,7 @@ class GitCommands(object):
     @yieldlist
     def dirty_existing_files(self):
         for modifier, path in self._parse_git_status():
-            if modifier[0] == "M" or modifier[1] == 'M' or modifier[1] == "D":
+            if modifier[0] == "M" or modifier[1] == "M" or modifier[1] == "D":
                 yield path
 
     @property
@@ -85,21 +90,26 @@ class GitCommands(object):
         self.X("git", "status")
 
     def get_all_branches(self):
-        res = list(map(lambda x: x.strip(), self.out(
-            "git", "for-each-ref", "--format=%(refname:short)", "refs/heads"
-        ).splitlines()))
+        res = list(
+            map(
+                lambda x: x.strip(),
+                self.out(
+                    "git", "for-each-ref", "--format=%(refname:short)", "refs/heads"
+                ).splitlines(),
+            )
+        )
         return res
 
     @property
     def dirty(self):
         files = []
         for modifier, path in self._parse_git_status():
-            if str(path.relative_to(self.path)) == 'gimera.yml':
+            if str(path.relative_to(self.path)) == "gimera.yml":
                 continue
             files.append(path)
         return bool(files)
 
-    def simple_commit_all(self, msg='.'):
+    def simple_commit_all(self, msg="."):
         self.X("git", "add", ".")
         self.X("git", "commit", "-am", msg)
 

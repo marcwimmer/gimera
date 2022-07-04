@@ -28,11 +28,11 @@ def _strip_paths(paths):
 
 def safe_relative_to(path, path2):
     try:
-        Path(path).relative_to(path2)
+        res = Path(path).relative_to(path2)
     except ValueError:
         return False
     else:
-        return True
+        return res
 
 def is_empty_dir(path):
     return not any(Path(path).rglob("*"))
