@@ -884,6 +884,7 @@ def test_merges(temppath):
     main_repo.X("git", "checkout", "-b", "as_submodule")
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
     main_repo.simple_commit_all()
+    subprocess.check_call(["sync"])
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo1.txt").exists()
