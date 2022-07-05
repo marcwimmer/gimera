@@ -1,9 +1,22 @@
 # Welcome to GIMERA
 
+Advanced handling of submodules by integrating them or handling as submodules as you know
+but provide auto merge functions of hotfixes from other repositories or inside.
+
+Rule of thumb:
+
+ * no data is lost, it is safe to call gimera.
+If there are staged files, gimera wont continue.
+
+During run of gimera commits are done for example after pulling submodules or updating
+local paths.
+
 
 ## How to install:
 
-  * pip install gimera
+```bash
+pip install gimera
+```
 
 
 
@@ -30,7 +43,6 @@ repos:
           - 'roles2/sub1_patches'
       type: integrated
 
-    # instead of submodule put the content directly in the repository;
     # apply patches from another remote repository
     #
     - url: "https://github.com/foo/bar"
@@ -49,30 +61,35 @@ Patches and remote merges may be combined.
 
 Then execute:
 
-`>  gimera apply`
+```bash
+gimera apply
+```
 
 ## How to make a patchfile:
 
-From the example above: 
+From the example above:
 
   * edit roles2/sub1/file1.txt
-  * `>  gimera apply`
+
+```bash
+gimera apply
+```
 
 Then a patch file is created as suggestion in roles2/sub1_patches which you may commit and push.
+
 ## How to fetch only one or more repo:
 
-  * `>  gimera apply repo_path repo_path2 repo_path3`
+```bash
+gimera apply repo_path repo_path2 repo_path3`
+```
 ## How to fetch latest versions:
 
-  * `>  gimera apply --update`
+```bash
+gimera apply --update
+```
 
 Latest versions are pulled and patches are applied.
 
-## How to upload new version
-  * increase version in setup.py
-  * one time: pipenv install twine --dev
-  * pipenv shell
-  * python3 setup.py upload
 
 ## Contributors
   * Michael Tietz (mtietz@mt-software.de)
@@ -81,4 +98,6 @@ Latest versions are pulled and patches are applied.
 
 ## install directly
 
+```bash
 pip install git+https://github.com/marcwimmer/gimera
+```
