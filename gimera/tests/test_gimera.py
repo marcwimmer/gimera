@@ -358,7 +358,6 @@ def test_cleanup_dirty_submodule(temppath):
     (workspace_main / "sub" / "subsub" / "file5.txt").write_text("data")
     Repo(workspace_main).full_clean()
 
-
 def test_switch_submodule_to_integrated_and_sub(temppath):
     workspace = temppath / "workspace_switch_submodule"
     workspace.mkdir()
@@ -438,6 +437,98 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
     except ValueError:
         raise Exception("Should be found")
     test_if_change_is_pushed_back()
+
+def test_switch_submodule_to_integrated_and_sub_with_gitignores(temppath):
+    """
+    Took long time to understand it:
+    if there are gitignores and a submodule is moved to an integrated module
+    then files of that subrepo may become gitignored files of main repo and
+    removal of that directory fails.
+    For that clear_empty_subpaths is called after switching to git clean
+    untracked, ignored and excluded files. Excluded files not really used and tested
+    yet.
+    """
+    workspace = temppath / "workspace_switch_submodule_gitignore"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos_sub = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    repos_int = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function")
+        (repopath / "dont_look_at_me").write_text("i am ugly")
+        Repo(repopath).simple_commit_all()
+
+    subprocess.check_output(
+        ["git", "clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    (workspace_main / "main.txt").write_text("main repo")
+    (workspace_main / ".gitignore").write_text(
+        "dont_look_at_me\n"
+    )
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+    repo.X("git", "push")
+
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    try:
+        repo.get_submodule("sub1")
+    except ValueError:
+        raise Exception("Should be found")
+    assert not repo.all_dirty_files
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    try:
+        repo.get_submodule("sub1")
+    except ValueError:
+        pass
+    else:
+        raise Exception("Should not be found")
+    assert not repo.all_dirty_files
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    try:
+        repo.get_submodule("sub1")
+    except ValueError:
+        raise Exception("Should be found")
+    assert not repo.all_dirty_files
 
 
 def test_switch_submodule_to_other_url(temppath):
@@ -943,12 +1034,3 @@ def test_clean_a_submodule_in_submodule(temppath):
 
     submodule_repo1 = main_repo.get_submodule("folder_of_repo1")
     submodule_repo1.force_remove_submodule('folder_of_repo2/repo2')
-
-    # main_repo.X("git", "checkout", "-b", "as_submodule")
-    # (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
-    # main_repo.simple_commit_all()
-    # subprocess.check_call(["sync"])
-    # os.chdir(workspace_main)
-    # gimera_apply([], None)
-    # assert (workspace_main / "subby" / "repo1.txt").exists()
-    # assert (workspace_main / "subby" / "variant.txt").exists()

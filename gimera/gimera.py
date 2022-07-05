@@ -557,11 +557,15 @@ def __add_submodule(repo, config):
             repo.please_no_staged_files()
             # remove current path
             repo.X("git", "rm", "-f", "-r", relpath)
+            repo.clear_empty_subpaths(config)
             repo.output_status()
             if not [
-                x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)
+                # x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)
+                x for x in repo.all_dirty_files if safe_relative_to(x, repo.path / relpath)
             ]:
-                repo.X("git", "add", relpath)
+                if relpath.exists():
+                    # in case of deletion it does not exist
+                    repo.X("git", "add", relpath)
             repo.X("git", "commit", "-m", f"removed path {relpath} to insert submodule")
         else:
             # if submodule points to another url, also remove
