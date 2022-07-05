@@ -139,9 +139,9 @@ setup(
     version=about['__version__'],
     long_description=long_description,
     long_description_content_type='text/markdown',
-    py_modules=['gimera'],
     data_files=[],
     install_requires=REQUIRED,
+    packages=find_packages(exclude=["tests", "*.tests", "*.tests.*", "tests.*"]),
     include_package_data=True,
     cmdclass={
         'upload': UploadCommand,
