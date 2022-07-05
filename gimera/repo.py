@@ -15,6 +15,16 @@ class Repo(GitCommands):
     def __str__(self):
         return f"{self.path}"
 
+    @property
+    def root_repo(self):
+        path = self.path
+        for i in path.parts:
+            if (path / '.git').is_dir():
+                return Repo(path)
+            path = path.parent
+        else:
+            return None
+
     def force_remove_submodule(self, path):
         # https://github.com/jeremysears/scripts/blob/master/bin/git-submodule-rewrite
         self.X(
@@ -26,13 +36,13 @@ class Repo(GitCommands):
             f"submodule.{path}",
         )
         if self.out(
-            "git", "config", "-f", ".git/config", "--get", f"submodule.{path}.url"
+            "git", "config", "-f", self.configdir / 'config', "--get", f"submodule.{path}.url"
         ):
             self.X(
                 "git",
                 "config",
                 "-f",
-                ".git/config",
+                self.configdir / 'config',
                 "--remove-section",
                 f"submodule.{path}",
             )

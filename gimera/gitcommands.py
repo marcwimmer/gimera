@@ -7,6 +7,21 @@ class GitCommands(object):
     def __init__(self, path=None):
         self.path = Path(path or os.getcwd())
 
+    @property
+    def resolved_git_dir(self):
+        #if .git is a path pointing to the real dir
+        import pudb;pudb.set_trace()
+
+    @property
+    def configdir(self):
+        default = self.path / '.git'
+        if default.exists() and default.is_dir():
+            return default
+        if default.is_file():
+            path = default.read_text().strip().split("gitdir:")[1].strip()
+            return (self.path / path).resolve()
+        raise Exception("Config dir not found")
+
     def X(self, *params):
         return X(*params, output=False, cwd=self.path)
 

@@ -787,7 +787,7 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo1.txt").exists()
-    sha_submodule_step1 = yaml.load((workspace_main / "gimera.yml").read_text())[
+    sha_submodule_step1 = yaml.safe_load((workspace_main / "gimera.yml").read_text())[
         "repos"
     ][0]["sha"]
     assert sha_submodule_step1
@@ -810,7 +810,7 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
         Repo(repopath).simple_commit_all()
 
     os.chdir(workspace_main)
-    assert yaml.load((workspace_main / "gimera.yml").read_text())["repos"][0]["sha"]
+    assert yaml.safe_load((workspace_main / "gimera.yml").read_text())["repos"][0]["sha"]
     gimera_apply([], False)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert not (workspace_main / "subby" / "repo2.txt").exists()
@@ -889,3 +889,58 @@ def test_merges(temppath):
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert (workspace_main / "subby" / "variant.txt").exists()
+
+
+def test_clean_a_submodule_in_submodule(temppath):
+    workspace = temppath / "workspace_switch_subrepo"
+    os.chdir(workspace.parent)
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_1 = _make_remote_repo(temppath / "repo1")
+    repo_2 = _make_remote_repo(temppath / "repo1variant")
+
+    subprocess.check_output(
+        ["git", "clone", "file://" + str(repo_main), workspace.name],
+        cwd=workspace.parent,
+    )
+    # make variant repo and change on a branch there
+    with clone_and_commit(repo_2, "main") as repopath:
+        (repopath / "repo2.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    with clone_and_commit(repo_1, "main") as repopath:
+        (repopath / "repo1.txt").write_text("This is a new function")
+        Repo(repopath).X(
+            "git", "submodule", "add", f"file://{repo_2}", "folder_of_repo2/repo2"
+        )
+        Repo(repopath).simple_commit_all()
+
+    with clone_and_commit(repo_main, "main") as repopath:
+        (repopath / "dummy.txt").write_text("This is a new function")
+        Repo(repopath).X(
+            "git", "submodule", "add", f"file://{repo_1}", "folder_of_repo1"
+        )
+        Repo(repopath).simple_commit_all()
+
+    workspace_main = workspace / "main_working"
+    subprocess.check_call(["git", "clone", f"file://{repo_main}", workspace_main])
+    subprocess.check_call(
+        ["git", "submodule", "update", "--init", "--recursive"], cwd=workspace_main
+    )
+    main_repo = Repo(workspace_main)
+    assert (workspace_main / "folder_of_repo1" / "repo1.txt").exists()
+    assert (
+        workspace_main / "folder_of_repo1" / "folder_of_repo2" / "repo2" / "repo2.txt"
+    ).exists()
+
+    submodule_repo1 = main_repo.get_submodule("folder_of_repo1")
+    submodule_repo1.force_remove_submodule('folder_of_repo2/repo2')
+
+    # main_repo.X("git", "checkout", "-b", "as_submodule")
+    # (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
+    # main_repo.simple_commit_all()
+    # subprocess.check_call(["sync"])
+    # os.chdir(workspace_main)
+    # gimera_apply([], None)
+    # assert (workspace_main / "subby" / "repo1.txt").exists()
+    # assert (workspace_main / "subby" / "variant.txt").exists()

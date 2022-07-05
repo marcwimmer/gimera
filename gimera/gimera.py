@@ -8,23 +8,19 @@ import yaml
 import sys
 import subprocess
 from pathlib import Path
-from .gitcommands import GitCommands
+from gimera.gitcommands import GitCommands
 from .tools import X, _raise_error, _strip_paths
 from .repo import Repo, Remote
 from .gitcommands import GitCommands
 from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .tools import yieldlist
+from . import cli
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
 
 
-@click.group()
-def gimera():
-    pass
-
-
-@gimera.command(name="clean", help="Removes all dirty")
+@cli.command(name="clean", help="Removes all dirty")
 def clean():
     Cmd = GitCommands()
     if not Cmd.dirty:
@@ -41,7 +37,7 @@ def clean():
     Cmd.output_status()
 
 
-@gimera.command(name="combine-patch", help="Combine patches")
+@cli.command(name="combine-patch", help="Combine patches")
 def combine_patches():
     click.secho("\n\nHow to combine patches:\n", fg="yellow")
     click.secho("1. Please install patchutils:\n\n\tapt install patchutils\n")
@@ -61,7 +57,7 @@ def _get_available_repos(ctx, param, incomplete):
     return sorted(repos)
 
 
-@gimera.command(name="apply", help="Applies configuration from gimera.yml")
+@cli.command(name="apply", help="Applies configuration from gimera.yml")
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
 @click.option(
     "-u",
