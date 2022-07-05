@@ -14,10 +14,13 @@ from .repo import Repo, Remote
 from .gitcommands import GitCommands
 from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .tools import yieldlist
-from . import cli
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
+
+@click.group()
+def cli():
+    pass
 
 
 @cli.command(name="clean", help="Removes all dirty")
