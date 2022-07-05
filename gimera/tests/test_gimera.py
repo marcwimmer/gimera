@@ -586,6 +586,8 @@ def test_recursive_gimeras_2_levels(temppath):
 
     # endregion
 
+    repo = Repo(workspace_main)
+
     # region: case 1: all integrated
     prepare_repos("integrated", "integrated")
     os.chdir(workspace_main)
@@ -594,6 +596,7 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    assert not repo.all_dirty_files
     # endregion
 
     # region: case 2: submodule then integrated
@@ -604,6 +607,7 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    assert not repo.all_dirty_files
     # endregion
 
     # region: case 3: integrated then submodule
@@ -614,6 +618,7 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    assert not repo.all_dirty_files
     # endregion
 
     # region: case 4: submodule submodule
@@ -624,6 +629,7 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
+    assert not repo.all_dirty_files
     # endregion
 
 
@@ -734,10 +740,12 @@ def test_recursive_gimeras_3_levels(temppath):
         os.chdir(workspace_main)
         gimera_apply([], None)
 
+        repo = Repo(workspace_main)
         assert (workspace_main / "sub1" / "sub1.txt").exists()
         assert (workspace_main / "sub1" / "gimera.yml").exists()
         assert (workspace_main / "sub1" / "sub2" / "sub2.txt").exists()
         assert (workspace_main / "sub1" / "sub2" / "sub3" / "sub3.txt").exists()
+        assert not repo.all_dirty_files
 
 
 def test_switch_submodule_to_integrated_on_different_branches(temppath):

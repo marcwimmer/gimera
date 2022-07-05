@@ -109,12 +109,29 @@ def _internal_apply(repos, update):
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
 
-        subgimera = Path(repo["path"]) / "gimera.yml"
-        pwd = os.getcwd()
-        if subgimera.exists():
-            os.chdir(main_repo.path / repo["path"])
-            _internal_apply([], update)
-        os.chdir(pwd)
+        _apply_subgimera(main_repo, repo, update)
+
+
+def _apply_subgimera(main_repo, repo, update):
+    subgimera = Path(repo["path"]) / "gimera.yml"
+    sub_path = main_repo.path / repo["path"]
+    pwd = os.getcwd()
+    if subgimera.exists():
+        os.chdir(sub_path)
+        _internal_apply([], update)
+
+        dirty_files = list(
+            filter(lambda x: safe_relative_to(x, sub_path), main_repo.all_dirty_files)
+        )
+        if dirty_files:
+            main_repo.please_no_staged_files()
+            for f in dirty_files:
+                main_repo.X("git", "add", f)
+            main_repo.X(
+                "git", "commit", "-m", f"gimera: updated sub path {repo['path']}"
+            )
+        # commit submodule updates or changed dirs
+    os.chdir(pwd)
 
 
 def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
@@ -306,14 +323,16 @@ def _update_integrated_module(main_repo, repo_yml, update):
     if new_sha != sha:
         _store(main_repo, repo_yml, {"sha": new_sha})
 
+
 @yieldlist
 def _get_remotes(repo_yml):
-    config = repo_yml.get('remotes')
+    config = repo_yml.get("remotes")
     if not config:
         return
 
     for name, url in dict(config).items():
         yield Remote(None, name, url)
+
 
 def _apply_merges(repo, repo_yml):
     if not repo_yml.get("merges"):
@@ -330,6 +349,7 @@ def _apply_merges(repo, repo_yml):
     for remote, ref in repo_yml["merges"]:
         remote = repo.get_remote(remote)
         repo.pull(remote, ref)
+
 
 def _apply_patches(main_repo, repo_yml):
     for dir in repo_yml.get("patches", []) or []:
