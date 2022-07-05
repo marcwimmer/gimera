@@ -1,4 +1,5 @@
 import subprocess
+import shutil
 from .gitcommands import GitCommands
 from pathlib import Path
 from .tools import yieldlist, X, safe_relative_to, _raise_error
@@ -136,6 +137,32 @@ class Repo(GitCommands):
             else:
                 yield file
 
+    def clear_empty_subpaths(self, config):
+        """
+        If subrepo is at ./path1/path2/path3 and it is removed,
+        then path1/path2 stays. This leads to dirty files and unneeded files causing
+        problems at switch submodules to integrated and back.
+
+        Be careful to integrate gitignore patterns.
+        """
+        check = self.path / config['path']
+        dont_go_beyond = self.path / Path(config['path']).parts[0]
+        while check.exists():
+            # removing untracked and ignored files
+            # there may also be the case of "excluded" files - never used this,
+            # but possible;
+            self.X("git", "clean", "-fd", self.path / check)
+            if not safe_relative_to(check, dont_go_beyond):
+                break
+            if not check.exists():
+                check = check.parent
+                continue
+            if not list(check.iterdir()):
+                shutil.rmtree(check)
+            check = check.parent
+            if not safe_relative_to(check, self.path):
+                break
+
 
 class Remote(object):
     def __init__(self, repo, name, url):
@@ -169,4 +196,3 @@ class Submodule(Repo):
         if isinstance(other, Path):
             return self.path.absolute() == other.absolute()
         raise NotImplementedError(other)
-
