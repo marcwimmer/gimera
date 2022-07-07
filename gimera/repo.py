@@ -169,8 +169,11 @@ class Repo(GitCommands):
                 break
 
     def lsfiles(self, path):
-        files = list(map(lambda x: Path(x), self.out("git", "ls-files", path).splitlines()))
+        files = list(
+            map(lambda x: Path(x), self.out("git", "ls-files", path).splitlines())
+        )
         return files
+
 
 class Remote(object):
     def __init__(self, repo, name, url):
