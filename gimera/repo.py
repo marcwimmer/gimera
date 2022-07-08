@@ -58,10 +58,11 @@ class Repo(GitCommands):
                 f"submodule.{path}",
             )
 
+        subrepo = Repo(self.path / path)
         self.X("rm", "-rf", path)
         self.X("git", "add", "-A", path, ".gitmodules")
         self.X("git", "commit", "-m", f"removed submodule {path}")
-        self.X("rm", "-rf", f".git/modules/{self.rel_path_to_root_repo}")
+        self.X("rm", "-rf", f".git/modules/{subrepo.rel_path_to_root_repo}")
 
     @property
     def next_module_root(self):
