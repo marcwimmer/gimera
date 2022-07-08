@@ -29,7 +29,7 @@ class Config(object):
     class RepoItem(object):
         def __init__(self, config, config_section):
             self.config = config
-            self.sha = config_section.get("sha", None)
+            self._sha = config_section.get("sha", None)
             self.path = Path(config_section["path"])
             self.branch = str(config_section["branch"])
             self.merges = config_section.get("merges", [])
@@ -56,9 +56,14 @@ class Config(object):
                     f"{self.path}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'"
                 )
 
-        def _store_sha(self, sha):
-            if self.sha != sha:
-                self.config._store(self, {"sha": sha})
+        @property
+        def sha(self):
+            return self._sha
+
+        @sha.setter
+        def sha(self, value):
+            self._sha = value
+            self.config._store(self, {"sha": value})
 
         def as_dict(self):
             return {
@@ -119,10 +124,10 @@ class Config(object):
 
         config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
         param_repo = repo
-        for repo in self.repos:
-            if repo.path == param_repo.path:
+        for repo in config['repos']:
+            if Path(repo['path']) == param_repo.path:
                 for k, v in value.items():
-                    setattr(repo, k, value)
+                    repo[k] = v
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
         main_repo.please_no_staged_files()
         main_repo.X("git", "add", self.config_file)
@@ -281,9 +286,9 @@ def _make_patches(main_repo, repo_yml):
 
     to_reset = []
     # TODO bug two times INT
-    if repo_yml["type"] == REPO_TYPE_INT:
+    if repo_yml.type == REPO_TYPE_INT:
         cwd = main_repo.working_dir
-    elif repo_yml["type"] == REPO_TYPE_INT:
+    elif repo_yml.type == REPO_TYPE_INT:
         cwd = main_repo.working_dir / repo_yml.path
     else:
         raise NotImplementedError(repo_yml.type)
@@ -315,8 +320,8 @@ def _make_patches(main_repo, repo_yml):
             f"Please define at least one directory, where patches are stored for {repo_yml['path']}"
         )
 
-    if len(repo_yml["patches"]) == 1:
-        patch_dir = Path(repo_yml["patches"][0])
+    if len(repo_yml.patches) == 1:
+        patch_dir = Path(repo_yml.patches[0])
     else:
         questions = [
             inquirer.List(
@@ -385,9 +390,9 @@ def _update_integrated_module(main_repo, repo_yml, update):
 
     if not update and repo_yml.sha:
         branches = repo.get_all_branches()
-        if repo_yml["branch"] not in branches:
+        if repo_yml.branch not in branches:
             repo.pull()
-            repo_yml.store_sha(None)
+            repo_yml.sha = None
         else:
             subprocess.check_call(
                 ["git", "config", "advice.detachedHead", "false"], cwd=local_repo_dir
@@ -435,7 +440,7 @@ def _update_integrated_module(main_repo, repo_yml, update):
             )
 
     repo.X("git", "reset", "--hard", f'origin/{repo_yml.branch}')
-    repo_yml._store_sha(new_sha)
+    repo_yml.sha = new_sha
 
 
 @yieldlist
@@ -477,7 +482,7 @@ def _apply_patches(main_repo, repo_yml):
             )
             # Git apply fails silently if applied within local repos
             try:
-                cwd = Path(main_repo.working_dir) / repo_yml["path"]
+                cwd = Path(main_repo.working_dir) / repo_yml.path
                 output = subprocess.check_output(
                     ["patch", "-p1"],
                     input=file.read_text(),  # bytes().decode('utf-8'),
@@ -585,7 +590,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
         _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
     # update gimera.yml on demand
-    repo_yml._store_sha(subrepo.hex)
+    repo_yml.sha = subrepo.hex
 
 
 def clean_branch_names(arr):

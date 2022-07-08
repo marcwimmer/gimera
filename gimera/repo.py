@@ -150,8 +150,8 @@ class Repo(GitCommands):
 
         Be careful to integrate gitignore patterns.
         """
-        check = self.path / config["path"]
-        dont_go_beyond = self.path / Path(config["path"]).parts[0]
+        check = self.path / config.path
+        dont_go_beyond = self.path / Path(config.path).parts[0]
         while check.exists():
             # removing untracked and ignored files
             # there may also be the case of "excluded" files - never used this,
