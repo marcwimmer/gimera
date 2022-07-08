@@ -87,12 +87,12 @@ class Config(object):
 
         @property
         def type(self):
-            if self.config.force_integrated:
-                return REPO_TYPE_INT
+            if self.config.force_type:
+                return self.config.force_type
             return self._type
 
-    def __init__(self, force_integrated):
-        self.force_integrated = force_integrated
+    def __init__(self, force_type):
+        self.force_type = force_type
         self._repos = []
         self.load_config()
 
@@ -130,7 +130,8 @@ class Config(object):
                     repo[k] = v
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
         main_repo.please_no_staged_files()
-        main_repo.X("git", "add", self.config_file)
+        if self.config_file.resolve() in [x.resolve() for x in main_repo.all_dirty_files]:
+            main_repo.X("git", "add", self.config_file)
         if main_repo.staged_files:
             main_repo.X("git", "commit", "-m", "auto update gimera.yml")
 
@@ -160,7 +161,7 @@ def combine_patches():
 
 
 def _get_available_repos(ctx, param, incomplete):
-    config = Config(force_integrated=False)
+    config = Config(force_type=False)
     repos = []
     for repo in config.repos:
         if not repo.get("path"):
@@ -186,28 +187,39 @@ def _get_available_repos(ctx, param, incomplete):
     is_flag=True,
     help="Overrides setting in gimera.yml and sets 'integrated' for all.",
 )
-def apply(repos, update, all_integrated):
-    return _apply(repos, update, force_integrated=all_integrated)
+@click.option(
+    "-S",
+    "--all-submodule",
+    is_flag=True,
+    help="Overrides setting in gimera.yml and sets 'submodule' for all.",
+)
+def apply(repos, update, all_integrated, all_submodule):
+    if all_integrated and all_submodule:
+        _raise_error("Please set either -I or -S")
+    ttype = None
+    ttype = REPO_TYPE_INT if all_integrated else ttype
+    ttype = REPO_TYPE_SUB if all_submodule else ttype
+    return _apply(repos, update, force_type=ttype)
 
 
-def _apply(repos, update, force_integrated=False):
+def _apply(repos, update, force_type=False):
     """
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
     """
-    config = Config(force_integrated=force_integrated)
+    config = Config(force_type=force_type)
 
     repos = list(_strip_paths(repos))
     for check in repos:
         if check not in map(lambda x: str(x.path), config.repos):
             _raise_error(f"Invalid path: {check}")
 
-    _internal_apply(repos, update, force_integrated)
+    _internal_apply(repos, update, force_type)
 
 
-def _internal_apply(repos, update, force_integrated):
+def _internal_apply(repos, update, force_type):
     main_repo = Repo(os.getcwd())
-    config = Config(force_integrated=force_integrated)
+    config = Config(force_type=force_type)
 
     for repo in config.repos:
         if repos and str(repo.path) not in repos:
@@ -220,16 +232,16 @@ def _internal_apply(repos, update, force_integrated):
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
 
-        _apply_subgimera(main_repo, repo, update, force_integrated)
+        _apply_subgimera(main_repo, repo, update, force_type)
 
 
-def _apply_subgimera(main_repo, repo, update, force_integrated):
+def _apply_subgimera(main_repo, repo, update, force_type):
     subgimera = Path(repo.path) / "gimera.yml"
     sub_path = main_repo.path / repo.path
     pwd = os.getcwd()
     if subgimera.exists():
         os.chdir(sub_path)
-        _internal_apply([], update, force_integrated=force_integrated)
+        _internal_apply([], update, force_type=force_type)
 
         dirty_files = list(
             filter(lambda x: safe_relative_to(x, sub_path), main_repo.all_dirty_files)
@@ -630,12 +642,21 @@ def __add_submodule(repo, config):
                 repo.X(
                     "git", "commit", "-m", f"removed path {relpath} to insert submodule"
                 )
+
+            # make sure does not exist; some leftovers sometimes
+            repo.force_remove_submodule(relpath)
+
         else:
             # if submodule points to another url, also remove
-            if submodule.get_url() != config.url:
+            if submodule.get_url(noerror=True) != config.url:
                 repo.force_remove_submodule(submodule.path.relative_to(repo.path))
             else:
                 return
+    else:
+        repo.force_remove_submodule(relpath)
+
+    repo._fix_to_remove_subdirectories()
+
     repo.X(
         "git",
         "submodule",
@@ -644,11 +665,12 @@ def __add_submodule(repo, config):
         "-b",
         str(config.branch),
         config.url,
-        path.relative_to(repo.path),
+        relpath,
     )
     # repo.X("git", "add", ".gitmodules", relpath)
     click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
-    repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
+    if repo.staged_files:
+        repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
 
 
 def _turn_into_correct_repotype(repo, repo_config):

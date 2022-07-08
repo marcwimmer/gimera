@@ -16,7 +16,7 @@ class Repo(GitCommands):
     def __str__(self):
         return f"{self.path}"
 
-    @property 
+    @property
     def rel_path_to_root_repo(self):
         assert str(self.path).startswith("/")
         return self.path.relative_to(self.root_repo.path)
@@ -33,35 +33,47 @@ class Repo(GitCommands):
 
     def force_remove_submodule(self, path):
         # https://github.com/jeremysears/scripts/blob/master/bin/git-submodule-rewrite
-        self.X(
-            "git",
-            "config",
-            "-f",
-            ".gitmodules",
-            "--remove-section",
-            f"submodule.{path}",
-        )
-        if self.out(
-            "git",
-            "config",
-            "-f",
-            self.configdir / "config",
-            "--get",
-            f"submodule.{path}.url",
-        ):
+        self.please_no_staged_files()
+        fullpath = self.path / path
+        if fullpath.exists():
             self.X(
                 "git",
                 "config",
                 "-f",
-                self.configdir / "config",
+                ".gitmodules",
                 "--remove-section",
                 f"submodule.{path}",
+                allow_error=True,
             )
+            if self.out(
+                "git",
+                "config",
+                "-f",
+                self.configdir / "config",
+                "--get",
+                f"submodule.{path}.url",
+                allow_error=True,
+            ):
+                self.X(
+                    "git",
+                    "config",
+                    "-f",
+                    self.configdir / "config",
+                    "--remove-section",
+                    f"submodule.{path}",
+                )
 
         subrepo = Repo(self.path / path)
         self.X("rm", "-rf", path)
-        self.X("git", "add", "-A", path, ".gitmodules")
-        self.X("git", "commit", "-m", f"removed submodule {path}")
+        if fullpath.exists():
+            self.X("git", "add", "-A", path)
+        if self.lsfiles(fullpath.relative_to(self.path)):
+            self.X("git", "add", "-A", path)
+        if (self.path / '.gitmodules') in self.all_dirty_files:
+            self.X("git", "add", "-A", ".gitmodules")
+
+        if self.staged_files:
+            self.X("git", "commit", "-m", f"removed submodule {path}")
         self.X("rm", "-rf", f".git/modules/{subrepo.rel_path_to_root_repo}")
 
     @property
@@ -84,6 +96,37 @@ class Repo(GitCommands):
         for line in submodules:
             splitted = line.strip().split("\t", 3)
             yield Submodule(self.next_module_root / splitted[-1], self.next_module_root)
+
+    def _fix_to_remove_subdirectories(self):
+        # https://stackoverflow.com/questions/4185365/no-submodule-mapping-found-in-gitmodule-for-a-path-thats-not-a-submodule
+        # commands may block
+        # git submodule--helper works and shows something
+        # git submodule says: fatal: no submodule mapping found in .gitmodules
+        # there is special folder with id 16000 then, then must be removed with git rm
+        # then; not tested, because then it suddenly worked
+        lines = [
+            x
+            for x in self.out("git", "ls-files", "--stage").splitlines()
+            if x.strip().startswith("160000")
+        ]
+        # 160000 5e8add9536e584f73ea25d4cf51577832d480e90 0       addons_robot
+        for line in lines:
+            linepath = line.split("\t", 1)[1]
+            path = self.path / linepath
+            if path.exists():
+                self.please_no_staged_files()
+                # if .gitmodules is dirty then commit that first, otherwise:
+                # fatal: please stage your changes to .gitmodules or stash them to proceed
+                if (self.path / ".gitmodules") in self.all_dirty_files:
+                    self.X("git", "add", ".gitmodules")
+                    self.X(
+                        "git",
+                        "commit",
+                        "-m",
+                        "gimera fix to removed subdirs: .gitmodules",
+                    )
+                self.X("git", "rm", "-f", linepath)
+                self.X("git", "commit", "-m", f"removed invalid subrepo: {linepath}")
 
     def get_submodule(self, path, force=False):
         if force:
@@ -200,10 +243,15 @@ class Submodule(Repo):
     def __str__(self):
         return f"{self.path}"
 
-    def get_url(self):
-        url = Repo(self.parent_path).out(
-            "git", "config", "-f", ".gitmodules", f"submodule.{self.relpath}.url"
-        )
+    def get_url(self, noerror=True):
+        try:
+            url = Repo(self.parent_path).out(
+                "git", "config", "-f", ".gitmodules", f"submodule.{self.relpath}.url"
+            )
+        except subprocess.CalledProcessError:
+            if not noerror:
+                raise
+            url = ""
         return url
 
     def equals(self, other):
