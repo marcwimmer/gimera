@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import shutil
 import os
 from datetime import datetime
 import inquirer
@@ -573,7 +574,12 @@ def __add_submodule(repo, config):
             repo.output_status()
             repo.please_no_staged_files()
             # remove current path
-            repo.X("git", "rm", "-f", "-r", relpath)
+
+            if repo.lsfiles(relpath):
+                repo.X("git", "rm", "-f", "-r", relpath)
+            if (repo.path / relpath).exists():
+                shutil.rmtree(repo.path / relpath)
+
             repo.clear_empty_subpaths(config)
             repo.output_status()
             if not [
@@ -585,7 +591,8 @@ for x in repo.all_dirty_files
                 if relpath.exists():
                     # in case of deletion it does not exist
                     repo.X("git", "add", relpath)
-            repo.X("git", "commit", "-m", f"removed path {relpath} to insert submodule")
+            if repo.staged_files:
+                repo.X("git", "commit", "-m", f"removed path {relpath} to insert submodule")
         else:
             # if submodule points to another url, also remove
             if submodule.get_url() != config["url"]:

@@ -20,7 +20,7 @@ class Repo(GitCommands):
     def root_repo(self):
         path = self.path
         for i in path.parts:
-            if (path / '.git').is_dir():
+            if (path / ".git").is_dir():
                 return Repo(path)
             path = path.parent
         else:
@@ -37,13 +37,18 @@ class Repo(GitCommands):
             f"submodule.{path}",
         )
         if self.out(
-            "git", "config", "-f", self.configdir / 'config', "--get", f"submodule.{path}.url"
+            "git",
+            "config",
+            "-f",
+            self.configdir / "config",
+            "--get",
+            f"submodule.{path}.url",
         ):
             self.X(
                 "git",
                 "config",
                 "-f",
-                self.configdir / 'config',
+                self.configdir / "config",
                 "--remove-section",
                 f"submodule.{path}",
             )
@@ -145,8 +150,8 @@ class Repo(GitCommands):
 
         Be careful to integrate gitignore patterns.
         """
-        check = self.path / config['path']
-        dont_go_beyond = self.path / Path(config['path']).parts[0]
+        check = self.path / config["path"]
+        dont_go_beyond = self.path / Path(config["path"]).parts[0]
         while check.exists():
             # removing untracked and ignored files
             # there may also be the case of "excluded" files - never used this,
@@ -162,6 +167,12 @@ class Repo(GitCommands):
             check = check.parent
             if not safe_relative_to(check, self.path):
                 break
+
+    def lsfiles(self, path):
+        files = list(
+            map(lambda x: Path(x), self.out("git", "ls-files", path).splitlines())
+        )
+        return files
 
 
 class Remote(object):
