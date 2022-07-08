@@ -21,10 +21,6 @@ from subprocess import check_call, check_output
 import inspect
 import os
 
-# HACK to ignore wheel building from pip and just to source distribution
-if 'bdist_wheel' in sys.argv:
-    sys.exit(0)
-
 current_dir = Path(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))
 setup_cfg = read_configuration("setup.cfg")
 metadata = setup_cfg['metadata']
@@ -116,24 +112,6 @@ class UploadCommand(Command):
 
         sys.exit()
 
-class InstallCommand(install):
-    """Post-installation for installation mode."""
-    def run(self):
-        install.run(self)
-        self.setup_click_autocompletion()
-
-    def setup_click_autocompletion(self):
-        for console_script in setup_cfg['options']['entry_points']['console_scripts']:
-            console_call = console_script.split("=")[0].strip()
-
-            # if click completion helper is fresh installed and not available now
-            subprocess.run(["pip3", "install", "click-completion-helper"])
-            subprocess.run([
-                "click-completion-helper",
-                "setup",
-                console_call,
-            ])
-
 # Where the magic happens:
 setup(
     version=about['__version__'],
@@ -145,6 +123,5 @@ setup(
     include_package_data=True,
     cmdclass={
         'upload': UploadCommand,
-        'install': InstallCommand,
     },
 )

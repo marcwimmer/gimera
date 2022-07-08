@@ -10,11 +10,21 @@ def yieldlist(method):
         return result
     return wrapper
 
-def X(*params, output=False, cwd=None):
+def X(*params, output=False, cwd=None, allow_error=False):
     params = list(filter(lambda x: x is not None, list(params)))
     if output:
-        return subprocess.check_output(params, encoding="utf-8", cwd=cwd).rstrip()
-    return subprocess.check_call(params, cwd=cwd)
+        try:
+            return subprocess.check_output(params, encoding="utf-8", cwd=cwd).rstrip()
+        except subprocess.CalledProcessError:
+            if allow_error:
+                return ""
+            raise
+    try:
+        return subprocess.check_call(params, cwd=cwd)
+    except subprocess.CalledProcessError:
+        if allow_error:
+            return None
+        raise
 
 def _raise_error(msg):
     click.secho(msg, fg="red")
@@ -22,9 +32,7 @@ def _raise_error(msg):
 
 def _strip_paths(paths):
     for x in paths:
-        if x.endswith("/"):
-            x = x[:-1]
-        yield x
+        yield str(Path(x))
 
 def safe_relative_to(path, path2):
     try:
