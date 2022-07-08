@@ -21,10 +21,6 @@ from subprocess import check_call, check_output
 import inspect
 import os
 
-# HACK to ignore wheel building from pip and just to source distribution
-if 'bdist_wheel' in sys.argv:
-    sys.exit(0)
-
 current_dir = Path(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))
 setup_cfg = read_configuration("setup.cfg")
 metadata = setup_cfg['metadata']
