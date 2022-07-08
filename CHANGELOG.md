@@ -1,4 +1,4 @@
-# 0.6.7
+# 0.6.8
 
 Tested the switching between submodule and integrated in real world
 repositories and fixed a lot of stuff like remaining directories with
