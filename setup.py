@@ -112,23 +112,23 @@ class UploadCommand(Command):
 
         sys.exit()
 
-class InstallCommand(install):
-    """Post-installation for installation mode."""
-    def run(self):
-        install.run(self)
-        self.setup_click_autocompletion()
+# class InstallCommand(install):
+#     """Post-installation for installation mode."""
+#     def run(self):
+#         install.run(self)
+#         self.setup_click_autocompletion()
 
-    def setup_click_autocompletion(self):
-        for console_script in setup_cfg['options']['entry_points']['console_scripts']:
-            console_call = console_script.split("=")[0].strip()
+#     def setup_click_autocompletion(self):
+#         for console_script in setup_cfg['options']['entry_points']['console_scripts']:
+#             console_call = console_script.split("=")[0].strip()
 
-            # if click completion helper is fresh installed and not available now
-            subprocess.run(["pip3", "install", "click-completion-helper"])
-            subprocess.run([
-                "click-completion-helper",
-                "setup",
-                console_call,
-            ])
+#             # if click completion helper is fresh installed and not available now
+#             subprocess.run(["pip3", "install", "click-completion-helper"])
+#             subprocess.run([
+#                 "click-completion-helper",
+#                 "setup",
+#                 console_call,
+#             ])
 
 # Where the magic happens:
 setup(
@@ -141,6 +141,5 @@ setup(
     include_package_data=True,
     cmdclass={
         'upload': UploadCommand,
-        'install': InstallCommand,
     },
 )
