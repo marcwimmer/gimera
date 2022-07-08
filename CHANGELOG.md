@@ -1,3 +1,10 @@
+# 0.6.7
+
+Tested the switching between submodule and integrated in real world
+repositories and fixed a lot of stuff like remaining directories with
+certain marker in git.
+https://stackoverflow.com/questions/4185365/no-submodule-mapping-found-in-gitmodule-for-a-path-thats-not-a-submodule
+
 # 0.6.2
 
 * Handling gitignores when switching submodule to integrated repos
