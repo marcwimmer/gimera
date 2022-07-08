@@ -16,6 +16,11 @@ class Repo(GitCommands):
     def __str__(self):
         return f"{self.path}"
 
+    @property 
+    def rel_path_to_root_repo(self):
+        assert str(self.path).startswith("/")
+        return self.path.relative_to(self.root_repo.path)
+
     @property
     def root_repo(self):
         path = self.path
@@ -56,7 +61,7 @@ class Repo(GitCommands):
         self.X("rm", "-rf", path)
         self.X("git", "add", "-A", path, ".gitmodules")
         self.X("git", "commit", "-m", f"removed submodule {path}")
-        self.X("rm", "-rf", f".git/modules/{path}")
+        self.X("rm", "-rf", f".git/modules/{self.rel_path_to_root_repo}")
 
     @property
     def next_module_root(self):

@@ -22,9 +22,7 @@ def _raise_error(msg):
 
 def _strip_paths(paths):
     for x in paths:
-        if x.endswith("/"):
-            x = x[:-1]
-        yield x
+        yield str(Path(x))
 
 def safe_relative_to(path, path2):
     try:

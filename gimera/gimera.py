@@ -199,7 +199,7 @@ def _apply(repos, update, force_integrated=False):
 
     repos = list(_strip_paths(repos))
     for check in repos:
-        if check not in map(lambda x: x["path"], config.repos):
+        if check not in map(lambda x: str(x.path), config.repos):
             _raise_error(f"Invalid path: {check}")
 
     _internal_apply(repos, update, force_integrated)
@@ -210,15 +210,9 @@ def _internal_apply(repos, update, force_integrated):
     config = Config(force_integrated=force_integrated)
 
     for repo in config.repos:
-        if repos and repo.path not in repos:
+        if repos and str(repo.path) not in repos:
             continue
         _turn_into_correct_repotype(main_repo, repo)
-        del repo
-
-    for repo in config.repos:
-        if repos and repo["path"] not in repos:
-            continue
-
         if repo.type == REPO_TYPE_SUB:
             _make_sure_subrepo_is_checked_out(main_repo, repo)
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
