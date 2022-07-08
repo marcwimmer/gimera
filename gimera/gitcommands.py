@@ -22,11 +22,11 @@ class GitCommands(object):
             return (self.path / path).resolve()
         raise Exception("Config dir not found")
 
-    def X(self, *params):
-        return X(*params, output=False, cwd=self.path)
+    def X(self, *params, allow_error=False):
+        return X(*params, output=False, cwd=self.path, allow_error=allow_error)
 
-    def out(self, *params):
-        return X(*params, output=True, cwd=self.path)
+    def out(self, *params, allow_error=False):
+        return X(*params, output=True, cwd=self.path, allow_error=allow_error)
 
     def _parse_git_status(self):
         for line in X(
