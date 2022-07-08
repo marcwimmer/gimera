@@ -643,6 +643,15 @@ def _turn_into_correct_repotype(repo, repo_config):
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
 
+@cli.command
+def completion():
+    shell = os.environ['SHELL'].split("/")[-1]
+    click.secho(
+        "\n\n"
+        f"Insert into ~/.{shell}rc\n\n"
+        f'echo \'eval "$(_GIMERA_COMPLETE={shell}_source gimera)"\' >> ~/.{shell}rc'
+        "\n\n"
+    )
 
 if __name__ == "__main__":
     # _make_sure_in_root()
