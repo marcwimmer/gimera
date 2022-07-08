@@ -1034,3 +1034,6 @@ def test_clean_a_submodule_in_submodule(temppath):
 
     submodule_repo1 = main_repo.get_submodule("folder_of_repo1")
     submodule_repo1.force_remove_submodule('folder_of_repo2/repo2')
+
+
+# test change something in submodule and check if gets lost if not pushed

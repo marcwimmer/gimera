@@ -18,6 +18,7 @@ from .tools import yieldlist
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
 
+
 @click.group()
 def cli():
     pass
@@ -68,11 +69,17 @@ def _get_available_repos(ctx, param, incomplete):
     is_flag=True,
     help="If set, then latest versions are pulled from remotes.",
 )
-def apply(repos, update):
-    return _apply(repos, update)
+@click.option(
+    "-I",
+    "--all-integrated",
+    is_flag=True,
+    help="Overrides setting in gimera.yml and sets 'integrated' for all.",
+)
+def apply(repos, update, all_integrated):
+    return _apply(repos, update, force_integrated=all_integrated)
 
 
-def _apply(repos, update):
+def _apply(repos, update, force_integrated=False):
     """
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
@@ -84,10 +91,10 @@ def _apply(repos, update):
         if check not in map(lambda x: x["path"], config["repos"]):
             _raise_error(f"Invalid path: {check}")
 
-    _internal_apply(repos, update)
+    _internal_apply(repos, update, force_integrated)
 
 
-def _internal_apply(repos, update):
+def _internal_apply(repos, update, force_integrated):
     main_repo = Repo(os.getcwd())
     config = load_config()
 
@@ -105,23 +112,30 @@ def _internal_apply(repos, update):
 
         repo["branch"] = str(repo["branch"])  # e.g. if 15.0
 
-        if repo.get("type") == REPO_TYPE_SUB:
+        effective_repo_type = (
+            repo.get("type") if not force_integrated else REPO_TYPE_INT
+        )
+        if not effective_repo_type:
+            _raise_error(
+                f"Missing repo type for {json.dumps(repo, indent=4)}")
+
+        if effective_repo_type == REPO_TYPE_SUB:
             _make_sure_subrepo_is_checked_out(main_repo, repo)
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
-        elif repo.get("type") == REPO_TYPE_INT:
+        elif effective_repo_type == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update)
 
-        _apply_subgimera(main_repo, repo, update)
+        _apply_subgimera(main_repo, repo, update, force_integrated)
 
 
-def _apply_subgimera(main_repo, repo, update):
+def _apply_subgimera(main_repo, repo, update, force_integrated):
     subgimera = Path(repo["path"]) / "gimera.yml"
     sub_path = main_repo.path / repo["path"]
     pwd = os.getcwd()
     if subgimera.exists():
         os.chdir(sub_path)
-        _internal_apply([], update)
+        _internal_apply([], update, force_integrated=force_integrated)
 
         dirty_files = list(
             filter(lambda x: safe_relative_to(x, sub_path), main_repo.all_dirty_files)
@@ -564,7 +578,9 @@ def __add_submodule(repo, config):
             repo.output_status()
             if not [
                 # x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)
-                x for x in repo.all_dirty_files if safe_relative_to(x, repo.path / relpath)
+                x
+for x in repo.all_dirty_files
+               if safe_relative_to(x, repo.path / relpath)
             ]:
                 if relpath.exists():
                     # in case of deletion it does not exist
