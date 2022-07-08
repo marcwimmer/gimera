@@ -15,7 +15,8 @@ local paths.
 ## How to install:
 
 ```bash
-pip install gimera
+pipx install gimera
+gimera completion  (Follow instructions)
 ```
 
 
