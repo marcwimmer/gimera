@@ -702,15 +702,36 @@ def _turn_into_correct_repotype(repo, repo_config):
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
 
-@cli.command
-def completion():
-    shell = os.environ['SHELL'].split("/")[-1]
-    click.secho(
-        "\n\n"
-        f"Insert into ~/.{shell}rc\n\n"
-        f'echo \'eval "$(_GIMERA_COMPLETE={shell}_source gimera)"\' >> ~/.{shell}rc'
-        "\n\n"
-    )
+@click.command()
+@click.option(
+    "-x",
+    "--execute",
+    is_flag=True,
+    help=("Execute the script to insert completion into users rc-file."),
+)
+def completion(execute):
+    shell = os.environ["SHELL"].split("/")[-1]
+    rc_file = Path(os.path.expanduser(f"~/.{shell}rc"))
+    line = f'eval "$(_odoo_COMPLETE={shell}_source odoo)"'
+    if execute:
+        content = rc_file.read_text().splitlines()
+        if not list(
+            filter(
+                lambda x: line in x and not x.strip().startswith("#"),
+                content,
+            )
+        ):
+            content += [f"\n{line}"]
+            click.secho(
+                f"Inserted successfully\n{line}"
+                "\n\nPlease restart you shell."
+                )
+            rc_file.write_text('\n'.join(content))
+        else:
+            click.secho("Nothing done - already existed.")
+
+
+    click.secho("\n\n" f"Insert into {rc_file}\n\n" f"echo 'line' >> {rc_file}" "\n\n")
 
 if __name__ == "__main__":
     # _make_sure_in_root()
