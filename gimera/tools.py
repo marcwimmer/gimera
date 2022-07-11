@@ -1,4 +1,5 @@
 import subprocess
+import os
 from pathlib import Path
 import click
 import sys
@@ -28,7 +29,10 @@ def X(*params, output=False, cwd=None, allow_error=False):
 
 def _raise_error(msg):
     click.secho(msg, fg="red")
-    sys.exit(-1)
+    if os.getenv("GIMERA_EXCEPTION_THAN_SYSEXIT")=="1":
+        raise Exception(msg)
+    else:
+        sys.exit(-1)
 
 def _strip_paths(paths):
     for x in paths:

@@ -161,9 +161,9 @@ def test_basicbehaviour(temppath):
 
     # now lets make a patch
     os.chdir(workspace)
+    os.environ['GIMERA_EXCEPTION_THAN_SYSEXIT'] = '1'
     gimera_apply([], update=True)
-    subprocess.check_call(["git", "add", "integrated"], cwd=workspace)
-    subprocess.check_call(["git", "commit", "-am", "patches"], cwd=workspace)
+    assert (workspace / 'integrated' / 'sub1' / 'file3.txt').exists()
 
     # now lets make an update and see if patches are applied
     with clone_and_commit(remote_sub_repo, "branch1") as repopath:

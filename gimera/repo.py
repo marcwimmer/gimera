@@ -1,4 +1,5 @@
 import subprocess
+import click
 import shutil
 from .gitcommands import GitCommands
 from pathlib import Path
@@ -31,9 +32,37 @@ class Repo(GitCommands):
         else:
             return None
 
+    def ls_files_states(self, params):
+        """
+        e.g. ls_files_states("-dmosk" )
+        """
+        if "-t" not in params:
+            params += ["-t"]
+        def extract(line):
+            if '\t' in line:
+                return line.split("\t")[-1]
+            return line[2:]
+        files = list(
+            map(
+                lambda line: Path(extract(line)),
+                self.out(*(["git", "ls-files"] + params)).splitlines(),
+            )
+        )
+        return files
+
     def force_remove_submodule(self, path):
         # https://github.com/jeremysears/scripts/blob/master/bin/git-submodule-rewrite
         self.please_no_staged_files()
+
+        # if there are dirty files, then abort to not destroy data
+        dirty_files = self.ls_files_states(["-dmok"])
+        dirty_files = list(
+            filter(
+                lambda file: not file.is_dir()
+                and safe_relative_to(self.path / file, self.path / path),
+                dirty_files,
+            )
+        )
         fullpath = self.path / path
         if fullpath.exists():
             self.X(
@@ -69,7 +98,7 @@ class Repo(GitCommands):
             self.X("git", "add", "-A", path)
         if self.lsfiles(fullpath.relative_to(self.path)):
             self.X("git", "add", "-A", path)
-        if (self.path / '.gitmodules') in self.all_dirty_files:
+        if (self.path / ".gitmodules") in self.all_dirty_files:
             self.X("git", "add", "-A", ".gitmodules")
 
         if self.staged_files:

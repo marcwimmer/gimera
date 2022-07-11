@@ -686,12 +686,13 @@ def _turn_into_correct_repotype(repo, repo_config):
     """
     path = repo_config.path
     if repo_config.type == REPO_TYPE_INT:
-        try:
-            repo.get_submodule(path)
-        except ValueError:
-            pass
-        else:
-            repo.force_remove_submodule(path)  # updated at apply
+        # always delete
+        submodules = repo.get_submodules()
+        existing_submodules = list(
+            filter(lambda x: x.equals(repo.path / path), submodules)
+        )
+        if existing_submodules:
+            repo.force_remove_submodule(path)
     else:
         __add_submodule(repo, repo_config)
         submodules = repo.get_submodules()
