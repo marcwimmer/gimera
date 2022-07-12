@@ -164,12 +164,12 @@ def _get_available_repos(ctx, param, incomplete):
     config = Config(force_type=False)
     repos = []
     for repo in config.repos:
-        if not repo.get("path"):
+        if not repo.path:
             continue
         if incomplete:
-            if not repo.get("path", "").startswith(incomplete):
+            if not repo.path.startswith(incomplete):
                 continue
-        repos.append(repo["path"])
+        repos.append(repo.path)
     return sorted(repos)
 
 
