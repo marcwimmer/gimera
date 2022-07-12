@@ -169,7 +169,7 @@ def _get_available_repos(ctx, param, incomplete):
         if incomplete:
             if not str(repo.path).startswith(incomplete):
                 continue
-        repos.append(repo.path)
+        repos.append(str(repo.path))
     return sorted(repos)
 
 
