@@ -703,7 +703,7 @@ def _turn_into_correct_repotype(repo, repo_config):
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
 
-@click.command()
+@cli.command()
 @click.option(
     "-x",
     "--execute",
