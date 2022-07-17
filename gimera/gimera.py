@@ -713,7 +713,7 @@ def _turn_into_correct_repotype(repo, repo_config):
 def completion(execute):
     shell = os.environ["SHELL"].split("/")[-1]
     rc_file = Path(os.path.expanduser(f"~/.{shell}rc"))
-    line = f'eval "$(_odoo_COMPLETE={shell}_source odoo)"'
+    line = f'eval "$(_GIMERA_COMPLETE={shell}_source GIMERA)"'
     if execute:
         content = rc_file.read_text().splitlines()
         if not list(
