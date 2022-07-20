@@ -126,7 +126,7 @@ class Repo(GitCommands):
             splitted = line.strip().split("\t", 3)
             yield Submodule(self.next_module_root / splitted[-1], self.next_module_root)
 
-    def _fix_to_remove_subdirectories(self):
+    def _fix_to_remove_subdirectories(self, config):
         # https://stackoverflow.com/questions/4185365/no-submodule-mapping-found-in-gitmodule-for-a-path-thats-not-a-submodule
         # commands may block
         # git submodule--helper works and shows something
@@ -143,6 +143,9 @@ class Repo(GitCommands):
             linepath = line.split("\t", 1)[1]
             path = self.path / linepath
             if path.exists():
+                from . gimera import REPO_TYPE_SUB
+                if not [x for x in config.repos if x.path == path and x.ttype == REPO_TYPE_SUB]:
+                    continue
                 self.please_no_staged_files()
                 # if .gitmodules is dirty then commit that first, otherwise:
                 # fatal: please stage your changes to .gitmodules or stash them to proceed

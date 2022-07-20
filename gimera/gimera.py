@@ -224,7 +224,7 @@ def _internal_apply(repos, update, force_type):
     for repo in config.repos:
         if repos and str(repo.path) not in repos:
             continue
-        _turn_into_correct_repotype(main_repo, repo)
+        _turn_into_correct_repotype(main_repo, repo, config)
         if repo.type == REPO_TYPE_SUB:
             _make_sure_subrepo_is_checked_out(main_repo, repo)
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
@@ -607,7 +607,7 @@ def clean_branch_names(arr):
         yield x
 
 
-def __add_submodule(repo, config):
+def __add_submodule(repo, config, all_config):
 
     if config.type != REPO_TYPE_SUB:
         return
@@ -655,7 +655,7 @@ def __add_submodule(repo, config):
     else:
         repo.force_remove_submodule(relpath)
 
-    repo._fix_to_remove_subdirectories()
+    repo._fix_to_remove_subdirectories(all_config)
 
     repo.X(
         "git",
@@ -673,7 +673,7 @@ def __add_submodule(repo, config):
         repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
 
 
-def _turn_into_correct_repotype(repo, repo_config):
+def _turn_into_correct_repotype(repo, repo_config, config):
     """
     if git submodule and exists: nothing todo
     if git submodule and not exists: cloned
@@ -694,7 +694,7 @@ def _turn_into_correct_repotype(repo, repo_config):
         if existing_submodules:
             repo.force_remove_submodule(path)
     else:
-        __add_submodule(repo, repo_config)
+        __add_submodule(repo, repo_config, config)
         submodules = repo.get_submodules()
         existing_submodules = list(
             filter(lambda x: x.equals(repo.path / path), submodules)
