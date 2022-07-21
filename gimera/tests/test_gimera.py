@@ -99,6 +99,7 @@ def test_basicbehaviour(temppath):
         ["git", "clone", "file://" + str(remote_main_repo), workspace.name],
         cwd=workspace.parent,
     )
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
 
     # region gimera config
     repos = {

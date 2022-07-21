@@ -351,7 +351,7 @@ def _make_patches(main_repo, repo_yml):
     patch_dir.mkdir(exist_ok=True, parents=True)
 
     patch_filename = (datetime.now().strftime("%Y%m%d_%H%M%S"))
-    if os.getenv("GIMERA_NONINTERACTIVE") != "1":
+    if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
         questions = [
             inquirer.Text(
                 "filename",
@@ -367,7 +367,7 @@ def _make_patches(main_repo, repo_yml):
 
     if not patch_filename.endswith('.patch'):
         patch_filename += '.patch'
-    
+
     (patch_dir / patch_filename).write_text(
         patch_content
     )
