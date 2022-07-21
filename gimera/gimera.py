@@ -333,7 +333,7 @@ def _make_patches(main_repo, repo_yml):
             inquirer.List(
                 "path",
                 message="Please choose a directory where to put the patch file.",
-                choices=["Type directory"] + repo_yml["patches"],
+                choices=["Type directory"] + repo_yml.patches,
             )
         ]
         answers = inquirer.prompt(questions)
@@ -349,7 +349,26 @@ def _make_patches(main_repo, repo_yml):
         patch_dir = Path(answers["path"])
 
     patch_dir.mkdir(exist_ok=True, parents=True)
-    (patch_dir / (datetime.now().strftime("%Y%m%d_%H%M%S") + ".patch")).write_text(
+
+    patch_filename = (datetime.now().strftime("%Y%m%d_%H%M%S"))
+    if os.getenv("GIMERA_NONINTERACTIVE") != "1":
+        questions = [
+            inquirer.Text(
+                "filename",
+                message="Please give the patch-file a name",
+            )
+        ]
+        answers = inquirer.prompt(questions)
+        if not answers:
+            sys.exit(-1)
+        patch_filename = answers['filename']
+    if not patch_filename:
+        _raise_error("No filename provided")
+
+    if not patch_filename.endswith('.patch'):
+        patch_filename += '.patch'
+    
+    (patch_dir / patch_filename).write_text(
         patch_content
     )
 
