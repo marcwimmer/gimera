@@ -1036,21 +1036,52 @@ def test_clean_a_submodule_in_submodule(temppath):
     submodule_repo1.force_remove_submodule('folder_of_repo2/repo2')
 
 def test_2_submodules(temppath):
+    """
+    The delete submodule was too hard and deleted submodules
+    """
     workspace = temppath / "workspace_2submodules"
     workspace.mkdir(exist_ok=True)
     os.chdir(workspace.parent)
 
     repo_main = _make_remote_repo(workspace / "mainrepo")
     repo_1 = _make_remote_repo(workspace / "repo1")
+    subrepo_1 = _make_remote_repo(workspace / "subrepo1")
     repo_2 = _make_remote_repo(workspace / "repo2")
+    subrepo_2 = _make_remote_repo(workspace / "subrepo2")
 
-    # make variant repo and change on a branch there
+    with clone_and_commit(subrepo_1, "main") as repopath:
+        (repopath / "subrepo1.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+    with clone_and_commit(subrepo_2, "main") as repopath:
+        (repopath / "subrepo2.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
     with clone_and_commit(repo_1, "main") as repopath:
         (repopath / "repo1.txt").write_text("This is a new function")
+        (repopath / 'gimera.yml').write_text(yaml.dump({
+            "repos": [
+                {
+                    "url": f"file://{subrepo_1}",
+                    "branch": "main",
+                    "path": "subrepo1",
+                    "type": "submodule",
+                },
+            ]
+        }))
         Repo(repopath).simple_commit_all()
 
     with clone_and_commit(repo_2, "main") as repopath:
         (repopath / "repo2.txt").write_text("This is a new function")
+        (repopath / 'gimera.yml').write_text(yaml.dump({
+            "repos": [
+                {
+                    "url": f"file://{subrepo_2}",
+                    "branch": "main",
+                    "path": "subrepo2",
+                    "type": "submodule",
+                },
+            ]
+        }))
         Repo(repopath).simple_commit_all()
 
     repos = {
@@ -1079,7 +1110,9 @@ def test_2_submodules(temppath):
     gimera_apply([], None)
 
     assert (workspace_main / "repo1" / "repo1.txt").exists()
+    assert (workspace_main / "repo1" / "subrepo1" / "subrepo1.txt").exists()
     assert (workspace_main / "repo2" / "repo2.txt").exists()
+    assert (workspace_main / "repo2" / "subrepo2" / "subrepo2.txt").exists()
 
     submodule_repo1 = main_repo.get_submodule("repo1")
     submodule_repo2 = main_repo.get_submodule("repo2")
