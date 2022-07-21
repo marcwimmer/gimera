@@ -167,8 +167,12 @@ def _get_available_repos(ctx, param, incomplete):
         if not repo.path:
             continue
         if incomplete:
-            if not str(repo.path).startswith(incomplete):
-                continue
+            if '/' not in incomplete:
+                if incomplete not in str(repo.path):
+                    continue
+            else:
+                if not str(repo.path).startswith(incomplete):
+                    continue
         repos.append(str(repo.path))
     return sorted(repos)
 
