@@ -597,7 +597,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
         if not [x for x in branches if repo_yml.branch == x]:
             _raise_error(
                 f"SHA {sha} does not exist on branch "
-                f"{repo_yml['branch']} at repo {repo_yml.path}"
+                f"{repo_yml.branch} at repo {repo_yml.path}"
             )
         subrepo.X("git", "checkout", "-f", sha)
     else:
