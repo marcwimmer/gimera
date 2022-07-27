@@ -182,7 +182,12 @@ class Repo(GitCommands):
         self.X("git", "remote", "add", repo.name, repo.url)
 
     def pull(self, remote=None, ref=None):
-        self.X("git", "pull", "--no-edit", remote and remote.name or None, ref)
+        if remote:
+            self.X("git", "fetch", f"{remote}", ref)
+        else:
+            self.X("git", "fetch", "--all")
+        # self.X("git", "pull", "--no-edit", remote and remote.name or None, ref)
+        self.X("git", "reset", "--hard", remote and remote.name or None, ref)
 
     def full_clean(self):
         self.X("git", "checkout", "-f")

@@ -614,7 +614,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
     # check if sha collides with branch
     subrepo.X("git", "clean", "-xdff")
     if not repo_yml.sha or update:
-        subrepo.X("git", "checkout", repo_yml.branch)
+        subrepo.X("git", "checkout", "-f", repo_yml.branch)
         subrepo.pull()
         _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
