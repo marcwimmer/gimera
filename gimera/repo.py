@@ -181,13 +181,32 @@ class Repo(GitCommands):
     def add_remote(self, repo):
         self.X("git", "remote", "add", repo.name, repo.url)
 
-    def pull(self, remote=None, ref=None):
-        if remote:
-            self.X("git", "fetch", f"{remote}", ref)
-        else:
-            self.X("git", "fetch", "--all")
-        # self.X("git", "pull", "--no-edit", remote and remote.name or None, ref)
-        self.X("git", "reset", "--hard", remote and remote.name or None, ref)
+    def pull(self, remote=None, ref=None, repo_yml=None):
+        """
+        The git reset hard way was necessary in a live repository; local files
+        had to be overridden that stand in the way
+
+        This was too weak:
+        self.X("git", "pull", "--no-edit", remote and remote.name or None, ref)
+
+
+        "params remote": remote object
+
+        """
+        if repo_yml:
+            assert not remote
+            assert not ref
+            remote = 'origin'
+            ref = repo_yml.branch
+
+        if remote and not isinstance(remote, str):
+            remote = remote.name
+
+        if not remote and not ref:
+            raise Exception("Requires remote and ref or yaml configuration.")
+
+        self.X("git", "fetch", f"{remote}", ref)
+        self.X("git", "reset", "--hard", f"{remote}/{ref}")
 
     def full_clean(self):
         self.X("git", "checkout", "-f")

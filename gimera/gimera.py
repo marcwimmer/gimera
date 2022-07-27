@@ -415,12 +415,12 @@ def _update_integrated_module(main_repo, repo_yml, update):
     repo.fetch()
     repo.X("git", "checkout", "-f", str(repo_yml.branch))
     repo.X("git", "clean", "-xdff")
-    repo.pull()
+    repo.pull(repo_yml=repo_yml)
 
     if not update and repo_yml.sha:
         branches = repo.get_all_branches()
         if repo_yml.branch not in branches:
-            repo.pull()
+            repo.pull(repo_yml=repo_yml)
             repo_yml.sha = None
         else:
             subprocess.check_call(
@@ -615,7 +615,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
     subrepo.X("git", "clean", "-xdff")
     if not repo_yml.sha or update:
         subrepo.X("git", "checkout", "-f", repo_yml.branch)
-        subrepo.pull()
+        subrepo.pull(repo_yml=repo_yml)
         _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
     # update gimera.yml on demand
