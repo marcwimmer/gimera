@@ -782,7 +782,7 @@ def completion(execute):
     click.secho("\n\n" f"Insert into {rc_file}\n\n" f"echo 'line' >> {rc_file}" "\n\n")
 
 @cli.command()
-@click.argument("patchfile", nargs=-1, shell_complete=_get_available_patchfiles)
+@click.argument("patchfiles", nargs=-1, shell_complete=_get_available_patchfiles, required=True)
 def edit_patch(patchfiles):
     _edit_patch(patchfiles)
 
@@ -834,7 +834,8 @@ def _edit_patch(patchfiles):
         deactivated_name.unlink()
 
     except Exception:
-        deactivated_name.rename(patchfile)
+        for deactivated_name in deactivated_names:
+            deactivated_name.rename(deactivated_name.parent / f"{deactivated_name.stem}")
 
 
 
