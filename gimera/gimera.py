@@ -185,7 +185,10 @@ def _get_available_patchfiles(ctx, param, incomplete):
         if not repo.patches:
             continue
         for patchdir in repo.patches:
-            for file in (cwd / patchdir).glob("*.patch"):
+            _dir = cwd / patchdir
+            if not _dir.exists():
+                continue
+            for file in _dir.glob("*.patch"):
                 patchfiles.append(file.relative_to(cwd))
     if incomplete:
         if '/' not in incomplete:
@@ -194,12 +197,15 @@ def _get_available_patchfiles(ctx, param, incomplete):
                     filtered_patchfiles.append(file)
         else:
             splitted = incomplete.split("/")
-            dir = '/'.join(splitted[:-1])
+            _dir = '/'.join(splitted[:-1])
             name = splitted[-1]
             for file in patchfiles:
-                if dir in str(file):
+                if _dir in str(file):
                     if name in file.name:
                         filtered_patchfiles.append(file)
+    else:
+        filtered_patchfiles = patchfiles
+    filtered_patchfiles = list(sorted(filtered_patchfiles))
     return sorted(map(str, filtered_patchfiles))
 
 @cli.command(name="apply", help="Applies configuration from gimera.yml")
