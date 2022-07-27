@@ -176,6 +176,31 @@ def _get_available_repos(ctx, param, incomplete):
         repos.append(str(repo.path))
     return sorted(repos)
 
+def _get_available_patchfiles(ctx, param, incomplete):
+    config = Config(force_type=False)
+    cwd = Path(os.getcwd())
+    patchfiles = []
+    filtered_patchfiles = []
+    for repo in config.repos:
+        if not repo.patches:
+            continue
+        for patchdir in repo.patches:
+            for file in (cwd / patchdir).glob("*.patch"):
+                patchfiles.append(file.relative_to(cwd))
+    if incomplete:
+        if '/' not in incomplete:
+            for file in patchfiles:
+                if incomplete in str(file):
+                    filtered_patchfiles.append(file)
+        else:
+            splitted = incomplete.split("/")
+            dir = '/'.join(splitted[:-1])
+            name = splitted[-1]
+            for file in patchfiles:
+                if dir in str(file):
+                    if name in file.name:
+                        filtered_patchfiles.append(file)
+    return sorted(map(str, filtered_patchfiles))
 
 @cli.command(name="apply", help="Applies configuration from gimera.yml")
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
@@ -295,11 +320,8 @@ def _make_patches(main_repo, repo_yml):
         sys.exit(-1)
 
     to_reset = []
-    # TODO bug two times INT
     if repo_yml.type == REPO_TYPE_INT:
         cwd = main_repo.working_dir
-    elif repo_yml.type == REPO_TYPE_INT:
-        cwd = main_repo.working_dir / repo_yml.path
     else:
         raise NotImplementedError(repo_yml.type)
     repo = Repo(cwd)
@@ -498,6 +520,18 @@ def _apply_merges(repo, repo_yml):
         remote = repo.get_remote(remote)
         repo.pull(remote, ref)
 
+def _apply_patchfile(file, main_repo, repo_yml):
+    cwd = Path(main_repo.working_dir) / repo_yml.path
+    output = subprocess.check_output(
+        ["patch", "-p1"],
+        input=file.read_text(),  # bytes().decode('utf-8'),
+        cwd=cwd,
+        encoding="utf-8",
+    )
+    click.secho(
+        (f"Applied patch {file.relative_to(main_repo.working_dir)}"),
+        fg="blue",
+    )
 
 def _apply_patches(main_repo, repo_yml):
     for dir in repo_yml.patches:
@@ -511,17 +545,7 @@ def _apply_patches(main_repo, repo_yml):
             )
             # Git apply fails silently if applied within local repos
             try:
-                cwd = Path(main_repo.working_dir) / repo_yml.path
-                output = subprocess.check_output(
-                    ["patch", "-p1"],
-                    input=file.read_text(),  # bytes().decode('utf-8'),
-                    cwd=cwd,
-                    encoding="utf-8",
-                )
-                click.secho(
-                    (f"Applied patch {file.relative_to(main_repo.working_dir)}"),
-                    fg="blue",
-                )
+                _apply_patchfile(file, main_repo, repo_yml)
             except subprocess.CalledProcessError as ex:
                 click.secho(
                     ("\n\nFailed to apply the following patch file:\n\n"), fg="yellow"
@@ -541,7 +565,7 @@ def _apply_patches(main_repo, repo_yml):
                 click.secho(file.read_text(), fg="cyan")
                 if not inquirer.confirm("Continue?", default=True):
                     sys.exit(-1)
-            except Exception as ex:
+            except Exception as ex:  # pylint: disable=broad-except
                 _raise_error(str(ex))
 
 
@@ -756,6 +780,63 @@ def completion(execute):
 
 
     click.secho("\n\n" f"Insert into {rc_file}\n\n" f"echo 'line' >> {rc_file}" "\n\n")
+
+@cli.command()
+@click.argument("patchfile", nargs=-1, shell_complete=_get_available_patchfiles)
+def edit_patch(patchfiles):
+    _edit_patch(patchfiles)
+
+def _get_repo_to_patchfiles(patchfiles):
+    for patchfile in patchfiles:
+        patchfile = Path(patchfile)
+        if patchfile.exists() and str(patchfile).startswith('/'):
+            patchfile = str(patchfile.relative_to(Path(os.getcwd())))
+        patchfile = _get_available_patchfiles(None, None, str(patchfile))
+        if not patchfile:
+            _raise_error(f"Not found: {patchfile}")
+        if len(patchfile) > 1:
+            _raise_error(f"Too many patchfiles found: {patchfile}")
+
+        cwd = Path(os.getcwd())
+        patchfile = cwd / patchfile[0]
+        config = Config(force_type=False)
+        def _get_repo_of_patchfile():
+            for repo in config.repos:
+                if not repo.patches:
+                    continue
+                for patchdir in repo.patches:
+                    for file in (cwd / patchdir).glob("*.patch"):
+                        if file == patchfile:
+                            return repo
+        repo = _get_repo_of_patchfile()
+        if not repo:
+            _raise_error(f"Repo not found for {patchfile}")
+
+        if repo.type != REPO_TYPE_INT:
+            _raise_error(f"Repo {repo.path} is not integrated")
+        yield (repo, patchfile)
+
+def _edit_patch(patchfiles):
+    deactivated_names = []
+    main_repo = Repo(Path(os.getcwd()))
+    for patchfile in list(_get_repo_to_patchfiles(patchfiles)):
+        repo, patchfile = patchfile
+        deactivated_name = patchfile.parent / f"{patchfile.name}.deactivated"
+        deactivated_names.append(deactivated_name)
+        patchfile.rename(deactivated_name)
+    try:
+        _internal_apply(str(repo.path), update=False, force_type=None)
+
+        # apply just the patchfile now
+        for deactivated_name in deactivated_names:
+            _apply_patchfile(deactivated_name, main_repo, repo)
+
+        deactivated_name.unlink()
+
+    except Exception:
+        deactivated_name.rename(patchfile)
+
+
 
 if __name__ == "__main__":
     # _make_sure_in_root()

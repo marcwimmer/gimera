@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import pytest
 from ..gimera import _apply as gimera_apply
+from ..gimera import _edit_patch as edit_patch
 
 current_dir = Path(
     os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -161,7 +162,7 @@ def test_basicbehaviour(temppath):
     # annotation: it would be bad if file3.txt would be gone
     # and also the change of file2.txt
 
-    # now lets make a patch
+    # now lets make a patch for new integrated/sub1/file3.txt and changed integrated/sub1/file2.txt
     os.chdir(workspace)
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     gimera_apply([], update=True)
@@ -186,6 +187,16 @@ def test_basicbehaviour(temppath):
             (workspace / "integrated" / "sub1" / "file3.txt").parent / "file2.txt"
         ).read_text()
     )
+
+    # now lets edit that patch again
+    Repo(workspace).simple_commit_all()
+    patchfile = list((workspace / "integrated" / "sub1_patches").glob("*"))[0].relative_to(workspace)
+    os.chdir(workspace)
+    edit_patch([patchfile])
+    dirty_files = Repo(workspace).all_dirty_files
+    assert (workspace / str(patchfile)) in dirty_files
+    assert (workspace / "integrated/sub1/file3.txt") in dirty_files
+    assert (workspace / "integrated/sub1/file2.txt") in dirty_files
 
 
 def _make_remote_repo(path):
@@ -1190,3 +1201,4 @@ def test_checkout_not_update_if_last_commit_matches_branch_make_branch_be_checke
     os.chdir(workspace_main)
     gimera_apply([], update=True)
     assert " main" in _get_branch()
+
