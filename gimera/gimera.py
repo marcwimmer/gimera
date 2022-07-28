@@ -834,14 +834,15 @@ def _edit_patch(patchfiles):
         _internal_apply(str(repo.path), update=False, force_type=None)
 
         # apply just the patchfile now
-        for deactivated_name in deactivated_names:
+        for deactivated_name in sorted(set(deactivated_names)):
             _apply_patchfile(deactivated_name, main_repo, repo)
 
         deactivated_name.unlink()
 
-    except Exception:
-        for deactivated_name in deactivated_names:
+    except Exception:  # pylint: disable=broad-except
+        for deactivated_name in sorted(set(deactivated_names)):
             deactivated_name.rename(deactivated_name.parent / f"{deactivated_name.stem}")
+        raise
 
 
 
