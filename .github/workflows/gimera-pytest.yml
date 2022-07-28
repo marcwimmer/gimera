@@ -67,7 +67,7 @@ jobs:
 
     - name: build
       run: |
-        python3 setup.py build
+        python3 setup.py sdist
 
     - name: Publish to PyPi
       uses: pypa/gh-action-pypi-publish@release/v1
