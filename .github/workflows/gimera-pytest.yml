@@ -41,6 +41,7 @@ jobs:
         pytest
 
     - name: build
+      run: |
         python3 setup.py build
 
     - name: Publish to PyPi
