@@ -43,6 +43,7 @@ jobs:
     - name: increment version
       run: |
         python3 << EOF
+        from pathlib import Path
         file = Path('setup.cfg')
         lines = file.read_text()
         find = re.findall(r'version = (.*)', lines)
