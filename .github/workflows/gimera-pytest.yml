@@ -40,6 +40,31 @@ jobs:
         git config --global user.name gimera
         pytest
 
+    - name: increment version
+      run: |
+        python3 << EOF
+        file = Path('setup.cfg')
+        lines = file.read_text()
+        find = re.findall(r'version = (.*)', lines)
+        old_version = 'version = ' + find[-1]
+        version = list(map(int, find[-1].split('.')))
+        version[-1] += 1
+        version_string = '.'.join(map(str, version))
+        new_version = 'version = ' + version_string
+        lines = lines.replace(old_version, new_version)
+        file.write_text(lines)
+        Path(".version").write_text(version_string)
+        EOF
+
+    - name: push tag
+      run: |
+        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+        git config user.name "$GITHUB_ACTOR"
+        VERSION=$(cat .version)
+        git tag ${VERSION}
+        git push "https://$GITHUB_ACTOR:${{ secrets.ACCESS_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" --follow-tags
+        git push "https://$GITHUB_ACTOR:${{ secrets.ACCESS_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" --tags
+
     - name: build
       run: |
         python3 setup.py build
