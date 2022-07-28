@@ -40,6 +40,9 @@ jobs:
         git config --global user.name gimera
         pytest
 
+    - name: build
+        python3 setup.py build
+
     - name: Publish to PyPi
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
