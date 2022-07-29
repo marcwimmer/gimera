@@ -56,14 +56,15 @@ jobs:
         Path(".version").write_text(version_string)
         EOF
 
-    - name: push tag
+    - name: tag version
       run: |
         git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
         git config user.name "$GITHUB_ACTOR"
         VERSION=$(cat .version)
         git tag ${VERSION}
-        git push "https://$GITHUB_ACTOR:${{ secrets.ACCESS_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" --follow-tags stage:main
-        git push "https://$GITHUB_ACTOR:${{ secrets.ACCESS_TOKEN }}@github.com/$GITHUB_REPOSITORY.git" --tags stage:main
+    - name: push tags
+      run: |
+        git push origin --tags stage:main
 
     - name: build
       run: |
