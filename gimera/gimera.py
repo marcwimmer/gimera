@@ -823,6 +823,7 @@ def _get_repo_to_patchfiles(patchfiles):
         yield (repo, patchfile)
 
 def _edit_patch(patchfiles):
+    patchfiles = list(sorted(set(patchfiles)))
     deactivated_names = []
     main_repo = Repo(Path(os.getcwd()))
     for patchfile in list(_get_repo_to_patchfiles(patchfiles)):
