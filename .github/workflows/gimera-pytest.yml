@@ -39,11 +39,11 @@ jobs:
 
 
 
-    - name: Test with pytest
-      run: |
-        git config --global user.email test@gimera.de
-        git config --global user.name gimera
-        pytest
+    # - name: Test with pytest
+    #   run: |
+    #     git config --global user.email test@gimera.de
+    #     git config --global user.name gimera
+    #     pytest
 
     - name: increment version
       run: |
