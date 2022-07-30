@@ -131,3 +131,6 @@ dmypy.json
 Pipfile
 Pipfile.lock
 .vscode
+
+.version
+.version.old

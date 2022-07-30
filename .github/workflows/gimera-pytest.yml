@@ -61,6 +61,8 @@ jobs:
         git config --global user.email 'github-action@github.com'
         git config --global user.name 'github-action@github.com'
         git fetch
+        # git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
+
         git merge --allow-unrelated-histories origin/main
 
     - name: increment version
