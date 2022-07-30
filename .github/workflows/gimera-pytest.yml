@@ -6,7 +6,8 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
+  packages: none
 
 jobs:
   build:
