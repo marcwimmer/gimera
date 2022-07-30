@@ -70,9 +70,9 @@ jobs:
         VERSION=$(cat .version)
         git tag ${VERSION}
 
-    - name: push tags
-      run: |
-        git push origin --tags stage:main
+    # - name: push tags
+    #   run: |
+    #     git push origin --tags stage:main
 
     - name: build
       run: |
