@@ -81,8 +81,8 @@ jobs:
           VERSION=$(cat .version)
           git tag ${VERSION}
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
-          # git remote add origin git@github.com:marcwimmer/gimera
           git push origin --tags
+          git push
           export DO_PYPI=1
         fi
 
