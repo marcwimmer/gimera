@@ -58,7 +58,8 @@ jobs:
         file = Path('setup.cfg')
         lines = file.read_text()
         find = re.findall(r'version = (.*)', lines)
-        old_version = 'version = ' + find[-1]
+        old_version_string = find[-1]
+        old_version = f'version = {old_version_string}''
         version = list(map(int, find[-1].split('.')))
         version[-1] += 1
         version_string = '.'.join(map(str, version))
