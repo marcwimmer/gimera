@@ -74,7 +74,7 @@ jobs:
         git fetch --tags
         if [ $(git tag -l "$( cat .version )") ]; then
           echo "Tag already exists"
-          export DO_PYPI=0
+          echo "DO_PYPI=0" >> "$GITHUB_ENV"
         else
           git add .
           git commit -am 'autocommit by github action'
@@ -83,11 +83,11 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
           git push origin --tags
           git push
-          export DO_PYPI=1
+          echo "DO_PYPI=1" >> "$GITHUB_ENV"
         fi
 
     - name: Publish to PyPi
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
-      if: env.DO_PYPI == 1
+      if: env.DO_PYPI == '1'
