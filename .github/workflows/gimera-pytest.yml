@@ -72,7 +72,7 @@ jobs:
       run: |
         set -x
         git fetch --tags
-        if [ $(git tag -l "$( cat .version )") ]; then
+        if [ $(git tag -l "$( cat .version.old )") ]; then
           echo "Tag already exists"
           echo "DO_PYPI=0" >> "$GITHUB_ENV"
         else
