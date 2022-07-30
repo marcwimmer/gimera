@@ -6,7 +6,7 @@ name: Python application
 on:
   push:
     branches:
-      - stage
+      - main
 
 permissions:
   contents: read
@@ -55,15 +55,13 @@ jobs:
         mkdir ~/.ssh
         echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
         chmod 400 ~/.ssh/id_rsa
+
     - name: setup merge
       run: |
         set -x
         git config --global user.email 'github-action@github.com'
         git config --global user.name 'github-action@github.com'
         git fetch
-        # git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
-
-        git merge --allow-unrelated-histories origin/main
 
     - name: increment version
       run: |
@@ -81,20 +79,21 @@ jobs:
         lines = lines.replace(old_version, new_version)
         file.write_text(lines)
         Path(".version").write_text(version_string)
+        Path(".version.old").write_text(str(old_version))
         EOF
 
     - name: commit and tag new version
       run: |
-        git add .
-        git commit -am 'autocommit by github action'
-        VERSION=$(cat .version)
-        git tag ${VERSION}
-
-    - name: push
-      run: |
-        git remote remove origin
-        git remote add origin git@github.com:marcwimmer/gimera
-        git push origin --tags stage:main
+        if [ git tag -l "$( cat .version.old )" ]; then
+        else
+          git add .
+          git commit -am 'autocommit by github action'
+          VERSION=$(cat .version)
+          git tag ${VERSION}
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
+          # git remote add origin git@github.com:marcwimmer/gimera
+          git push origin --tags
+        fi
 
     # - name: Publish to PyPi
     #   uses: pypa/gh-action-pypi-publish@release/v1
