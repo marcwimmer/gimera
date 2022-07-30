@@ -71,7 +71,7 @@ jobs:
       run: |
         mkdir ~/.ssh
         echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
-        chown 400 ~/.ssh/id_rsa
+        chmod 400 ~/.ssh/id_rsa
     - name: push
       run: |
         git add .
