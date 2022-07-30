@@ -74,7 +74,7 @@ jobs:
       run: |
         set -x
         git fetch --tags
-        if [ $(git tag -l "v$( cat .version )") ]; then
+        if [ $(git tag -l "$( cat .version )") ]; then
           echo "Tag already exists"
           export DO_PYPI=0
         else
