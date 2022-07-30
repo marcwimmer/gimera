@@ -78,7 +78,9 @@ jobs:
 
     - name: commit and tag new version
       run: |
+        set -x
         if [ git tag -l "$( cat .version.old )" ]; then
+          echo "Tag already exists"
         else
           git add .
           git commit -am 'autocommit by github action'
