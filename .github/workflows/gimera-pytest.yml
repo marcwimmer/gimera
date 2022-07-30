@@ -67,19 +67,17 @@ jobs:
         VERSION=$(cat .version)
         git tag ${VERSION}
 
-    # - name: push tags
-    #   run: |
-    #     git push origin --tags stage:main
-
-    # - name: build
-    #   run: |
-    #     python3 setup.py sdist
+    - name: set ssh-key
+      run: |
+        mkdir ~/.ssh
+        echo "${secrets.SSH_KEY}" > ~/.ssh/id_rsa
+        git checkout main
+        git add setup.cfg
+        git remote remove origin
+        git remote add origin git@github.com:marcwimmer/gimera
+        git push origin --tags
 
     # - name: Publish to PyPi
     #   uses: pypa/gh-action-pypi-publish@release/v1
     #   with:
     #     password: ${{ secrets.PYPI_API_TOKEN }}
-
-    - uses: stefanzweifel/git-auto-commit-action@v4
-      with:
-        branch: main
