@@ -42,6 +42,20 @@ jobs:
     #     git config --global user.name gimera
     #     pytest
 
+
+    - name: set ssh-key
+      run: |
+        mkdir ~/.ssh
+        echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
+        chmod 400 ~/.ssh/id_rsa
+    - name: setup merge
+      run: |
+        set -x
+        git config --global user.email 'github-action@github.com'
+        git config --global user.name 'github-action@github.com'
+        git fetch
+        git merge --allow-unrelated-histories origin/main
+
     - name: increment version
       run: |
         python3 << EOF
@@ -60,6 +74,11 @@ jobs:
         Path(".version").write_text(version_string)
         EOF
 
+    - name: commit new version
+      run: |
+        git add .
+        git commit -am 'autocommit by github action'
+
     - name: tag version
       run: |
         #git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
@@ -67,22 +86,10 @@ jobs:
         VERSION=$(cat .version)
         git tag ${VERSION}
 
-    - name: set ssh-key
-      run: |
-        mkdir ~/.ssh
-        echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
-        chmod 400 ~/.ssh/id_rsa
     - name: push
       run: |
-        set -x
-        git config --global user.email 'github-action@github.com'
-        git config --global user.name 'github-action@github.com'
-        git add .
-        git commit -am 'autocommit by github action'
         git remote remove origin
         git remote add origin git@github.com:marcwimmer/gimera
-        git fetch
-        git merge --allow-unrelated-histories origin/main
         git push origin --tags stage:main
 
     # - name: Publish to PyPi
