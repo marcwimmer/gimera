@@ -78,6 +78,15 @@ gimera apply
 
 Then a patch file is created as suggestion in roles2/sub1_patches which you may commit and push.
 
+### Re-Edit patch file:
+
+```bash
+gimera edit-patch file1.patch file2.patch
+```
+
+  * by this, you can combine several patch files into one again
+
+
 ## How to fetch only one or more repo:
 
 ```bash
@@ -90,6 +99,24 @@ gimera apply --update
 ```
 
 Latest versions are pulled and patches are applied.
+
+## Force Integrated or Submodule mode for repo and subrepositories
+
+Use Case: you have an integrated repository. Now you want to turn it into submodule,
+to easily commit and push changes. Then you do:
+
+```bash
+gimera apply <path> -S
+```
+
+Now although it is configured as integrated, it is now a submodule.
+
+After that you can go back to default settings or force integrated mode.
+You should call update to pull the latest version.
+
+```bash
+gimera apply <path> -I --update
+```
 
 
 ## Contributors

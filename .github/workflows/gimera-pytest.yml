@@ -65,7 +65,6 @@ jobs:
         lines = lines.replace(old_version, new_version)
         file.write_text(lines)
         Path(".version").write_text(version_string)
-        Path(".version.old").write_text(str(old_version_string))
         EOF
 
     - name: commit and tag new version
