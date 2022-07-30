@@ -56,6 +56,13 @@ jobs:
         git fetch
         git merge --allow-unrelated-histories origin/main
 
+    - name: stop workflow
+      run: |
+        export STOP_WORKFLOW=1
+
+    - uses: andymckay/cancel-action@0.2
+        if: ${{ env.STOP_WORKFLOW }} == "1"
+
     - name: increment version
       run: |
         python3 << EOF
