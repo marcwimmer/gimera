@@ -86,7 +86,7 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
           # git remote add origin git@github.com:marcwimmer/gimera
           git push origin --tags
-          export DO_PYPI=0
+          export DO_PYPI=1
         fi
 
     - name: Publish to PyPi
