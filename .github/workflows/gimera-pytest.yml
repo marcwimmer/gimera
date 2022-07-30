@@ -32,6 +32,9 @@ jobs:
     #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
     #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
     #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+
+
     - name: Test with pytest
       run: |
         git config --global user.email test@gimera.de
@@ -58,10 +61,11 @@ jobs:
 
     - name: tag version
       run: |
-        git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-        git config user.name "$GITHUB_ACTOR"
+        #git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+        #git config user.name "$GITHUB_ACTOR"
         VERSION=$(cat .version)
         git tag ${VERSION}
+
     - name: push tags
       run: |
         git push origin --tags stage:main
