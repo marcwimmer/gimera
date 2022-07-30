@@ -70,7 +70,7 @@ jobs:
     - name: set ssh-key
       run: |
         mkdir ~/.ssh
-        echo "${secrets.SSH_KEY}" > ~/.ssh/id_rsa
+        echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
         git checkout main
         git add setup.cfg
         git remote remove origin
