@@ -79,7 +79,7 @@ jobs:
         git remote remove origin
         git remote add origin git@github.com:marcwimmer/gimera
         git fetch
-        git merge origin/main
+        git merge --allow-unrelated-histories origin/main
         git push origin --tags stage:main
 
     # - name: Publish to PyPi
