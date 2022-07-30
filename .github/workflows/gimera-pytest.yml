@@ -80,6 +80,8 @@ jobs:
         git remote add origin git@github.com:marcwimmer/gimera
         git fetch
         git merge --allow-unrelated-histories origin/main
+        git config --global user.email 'github-action@github.com'
+        git config --global user.name 'github-action@github.com'
         git push origin --tags stage:main
 
     # - name: Publish to PyPi
