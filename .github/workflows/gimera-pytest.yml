@@ -43,12 +43,6 @@ jobs:
     #     pytest
 
 
-    - name: set ssh-key
-      run: |
-        mkdir ~/.ssh
-        echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
-        chmod 400 ~/.ssh/id_rsa
-
     - name: setup merge
       run: |
         set -x
@@ -78,6 +72,7 @@ jobs:
     - name: commit and tag new version
       run: |
         set -x
+        git fetch --tags
         if [ $(git tag -l "v$( cat .version )") ]; then
           echo "Tag already exists"
           export DO_PYPI=0
