@@ -85,6 +85,7 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
           git push origin --tags
           git push
+          python3 setup.py sdist
           echo "DO_PYPI=1" >> "$GITHUB_ENV"
         fi
 
