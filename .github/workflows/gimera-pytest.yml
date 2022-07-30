@@ -71,6 +71,7 @@ jobs:
       run: |
         mkdir ~/.ssh
         echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
+        chown 400 ~/.ssh/id_rsa
         git add .
         git remote remove origin
         git remote add origin git@github.com:marcwimmer/gimera
