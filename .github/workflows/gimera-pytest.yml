@@ -5,7 +5,8 @@ name: Python application
 
 on:
   push:
-    branches: [ "stage" ]
+    branches:
+      - stage
 
 permissions:
   contents: read
@@ -17,6 +18,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        branch: main
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
