@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
   packages: write
-  
+
 
 jobs:
   build:
@@ -80,6 +80,7 @@ jobs:
         set -x
         if [ git tag -l "$( cat .version.old )" ]; then
           echo "Tag already exists"
+          export DO_PYPI=0
         else
           git add .
           git commit -am 'autocommit by github action'
@@ -88,9 +89,11 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
           # git remote add origin git@github.com:marcwimmer/gimera
           git push origin --tags
+          export DO_PYPI=0
         fi
 
-    # - name: Publish to PyPi
-    #   uses: pypa/gh-action-pypi-publish@release/v1
-    #   with:
-    #     password: ${{ secrets.PYPI_API_TOKEN }}
+    - name: Publish to PyPi
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+      if: env.DO_PYPI == '1'
