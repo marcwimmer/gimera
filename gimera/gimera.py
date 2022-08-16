@@ -124,13 +124,15 @@ class Config(object):
 
         config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
         param_repo = repo
-        for repo in config['repos']:
-            if Path(repo['path']) == param_repo.path:
+        for repo in config["repos"]:
+            if Path(repo["path"]) == param_repo.path:
                 for k, v in value.items():
                     repo[k] = v
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
         main_repo.please_no_staged_files()
-        if self.config_file.resolve() in [x.resolve() for x in main_repo.all_dirty_files]:
+        if self.config_file.resolve() in [
+            x.resolve() for x in main_repo.all_dirty_files
+        ]:
             main_repo.X("git", "add", self.config_file)
         if main_repo.staged_files:
             main_repo.X("git", "commit", "-m", "auto update gimera.yml")
@@ -167,7 +169,7 @@ def _get_available_repos(ctx, param, incomplete):
         if not repo.path:
             continue
         if incomplete:
-            if '/' not in incomplete:
+            if "/" not in incomplete:
                 if incomplete not in str(repo.path):
                     continue
             else:
@@ -175,6 +177,7 @@ def _get_available_repos(ctx, param, incomplete):
                     continue
         repos.append(str(repo.path))
     return sorted(repos)
+
 
 def _get_available_patchfiles(ctx, param, incomplete):
     config = Config(force_type=False)
@@ -191,13 +194,13 @@ def _get_available_patchfiles(ctx, param, incomplete):
             for file in _dir.glob("*.patch"):
                 patchfiles.append(file.relative_to(cwd))
     if incomplete:
-        if '/' not in incomplete:
+        if "/" not in incomplete:
             for file in patchfiles:
                 if incomplete in str(file):
                     filtered_patchfiles.append(file)
         else:
             splitted = incomplete.split("/")
-            _dir = '/'.join(splitted[:-1])
+            _dir = "/".join(splitted[:-1])
             name = splitted[-1]
             for file in patchfiles:
                 if _dir in str(file):
@@ -207,6 +210,7 @@ def _get_available_patchfiles(ctx, param, incomplete):
         filtered_patchfiles = patchfiles
     filtered_patchfiles = list(sorted(filtered_patchfiles))
     return sorted(map(str, filtered_patchfiles))
+
 
 @cli.command(name="apply", help="Applies configuration from gimera.yml")
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
@@ -285,9 +289,7 @@ def _apply_subgimera(main_repo, repo, update, force_type):
             main_repo.please_no_staged_files()
             for f in dirty_files:
                 main_repo.X("git", "add", f)
-            main_repo.X(
-                "git", "commit", "-m", f"gimera: updated sub path {repo.path}"
-            )
+            main_repo.X("git", "commit", "-m", f"gimera: updated sub path {repo.path}")
         # commit submodule updates or changed dirs
     os.chdir(pwd)
 
@@ -382,7 +384,7 @@ def _make_patches(main_repo, repo_yml):
 
     patch_dir.mkdir(exist_ok=True, parents=True)
 
-    patch_filename = (datetime.now().strftime("%Y%m%d_%H%M%S"))
+    patch_filename = datetime.now().strftime("%Y%m%d_%H%M%S")
     if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
         questions = [
             inquirer.Text(
@@ -393,16 +395,14 @@ def _make_patches(main_repo, repo_yml):
         answers = inquirer.prompt(questions)
         if not answers:
             sys.exit(-1)
-        patch_filename = answers['filename']
+        patch_filename = answers["filename"]
     if not patch_filename:
         _raise_error("No filename provided")
 
-    if not patch_filename.endswith('.patch'):
-        patch_filename += '.patch'
+    if not patch_filename.endswith(".patch"):
+        patch_filename += ".patch"
 
-    (patch_dir / patch_filename).write_text(
-        patch_content
-    )
+    (patch_dir / patch_filename).write_text(patch_content)
 
     for to_reset in to_reset:
         main_repo.X("git", "reset", to_reset)
@@ -479,9 +479,7 @@ def _update_integrated_module(main_repo, repo_yml, update):
     # commit updated directories
     if any(
         map(
-            lambda filepath: safe_relative_to(
-                filepath, main_repo.path / repo_yml.path
-            ),
+            lambda filepath: safe_relative_to(filepath, main_repo.path / repo_yml.path),
             main_repo.all_dirty_files,
         )
     ):
@@ -493,10 +491,10 @@ def _update_integrated_module(main_repo, repo_yml, update):
                 "git",
                 "commit",
                 "-m",
-                f'updated {REPO_TYPE_INT} submodule: {repo_yml.path}',
+                f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}",
             )
 
-    repo.X("git", "reset", "--hard", f'origin/{repo_yml.branch}')
+    repo.X("git", "reset", "--hard", f"origin/{repo_yml.branch}")
     repo_yml.sha = new_sha
 
 
@@ -526,6 +524,7 @@ def _apply_merges(repo, repo_yml):
         remote = repo.get_remote(remote)
         repo.pull(remote, ref)
 
+
 def _apply_patchfile(file, main_repo, repo_yml):
     cwd = Path(main_repo.working_dir) / repo_yml.path
     output = subprocess.check_output(
@@ -538,6 +537,7 @@ def _apply_patchfile(file, main_repo, repo_yml):
         (f"Applied patch {file.relative_to(main_repo.working_dir)}"),
         fg="blue",
     )
+
 
 def _apply_patches(main_repo, repo_yml):
     for dir in repo_yml.patches:
@@ -629,7 +629,13 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
                 f"SHA {sha} does not exist on branch "
                 f"{repo_yml.branch} at repo {repo_yml.path}"
             )
-        subrepo.X("git", "checkout", "-f", sha)
+        sha_of_branch = subrepo.out(
+            "git", "rev-parse", repo_yml.branch
+        ).strip()
+        if sha_of_branch == sha:
+            subrepo.X("git", "checkout", "-f", repo_yml.branch)
+        else:
+            subrepo.X("git", "checkout", "-f", sha)
     else:
         try:
             subrepo.X("git", "checkout", "-f", repo_yml.branch)
@@ -756,6 +762,7 @@ def _turn_into_correct_repotype(repo, repo_config, config):
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
 
+
 @cli.command()
 @click.option(
     "-x",
@@ -777,25 +784,27 @@ def completion(execute):
         ):
             content += [f"\n{line}"]
             click.secho(
-                f"Inserted successfully\n{line}"
-                "\n\nPlease restart you shell."
-                )
-            rc_file.write_text('\n'.join(content))
+                f"Inserted successfully\n{line}" "\n\nPlease restart you shell."
+            )
+            rc_file.write_text("\n".join(content))
         else:
             click.secho("Nothing done - already existed.")
 
-
     click.secho("\n\n" f"Insert into {rc_file}\n\n" f"echo 'line' >> {rc_file}" "\n\n")
 
+
 @cli.command()
-@click.argument("patchfiles", nargs=-1, shell_complete=_get_available_patchfiles, required=True)
+@click.argument(
+    "patchfiles", nargs=-1, shell_complete=_get_available_patchfiles, required=True
+)
 def edit_patch(patchfiles):
     _edit_patch(patchfiles)
+
 
 def _get_repo_to_patchfiles(patchfiles):
     for patchfile in patchfiles:
         patchfile = Path(patchfile)
-        if patchfile.exists() and str(patchfile).startswith('/'):
+        if patchfile.exists() and str(patchfile).startswith("/"):
             patchfile = str(patchfile.relative_to(Path(os.getcwd())))
         patchfile = _get_available_patchfiles(None, None, str(patchfile))
         if not patchfile:
@@ -806,6 +815,7 @@ def _get_repo_to_patchfiles(patchfiles):
         cwd = Path(os.getcwd())
         patchfile = cwd / patchfile[0]
         config = Config(force_type=False)
+
         def _get_repo_of_patchfile():
             for repo in config.repos:
                 if not repo.patches:
@@ -814,6 +824,7 @@ def _get_repo_to_patchfiles(patchfiles):
                     for file in (cwd / patchdir).glob("*.patch"):
                         if file == patchfile:
                             return repo
+
         repo = _get_repo_of_patchfile()
         if not repo:
             _raise_error(f"Repo not found for {patchfile}")
@@ -821,6 +832,7 @@ def _get_repo_to_patchfiles(patchfiles):
         if repo.type != REPO_TYPE_INT:
             _raise_error(f"Repo {repo.path} is not integrated")
         yield (repo, patchfile)
+
 
 def _edit_patch(patchfiles):
     patchfiles = list(sorted(set(patchfiles)))
@@ -842,9 +854,10 @@ def _edit_patch(patchfiles):
 
     except Exception:  # pylint: disable=broad-except
         for deactivated_name in sorted(set(deactivated_names)):
-            deactivated_name.rename(deactivated_name.parent / f"{deactivated_name.stem}")
+            deactivated_name.rename(
+                deactivated_name.parent / f"{deactivated_name.stem}"
+            )
         raise
-
 
 
 if __name__ == "__main__":
