@@ -1,3 +1,7 @@
+# 0.6.39
+
+  * If submodule's sha matches the branch then the branch is checked out instead of the pure sha. Advantage: no fiddling at commit and pushing.
+
 # 0.6.8
 
 Tested the switching between submodule and integrated in real world
