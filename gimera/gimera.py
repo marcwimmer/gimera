@@ -793,7 +793,8 @@ def completion(execute):
 
 @cli.command()
 def check_all_submodules_initialized():
-    _check_all_submodules_initialized()
+    if not _check_all_submodules_initialized():
+        sys.exit(-1)
 
 def _check_all_submodules_initialized():
     root = Path(os.getcwd())
@@ -816,8 +817,7 @@ def _check_all_submodules_initialized():
             click.secho(f"Not initialized: {path}", fg="red")
             error = True
 
-    if error:
-        sys.exit(-1)
+    return not error
 
 
 @cli.command()
