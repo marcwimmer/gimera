@@ -793,6 +793,9 @@ def completion(execute):
 
 @cli.command()
 def check_all_submodules_initialized():
+    _check_all_submodules_initialized()
+
+def _check_all_submodules_initialized():
     root = Path(os.getcwd())
 
     def _get_all_submodules(root):
