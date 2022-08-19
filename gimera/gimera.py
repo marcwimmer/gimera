@@ -629,9 +629,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
                 f"SHA {sha} does not exist on branch "
                 f"{repo_yml.branch} at repo {repo_yml.path}"
             )
-        sha_of_branch = subrepo.out(
-            "git", "rev-parse", repo_yml.branch
-        ).strip()
+        sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
         if sha_of_branch == sha:
             subrepo.X("git", "checkout", "-f", repo_yml.branch)
         else:
@@ -791,6 +789,32 @@ def completion(execute):
             click.secho("Nothing done - already existed.")
 
     click.secho("\n\n" f"Insert into {rc_file}\n\n" f"echo 'line' >> {rc_file}" "\n\n")
+
+
+@cli.command()
+def check_all_submodules_initialized():
+    root = Path(os.getcwd())
+
+    def _get_all_submodules(root):
+
+        for path in (
+            Repo(root).out("git", "submodule--helper", "list")
+            .strip()
+            .splitlines()
+        ):
+            path = root / path.split("\t", 1)[1]
+            yield path
+            if path.exists():
+                yield from _get_all_submodules(path)
+
+    error = False
+    for path in _get_all_submodules(root):
+        if not path.exists():
+            click.secho(f"Not initialized: {path}", fg="red")
+            error = True
+
+    if error:
+        sys.exit(-1)
 
 
 @cli.command()
