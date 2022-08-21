@@ -16,12 +16,14 @@ import inspect
 import os
 from pathlib import Path
 import pytest
-from ..gimera import _apply as gimera_apply
-from ..gimera import _edit_patch as edit_patch
 
 current_dir = Path(
     os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 )
+
+def gimera_apply(*args, **kwargs):
+    from ..gimera import _apply
+    return _apply(*args, **kwargs)
 
 
 @pytest.fixture(autouse=True)
@@ -192,6 +194,7 @@ def test_basicbehaviour(temppath):
     Repo(workspace).simple_commit_all()
     patchfile = list((workspace / "integrated" / "sub1_patches").glob("*"))[0].relative_to(workspace)
     os.chdir(workspace)
+    from ..gimera import _edit_patch as edit_patch
     edit_patch([patchfile])
     dirty_files = Repo(workspace).all_dirty_files
     assert (workspace / str(patchfile)) in dirty_files
