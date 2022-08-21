@@ -8,3 +8,5 @@ try:
     from . import tests
 except ModuleNotFoundError:
     pass
+except ImportError:
+    pass
