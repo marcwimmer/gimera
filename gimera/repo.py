@@ -38,10 +38,12 @@ class Repo(GitCommands):
         """
         if "-t" not in params:
             params += ["-t"]
+
         def extract(line):
-            if '\t' in line:
+            if "\t" in line:
                 return line.split("\t")[-1]
             return line[2:]
+
         files = list(
             map(
                 lambda line: Path(extract(line)),
@@ -143,8 +145,13 @@ class Repo(GitCommands):
             linepath = line.split("\t", 1)[1]
             path = self.path / linepath
             if path.exists():
-                from . gimera import REPO_TYPE_SUB
-                if not [x for x in config.repos if x.path == path and x.ttype == REPO_TYPE_SUB]:
+                from .gimera import REPO_TYPE_SUB
+
+                if not [
+                    x
+                    for x in config.repos
+                    if x.path == path and x.ttype == REPO_TYPE_SUB
+                ]:
                     continue
                 self.please_no_staged_files()
                 # if .gitmodules is dirty then commit that first, otherwise:
@@ -196,7 +203,7 @@ class Repo(GitCommands):
         if repo_yml:
             assert not remote
             assert not ref
-            remote = 'origin'
+            remote = "origin"
             ref = repo_yml.branch
 
         if remote and not isinstance(remote, str):
@@ -206,6 +213,9 @@ class Repo(GitCommands):
             raise Exception("Requires remote and ref or yaml configuration.")
 
         self.X("git", "fetch", f"{remote}", ref)
+        #TODO: next instruction is not really pull compatible
+        # pulling remote changes into current branch not possible by that
+        # apply_merges doing fetch pull on its own now;
         self.X("git", "reset", "--hard", f"{remote}/{ref}")
 
     def full_clean(self):
@@ -279,6 +289,24 @@ class Repo(GitCommands):
         )
         return files
 
+    def commit_dir_if_dirty(self, rel_path, commit_msg):
+        # commit updated directories
+        if any(
+            map(
+                lambda filepath: safe_relative_to(filepath, self.path / rel_path),
+                self.all_dirty_files,
+            )
+        ):
+            self.X("git", "add", rel_path)
+            # if there are no staged files, it can be, that below that, there is a
+            # submodule which changed files; then after git add it is not added
+            if self.staged_files:
+                self.X(
+                    "git",
+                    "commit",
+                    "-m",
+                    commit_msg,
+                )
 
 class Remote(object):
     def __init__(self, repo, name, url):

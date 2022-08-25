@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import tempfile
+from contextlib import contextmanager
 import shutil
 import os
 from datetime import datetime
@@ -457,44 +459,33 @@ def _update_integrated_module(main_repo, repo_yml, update):
             repo.checkout(repo_yml.sha, force=True)
 
     new_sha = repo.hex
-    _apply_merges(repo, repo_yml)
+    with _apply_merges(repo, repo_yml) as (repo, remote_refs):
 
-    dest_path = Path(main_repo.path) / repo_yml.path
-    dest_path.parent.mkdir(exist_ok=True, parents=True)
-    subprocess.check_call(
-        [
-            "rsync",
-            "-ar",
-            "--exclude=.git",
-            "--delete-after",
-            str(local_repo_dir) + "/",
-            str(dest_path) + "/",
-        ],
-        cwd=main_repo.working_dir,
-    )
+        dest_path = Path(main_repo.path) / repo_yml.path
+        dest_path.parent.mkdir(exist_ok=True, parents=True)
+        subprocess.check_call(
+            [
+                "rsync",
+                "-ar",
+                "--exclude=.git",
+                "--delete-after",
+                str(repo.path) + "/",
+                str(dest_path) + "/",
+            ],
+            cwd=main_repo.working_dir,
+        )
+        msg = [f"Merged: {repo_yml.url}"]
+        for (remote, ref) in remote_refs:
+            msg.append(f"Merged {remote.url}:{ref}")
+        main_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
+
+    del repo
 
     # apply patches:
     _apply_patches(main_repo, repo_yml)
-
-    # commit updated directories
-    if any(
-        map(
-            lambda filepath: safe_relative_to(filepath, main_repo.path / repo_yml.path),
-            main_repo.all_dirty_files,
-        )
-    ):
-        main_repo.X("git", "add", repo_yml.path)
-        # if there are no staged files, it can be, that below that, there is a
-        # submodule which changed files; then after git add it is not added
-        if main_repo.staged_files:
-            main_repo.X(
-                "git",
-                "commit",
-                "-m",
-                f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}",
-            )
-
-    repo.X("git", "reset", "--hard", f"origin/{repo_yml.branch}")
+    main_repo.commit_dir_if_dirty(
+        repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
+    )
     repo_yml.sha = new_sha
 
 
@@ -508,21 +499,38 @@ def _get_remotes(repo_yml):
         yield Remote(None, name, url)
 
 
+@contextmanager
 def _apply_merges(repo, repo_yml):
     if not repo_yml.merges:
-        return
-    configured_remotes = _get_remotes(repo_yml)
-    for remote in configured_remotes:
-        if list(filter(lambda x: x.name == remote.name, repo.remotes)):
-            repo.remove_remote(remote)
-        repo.add_remote(remote)
+        yield repo, []
+        # https://stackoverflow.com/questions/6395063/yield-break-in-python
+        return iter([])
 
-    for remote, ref in repo_yml.merges:
-        remote = repo.get_remote(remote)
-        repo.fetch(remote, ref)
-    for remote, ref in repo_yml.merges:
-        remote = repo.get_remote(remote)
-        repo.pull(remote, ref)
+    repo2 = tempfile.mktemp(suffix=".")
+    try:
+
+        repo.X("git", "clone", "--depth", "1", "file://" + str(repo.path), repo2)
+        repo = Repo(repo2)
+
+        configured_remotes = _get_remotes(repo_yml)
+        # as we clone into a temp directory to allow parallel actions
+        # we set the origin to the repo source
+        configured_remotes.append(Remote(repo, "origin", repo_yml.url))
+        for remote in configured_remotes:
+            if list(filter(lambda x: x.name == remote.name, repo.remotes)):
+                repo.remove_remote(remote)
+            repo.add_remote(remote)
+
+        remotes = []
+        for remote, ref in repo_yml.merges:
+            remote = [x for x in reversed(configured_remotes) if x.name == remote][0]
+            repo.X("git", "fetch", f"{remote.name}", ref)
+            repo.X("git", "pull", f"{remote.name}", ref)
+            remotes.append((remote, ref))
+
+        yield repo, remotes
+    finally:
+        shutil.rmtree(repo.path)
 
 
 def _apply_patchfile(file, main_repo, repo_yml):
@@ -796,15 +804,14 @@ def check_all_submodules_initialized():
     if not _check_all_submodules_initialized():
         sys.exit(-1)
 
+
 def _check_all_submodules_initialized():
     root = Path(os.getcwd())
 
     def _get_all_submodules(root):
 
         for path in (
-            Repo(root).out("git", "submodule--helper", "list")
-            .strip()
-            .splitlines()
+            Repo(root).out("git", "submodule--helper", "list").strip().splitlines()
         ):
             path = root / path.split("\t", 1)[1]
             yield path
