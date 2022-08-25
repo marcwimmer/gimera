@@ -212,11 +212,14 @@ class Repo(GitCommands):
         if not remote and not ref:
             raise Exception("Requires remote and ref or yaml configuration.")
 
-        self.X("git", "fetch", f"{remote}", ref)
+        self.X("git", "fetch", remote, ref)
+        self.X("git", "pull", remote, ref)
+
+        # exchanged with pull
         #TODO: next instruction is not really pull compatible
         # pulling remote changes into current branch not possible by that
         # apply_merges doing fetch pull on its own now;
-        self.X("git", "reset", "--hard", f"{remote}/{ref}")
+        #self.X("git", "reset", "--hard", f"{remote}/{ref}")
 
     def full_clean(self):
         self.X("git", "checkout", "-f")

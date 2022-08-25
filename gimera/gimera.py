@@ -524,8 +524,7 @@ def _apply_merges(repo, repo_yml):
         remotes = []
         for remote, ref in repo_yml.merges:
             remote = [x for x in reversed(configured_remotes) if x.name == remote][0]
-            repo.X("git", "fetch", f"{remote.name}", ref)
-            repo.X("git", "pull", f"{remote.name}", ref)
+            repo.pull(remote=remote, ref=ref)
             remotes.append((remote, ref))
 
         yield repo, remotes
