@@ -728,17 +728,12 @@ def __add_submodule(repo, config, all_config):
         repo.force_remove_submodule(relpath)
 
     repo._fix_to_remove_subdirectories(all_config)
+    if (repo.path / relpath).exists():
+        # helped in a in the wild repo, where a submodule was hidden below
+        repo.X("git", "rm", "-rf", relpath)
+        shutil.rmtree(repo.path / relpath)
 
-    repo.X(
-        "git",
-        "submodule",
-        "add",
-        "--force",
-        "-b",
-        str(config.branch),
-        config.url,
-        relpath,
-    )
+    repo.submodule_add(config.branch, config.url, relpath)
     # repo.X("git", "add", ".gitmodules", relpath)
     click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
     if repo.staged_files:

@@ -212,7 +212,7 @@ class Repo(GitCommands):
         if not remote and not ref:
             raise Exception("Requires remote and ref or yaml configuration.")
 
-        self.X("git", "pull", '--no-edit', remote, ref)
+        self.X("git", "pull", "--no-edit", remote, ref)
 
     def full_clean(self):
         self.X("git", "checkout", "-f")
@@ -303,6 +303,49 @@ class Repo(GitCommands):
                     "-m",
                     commit_msg,
                 )
+
+    def submodule_add(self, branch, url, rel_path):
+        commands = [
+            "git",
+            "submodule",
+            "add",
+            "--force",
+            "-b",
+            str(branch),
+            url,
+            rel_path,
+        ]
+        try:
+            self.out(*commands)
+        except subprocess.CalledProcessError:
+            self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
+            if (self.path / rel_path).exists():
+                shutil.rmtree(self.path / rel_path)
+            self.out(*commands)
+
+    def _remove_internal_submodule_clone(self, rel_path_to_root):
+        repo = self.root_repo
+        root = repo.path / ".git" / "modules"
+        parts = list(rel_path_to_root.parts)
+        while parts:
+            part = parts.pop(0)
+            if not parts:
+                # kill
+                next_path = root / part
+                if next_path.exists():
+                    shutil.rmtree(next_path)
+                else:
+                    _raise_error(
+                        f"Could not delete submodule {part} in {root} - not found"
+                    )
+
+            else:
+                next_path = root / part / "modules"
+                if next_path.exists():
+                    root = next_path
+                else:
+                    _raise_error(f"Could not find submodule in .git for {part}")
+
 
 class Remote(object):
     def __init__(self, repo, name, url):
