@@ -234,16 +234,22 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="Overrides setting in gimera.yml and sets 'submodule' for all.",
 )
-def apply(repos, update, all_integrated, all_submodule):
+@click.option(
+    "-p",
+    "--parallel-safe",
+    is_flag=True,
+    help="In multi environments using the same cache directory this avoids race conditions."
+)
+def apply(repos, update, all_integrated, all_submodule, parallel_safe):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
     ttype = REPO_TYPE_INT if all_integrated else ttype
     ttype = REPO_TYPE_SUB if all_submodule else ttype
-    return _apply(repos, update, force_type=ttype)
+    return _apply(repos, update, force_type=ttype, parallel_safe=parallel_safe)
 
 
-def _apply(repos, update, force_type=False):
+def _apply(repos, update, force_type=False, parallel_safe=False):
     """
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
@@ -255,10 +261,10 @@ def _apply(repos, update, force_type=False):
         if check not in map(lambda x: str(x.path), config.repos):
             _raise_error(f"Invalid path: {check}")
 
-    _internal_apply(repos, update, force_type)
+    _internal_apply(repos, update, force_type, parallel_safe=parallel_safe)
 
 
-def _internal_apply(repos, update, force_type):
+def _internal_apply(repos, update, force_type, parallel_safe=False):
     main_repo = Repo(os.getcwd())
     config = Config(force_type=force_type)
 
@@ -271,7 +277,7 @@ def _internal_apply(repos, update, force_type):
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
         elif repo.type == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
-            _update_integrated_module(main_repo, repo, update)
+            _update_integrated_module(main_repo, repo, update, parallel_safe)
 
         _apply_subgimera(main_repo, repo, update, force_type)
 
@@ -415,7 +421,7 @@ def _make_patches(main_repo, repo_yml):
     # subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
 
 
-def _update_integrated_module(main_repo, repo_yml, update):
+def _update_integrated_module(main_repo, repo_yml, update, parallel_safe):
     """
     Put contents of a git repository inside the main repository.
     """
@@ -459,7 +465,7 @@ def _update_integrated_module(main_repo, repo_yml, update):
             repo.checkout(repo_yml.sha, force=True)
 
     new_sha = repo.hex
-    with _apply_merges(repo, repo_yml) as (repo, remote_refs):
+    with _apply_merges(repo, repo_yml, parallel_safe) as (repo, remote_refs):
 
         dest_path = Path(main_repo.path) / repo_yml.path
         dest_path.parent.mkdir(exist_ok=True, parents=True)
@@ -500,17 +506,18 @@ def _get_remotes(repo_yml):
 
 
 @contextmanager
-def _apply_merges(repo, repo_yml):
+def _apply_merges(repo, repo_yml, parallel_safe):
     if not repo_yml.merges:
         yield repo, []
         # https://stackoverflow.com/questions/6395063/yield-break-in-python
         return iter([])
 
-    repo2 = tempfile.mktemp(suffix=".")
     try:
 
-        repo.X("git", "clone", "--depth", "1", "file://" + str(repo.path), repo2)
-        repo = Repo(repo2)
+        if parallel_safe:
+            repo2 = tempfile.mktemp(suffix=".")
+            repo.X("git", "clone", "--branch", str(repo_yml.branch), "file://" + str(repo.path), repo2)
+            repo = Repo(repo2)
 
         configured_remotes = _get_remotes(repo_yml)
         # as we clone into a temp directory to allow parallel actions
@@ -529,7 +536,8 @@ def _apply_merges(repo, repo_yml):
 
         yield repo, remotes
     finally:
-        shutil.rmtree(repo.path)
+        if parallel_safe:
+            shutil.rmtree(repo.path)
 
 
 def _apply_patchfile(file, main_repo, repo_yml):

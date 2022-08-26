@@ -212,9 +212,7 @@ class Repo(GitCommands):
         if not remote and not ref:
             raise Exception("Requires remote and ref or yaml configuration.")
 
-        self.X("git", "fetch", remote, ref)
-        self.X("git", "pull", remote, ref)
-
+        self.X("git", "pull", '--no-edit', remote, ref)
 
     def full_clean(self):
         self.X("git", "checkout", "-f")
