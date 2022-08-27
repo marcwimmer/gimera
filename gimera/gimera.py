@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from ctypes.wintypes import PUSHORT
 import tempfile
 from contextlib import contextmanager
 import shutil
@@ -238,7 +239,7 @@ def _get_available_patchfiles(ctx, param, incomplete):
     "-p",
     "--parallel-safe",
     is_flag=True,
-    help="In multi environments using the same cache directory this avoids race conditions."
+    help="In multi environments using the same cache directory this avoids race conditions.",
 )
 def apply(repos, update, all_integrated, all_submodule, parallel_safe):
     if all_integrated and all_submodule:
@@ -278,6 +279,9 @@ def _internal_apply(repos, update, force_type, parallel_safe=False):
         elif repo.type == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update, parallel_safe)
+            # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
+            # not submodules inside integrated modules
+            force_type = REPO_TYPE_INT
 
         _apply_subgimera(main_repo, repo, update, force_type)
 
@@ -520,7 +524,14 @@ def _apply_merges(repo, repo_yml, parallel_safe):
 
         if parallel_safe:
             repo2 = tempfile.mktemp(suffix=".")
-            repo.X("git", "clone", "--branch", str(repo_yml.branch), "file://" + str(repo.path), repo2)
+            repo.X(
+                "git",
+                "clone",
+                "--branch",
+                str(repo_yml.branch),
+                "file://" + str(repo.path),
+                repo2,
+            )
             repo = Repo(repo2)
 
         configured_remotes = _get_remotes(repo_yml)
@@ -588,7 +599,10 @@ def _apply_patches(main_repo, repo_yml):
                 )
 
                 click.secho(file.read_text(), fg="cyan")
-                if not inquirer.confirm("Continue?", default=True):
+                if not inquirer.confirm(
+                    f"Patchfile failed ''{file.relative_to(main_repo.path)}'' - continue with next file?",
+                    default=True,
+                ):
                     sys.exit(-1)
             except Exception as ex:  # pylint: disable=broad-except
                 _raise_error(str(ex))
