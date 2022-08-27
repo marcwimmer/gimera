@@ -469,6 +469,10 @@ def _update_integrated_module(main_repo, repo_yml, update, parallel_safe):
 
         dest_path = Path(main_repo.path) / repo_yml.path
         dest_path.parent.mkdir(exist_ok=True, parents=True)
+        # BTW: delete-after cannot removed unused directories - cool to know; is
+        # just standarded out
+        if dest_path.exists():
+            shutil.rmtree(dest_path)
         subprocess.check_call(
             [
                 "rsync",

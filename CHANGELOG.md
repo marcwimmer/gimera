@@ -1,3 +1,8 @@
+# 0.6.51
+  * [FIX] helping rsync --delete-after with non empty directories
+
+# 0.6.50
+  * [FIX] wild life stable switch between integrated and submodule: deleting invalid cached modules in .git/modules when they are not bare
 # 0.6.39
 
   * If submodule's sha matches the branch then the branch is checked out instead of the pure sha. Advantage: no fiddling at commit and pushing.
