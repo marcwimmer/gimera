@@ -1,3 +1,6 @@
+# 0.6.54
+  * [FIX] submodule path resolving
+    [NEW] --strict option integrated modules force submodules usually to also be integrated; with strict, the gimera file is used
 # 0.6.51
   * [FIX] helping rsync --delete-after with non empty directories
 
