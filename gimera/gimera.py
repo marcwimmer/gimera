@@ -239,18 +239,32 @@ def _get_available_patchfiles(ctx, param, incomplete):
     "-p",
     "--parallel-safe",
     is_flag=True,
-    help="In multi environments using the same cache directory this avoids race conditions.",
+    help=(
+        "In multi environments using the same cache directory this avoids "
+        "race conditions."
+    ),
 )
-def apply(repos, update, all_integrated, all_submodule, parallel_safe):
+@click.option(
+    "-s",
+    "--strict",
+    is_flag=True,
+    help=(
+        "If set, then submodules of 'integrated' branches are not automatically "
+        "set to integrated. They stay how they are defined in the children gimera.yml files."
+    ),
+)
+def apply(repos, update, all_integrated, all_submodule, parallel_safe, strict):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
     ttype = REPO_TYPE_INT if all_integrated else ttype
     ttype = REPO_TYPE_SUB if all_submodule else ttype
-    return _apply(repos, update, force_type=ttype, parallel_safe=parallel_safe)
+    return _apply(
+        repos, update, force_type=ttype, parallel_safe=parallel_safe, strict=strict
+    )
 
 
-def _apply(repos, update, force_type=False, parallel_safe=False):
+def _apply(repos, update, force_type=False, parallel_safe=False, strict=False):
     """
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
@@ -262,10 +276,12 @@ def _apply(repos, update, force_type=False, parallel_safe=False):
         if check not in map(lambda x: str(x.path), config.repos):
             _raise_error(f"Invalid path: {check}")
 
-    _internal_apply(repos, update, force_type, parallel_safe=parallel_safe)
+    _internal_apply(
+        repos, update, force_type, parallel_safe=parallel_safe, strict=strict
+    )
 
 
-def _internal_apply(repos, update, force_type, parallel_safe=False):
+def _internal_apply(repos, update, force_type, parallel_safe=False, strict=False):
     main_repo = Repo(os.getcwd())
     config = Config(force_type=force_type)
 
@@ -279,20 +295,35 @@ def _internal_apply(repos, update, force_type, parallel_safe=False):
         elif repo.type == REPO_TYPE_INT:
             _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update, parallel_safe)
-            # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
-            # not submodules inside integrated modules
-            force_type = REPO_TYPE_INT
 
-        _apply_subgimera(main_repo, repo, update, force_type)
+            if not strict:
+                # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
+                # not submodules inside integrated modules
+                force_type = REPO_TYPE_INT
+
+        _apply_subgimera(
+            main_repo,
+            repo,
+            update,
+            force_type,
+            parallel_safe=parallel_safe,
+            strict=strict,
+        )
 
 
-def _apply_subgimera(main_repo, repo, update, force_type):
+def _apply_subgimera(main_repo, repo, update, force_type, parallel_safe, strict):
     subgimera = Path(repo.path) / "gimera.yml"
     sub_path = main_repo.path / repo.path
     pwd = os.getcwd()
     if subgimera.exists():
         os.chdir(sub_path)
-        _internal_apply([], update, force_type=force_type)
+        _internal_apply(
+            [],
+            update,
+            force_type=force_type,
+            parallel_safe=parallel_safe,
+            strict=strict,
+        )
 
         dirty_files = list(
             filter(lambda x: safe_relative_to(x, sub_path), main_repo.all_dirty_files)
