@@ -114,9 +114,7 @@ class Repo(GitCommands):
 
         p = self.path
         for i in range(len(p.parts)):
-            if (p / ".gitmodules").exists():
-                return p
-            if (p / ".git").is_dir():
+            if (p / ".git").exists():
                 return p
             p = p.parent
         return self.path
