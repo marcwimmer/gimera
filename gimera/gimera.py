@@ -484,7 +484,11 @@ def _update_integrated_module(main_repo, repo_yml, update, parallel_safe):
         _raise_error(f"No R/W rights on {local_repo_dir}")
     repo = Repo(local_repo_dir)
     repo.fetch()
-    repo.X("git", "checkout", "-f", str(repo_yml.branch))
+    branch = str(repo_yml.branch)
+    origin_branch = f"origin/{branch}"
+    repo.X("git", "checkout", "-f", branch)
+    repo.X("git", "reset", "--hard", origin_branch)
+    repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
     repo.X("git", "clean", "-xdff")
     repo.pull(repo_yml=repo_yml)
 
