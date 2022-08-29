@@ -483,7 +483,8 @@ def _update_integrated_module(main_repo, repo_yml, update, parallel_safe):
     if not os.access(local_repo_dir, os.W_OK):
         _raise_error(f"No R/W rights on {local_repo_dir}")
     repo = Repo(local_repo_dir)
-    repo.fetch()
+    repo.X("git", "remote", "set-url", "origin", repo_yml.url)
+    repo.X("git", "fetch", "--all")
     branch = str(repo_yml.branch)
     origin_branch = f"origin/{branch}"
     repo.X("git", "checkout", "-f", branch)
