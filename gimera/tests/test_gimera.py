@@ -976,6 +976,12 @@ def test_merges(temppath):
         variant.X("git", "push", "--set-upstream", "origin", "variant")
         variant.X("git", "checkout", "main")
 
+        variant.X("git", "checkout", "-b", "variant2")
+        (repopath_variant / "variant2.txt").write_text("This is a new function")
+        variant.simple_commit_all()
+        variant.X("git", "push", "--set-upstream", "origin", "variant2")
+        variant.X("git", "checkout", "main")
+
     with clone_and_commit(repo_main, "main") as repopath:
         (repopath / "dummy.txt").write_text("This is a new function")
         Repo(repopath).simple_commit_all()
@@ -1010,6 +1016,34 @@ def test_merges(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "variant.txt").exists()
+    assert (workspace_main / "subby" / "repo1.txt").exists()
+
+    # reapply should also work
+    gimera_apply([], None)
+    assert (workspace_main / "subby" / "variant.txt").exists()
+    assert (workspace_main / "subby" / "repo1.txt").exists()
+
+    # change the merge - no changes from other merge should exist
+    repos = {
+        "repos": [
+            {
+                "url": f"file://{repo_1}",
+                "branch": "main",
+                "path": "subby",
+                "remotes": {
+                    "repo_variant": str(repo_1variant),
+                },
+                "merges": ["repo_variant variant2"],
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
+    main_repo.simple_commit_all()
+    gimera_apply([], None)
+    assert not (workspace_main / "subby" / "variant.txt").exists()
+    assert (workspace_main / "subby" / "variant2.txt").exists()
     assert (workspace_main / "subby" / "repo1.txt").exists()
 
 
