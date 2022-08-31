@@ -253,18 +253,33 @@ def _get_available_patchfiles(ctx, param, incomplete):
         "set to integrated. They stay how they are defined in the children gimera.yml files."
     ),
 )
-def apply(repos, update, all_integrated, all_submodule, parallel_safe, strict):
+@click.option(
+    "-r",
+    "--recursive",
+    is_flag=True,
+    help=("Executes recursive gimeras (analog to submodules initialization)"),
+)
+def apply(
+    repos, update, all_integrated, all_submodule, parallel_safe, strict, recursive
+):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
     ttype = REPO_TYPE_INT if all_integrated else ttype
     ttype = REPO_TYPE_SUB if all_submodule else ttype
     return _apply(
-        repos, update, force_type=ttype, parallel_safe=parallel_safe, strict=strict
+        repos,
+        update,
+        force_type=ttype,
+        parallel_safe=parallel_safe,
+        strict=strict,
+        recursive=recursive,
     )
 
 
-def _apply(repos, update, force_type=False, parallel_safe=False, strict=False):
+def _apply(
+    repos, update, force_type=False, parallel_safe=False, strict=False, recursive=False
+):
     """
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
@@ -277,11 +292,18 @@ def _apply(repos, update, force_type=False, parallel_safe=False, strict=False):
             _raise_error(f"Invalid path: {check}")
 
     _internal_apply(
-        repos, update, force_type, parallel_safe=parallel_safe, strict=strict
+        repos,
+        update,
+        force_type,
+        parallel_safe=parallel_safe,
+        strict=strict,
+        recursive=recursive,
     )
 
 
-def _internal_apply(repos, update, force_type, parallel_safe=False, strict=False):
+def _internal_apply(
+    repos, update, force_type, parallel_safe=False, strict=False, recursive=False
+):
     main_repo = Repo(os.getcwd())
     config = Config(force_type=force_type)
 
@@ -301,14 +323,15 @@ def _internal_apply(repos, update, force_type, parallel_safe=False, strict=False
                 # not submodules inside integrated modules
                 force_type = REPO_TYPE_INT
 
-        _apply_subgimera(
-            main_repo,
-            repo,
-            update,
-            force_type,
-            parallel_safe=parallel_safe,
-            strict=strict,
-        )
+        if recursive:
+            _apply_subgimera(
+                main_repo,
+                repo,
+                update,
+                force_type,
+                parallel_safe=parallel_safe,
+                strict=strict,
+            )
 
 
 def _apply_subgimera(main_repo, repo, update, force_type, parallel_safe, strict):
@@ -323,6 +346,7 @@ def _apply_subgimera(main_repo, repo, update, force_type, parallel_safe, strict)
             force_type=force_type,
             parallel_safe=parallel_safe,
             strict=strict,
+            recursive=True,
         )
 
         dirty_files = list(
@@ -461,6 +485,7 @@ def _update_integrated_module(main_repo, repo_yml, update, parallel_safe):
     Put contents of a git repository inside the main repository.
     """
 
+    # TODO eval parallelsafe
     def _get_cache_dir():
         url = repo_yml.url
         if not url:

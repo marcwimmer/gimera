@@ -35,6 +35,8 @@ def python():
 def temppath():
     path = Path(tempfile.mktemp(suffix=""))
     path = Path("/tmp/gimeratest")
+    if path.exists():
+        shutil.rmtree(path)
     path.mkdir(exist_ok=True)
     try:
         yield path
@@ -698,7 +700,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 1: all integrated
     prepare_repos("integrated", "integrated")
     os.chdir(workspace_main)
-    gimera_apply([], None)
+    gimera_apply([], None, recursive=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -709,7 +711,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 2: submodule then integrated
     prepare_repos("submodule", "integrated")
     os.chdir(workspace_main)
-    gimera_apply([], None)
+    gimera_apply([], update=None, recursive=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -720,7 +722,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 3: integrated then submodule
     prepare_repos("integrated", "submodule")
     os.chdir(workspace_main)
-    gimera_apply([], None)
+    gimera_apply([], update=None, recursive=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -731,7 +733,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 4: submodule submodule
     prepare_repos("submodule", "submodule")
     os.chdir(workspace_main)
-    gimera_apply([], None)
+    gimera_apply([], update=None, recursive=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -845,7 +847,7 @@ def test_recursive_gimeras_3_levels(temppath):
 
         prepare_repos(*tuple(map(ttype, permutation)))
         os.chdir(workspace_main)
-        gimera_apply([], None)
+        gimera_apply([], update=None, recursive=True)
 
         repo = Repo(workspace_main)
         assert (workspace_main / "sub1" / "sub1.txt").exists()
@@ -1173,7 +1175,7 @@ def test_2_submodules(temppath):
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
 
     os.chdir(workspace_main)
-    gimera_apply([], None)
+    gimera_apply([], update=None, recursive=True)
 
     assert (workspace_main / "repo1" / "repo1.txt").exists()
     assert (workspace_main / "repo1" / "subrepo1" / "subrepo1.txt").exists()
@@ -1224,7 +1226,7 @@ def test_checkout_not_update_if_last_commit_matches_branch_make_branch_be_checke
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
 
     os.chdir(workspace_main)
-    gimera_apply([], None)
+    gimera_apply([], update=None, recursive=True)
 
     assert (workspace_main / "sub1" / "submodule.txt").exists()
 
