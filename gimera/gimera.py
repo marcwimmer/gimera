@@ -631,7 +631,7 @@ def _apply_patchfile(file, main_repo, repo_yml):
 
 
 def _apply_patches(main_repo, repo_yml):
-    for dir in repo_yml.patches:
+    for dir in (repo_yml.patches or []):
         dir = main_repo.working_dir / dir
         dir.relative_to(main_repo.path)
 
