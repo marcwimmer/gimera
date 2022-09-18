@@ -259,8 +259,20 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help=("Executes recursive gimeras (analog to submodules initialization)"),
 )
+@click.option(
+    "-P",
+    "--no-patches",
+    is_flag=True,
+)
 def apply(
-    repos, update, all_integrated, all_submodule, parallel_safe, strict, recursive
+    repos,
+    update,
+    all_integrated,
+    all_submodule,
+    parallel_safe,
+    strict,
+    recursive,
+    no_patches,
 ):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
@@ -274,11 +286,18 @@ def apply(
         parallel_safe=parallel_safe,
         strict=strict,
         recursive=recursive,
+        no_patches=no_patches,
     )
 
 
 def _apply(
-    repos, update, force_type=False, parallel_safe=False, strict=False, recursive=False
+    repos,
+    update,
+    force_type=False,
+    parallel_safe=False,
+    strict=False,
+    recursive=False,
+    no_patches=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -298,11 +317,18 @@ def _apply(
         parallel_safe=parallel_safe,
         strict=strict,
         recursive=recursive,
+        no_patches=no_patches,
     )
 
 
 def _internal_apply(
-    repos, update, force_type, parallel_safe=False, strict=False, recursive=False
+    repos,
+    update,
+    force_type,
+    parallel_safe=False,
+    strict=False,
+    recursive=False,
+    no_patches=False,
 ):
     main_repo = Repo(os.getcwd())
     config = Config(force_type=force_type)
@@ -315,7 +341,8 @@ def _internal_apply(
             _make_sure_subrepo_is_checked_out(main_repo, repo)
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
         elif repo.type == REPO_TYPE_INT:
-            _make_patches(main_repo, repo)
+            if not no_patches:
+                _make_patches(main_repo, repo)
             _update_integrated_module(main_repo, repo, update, parallel_safe)
 
             if not strict:
@@ -331,10 +358,13 @@ def _internal_apply(
                 force_type,
                 parallel_safe=parallel_safe,
                 strict=strict,
+                no_patches=no_patches,
             )
 
 
-def _apply_subgimera(main_repo, repo, update, force_type, parallel_safe, strict):
+def _apply_subgimera(
+    main_repo, repo, update, force_type, parallel_safe, strict, no_patches
+):
     subgimera = Path(repo.path) / "gimera.yml"
     sub_path = main_repo.path / repo.path
     pwd = os.getcwd()
@@ -347,6 +377,7 @@ def _apply_subgimera(main_repo, repo, update, force_type, parallel_safe, strict)
             parallel_safe=parallel_safe,
             strict=strict,
             recursive=True,
+            no_patches=no_patches,
         )
 
         dirty_files = list(
@@ -631,7 +662,7 @@ def _apply_patchfile(file, main_repo, repo_yml):
 
 
 def _apply_patches(main_repo, repo_yml):
-    for dir in (repo_yml.patches or []):
+    for dir in repo_yml.patches or []:
         dir = main_repo.working_dir / dir
         dir.relative_to(main_repo.path)
 
