@@ -1,3 +1,5 @@
+# 0.6.55
+  * [NEW] strict at patchs of patch files
 # 0.6.54
   * [FIX] submodule path resolving
     [NEW] --strict option integrated modules force submodules usually to also be integrated; with strict, the gimera file is used

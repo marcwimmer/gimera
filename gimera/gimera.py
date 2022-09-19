@@ -649,7 +649,8 @@ def _apply_merges(repo, repo_yml, parallel_safe):
 
 def _apply_patchfile(file, main_repo, repo_yml):
     cwd = Path(main_repo.working_dir) / repo_yml.path
-    subprocess.check_call(
+    # must be check_output due to input keyword
+    subprocess.check_output(
         ["patch", "-p1", "--no-backup-if-mismatch"],
         input=file.read_text(),  # bytes().decode('utf-8'),
         cwd=cwd,
@@ -692,7 +693,7 @@ def _apply_patches(main_repo, repo_yml):
                 )
 
                 click.secho(file.read_text(), fg="cyan")
-                if not inquirer.confirm(
+                if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
                     f"Patchfile failed ''{file.relative_to(main_repo.path)}'' - continue with next file?",
                     default=True,
                 ):

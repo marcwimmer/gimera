@@ -134,6 +134,7 @@ def test_basicbehaviour(temppath):
     subprocess.check_call(["git", "add", "gimera.yml"], cwd=workspace)
     subprocess.check_call(["git", "commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(["git", "push"], cwd=workspace)
+    (workspace / repos['repos'][1]['patches'][0]).mkdir(exist_ok=True, parents=True)
     os.chdir(workspace)
     gimera_apply([], None)
     subprocess.check_call(["git", "add", "gimera.yml"], cwd=workspace)
@@ -169,6 +170,7 @@ def test_basicbehaviour(temppath):
     # now lets make a patch for new integrated/sub1/file3.txt and changed integrated/sub1/file2.txt
     os.chdir(workspace)
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+    (workspace / repos['repos'][1]['patches'][0]).mkdir(exist_ok=True, parents=True)
     gimera_apply([], update=True)
     assert (workspace / "integrated" / "sub1" / "file3.txt").exists()
 
