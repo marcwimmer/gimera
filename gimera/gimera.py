@@ -649,7 +649,7 @@ def _apply_merges(repo, repo_yml, parallel_safe):
 
 def _apply_patchfile(file, main_repo, repo_yml):
     cwd = Path(main_repo.working_dir) / repo_yml.path
-    output = subprocess.check_output(
+    subprocess.check_call(
         ["patch", "-p1", "--no-backup-if-mismatch"],
         input=file.read_text(),  # bytes().decode('utf-8'),
         cwd=cwd,
@@ -666,7 +666,8 @@ def _apply_patches(main_repo, repo_yml):
         dir = main_repo.working_dir / dir
         dir.relative_to(main_repo.path)
 
-        dir.mkdir(parents=True, exist_ok=True)
+        if not dir.exists():
+            _raise_error(f"Directory does not exist: {dir}")
         for file in sorted(dir.rglob("*.patch")):
             click.secho(
                 (f"Applying patch {file.relative_to(main_repo.working_dir)}"), fg="blue"
