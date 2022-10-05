@@ -923,19 +923,16 @@ def _check_all_submodules_initialized():
     root = Path(os.getcwd())
 
     def _get_all_submodules(root):
-
-        for path in (
-            Repo(root).out("git", "submodule--helper", "list").strip().splitlines()
-        ):
-            path = root / path.split("\t", 1)[1]
-            yield path
-            if path.exists():
+        for submodule in Repo(root).get_submodules():
+            path = submodule.path
+            yield submodule
+            if submodule._git_path.exists():
                 yield from _get_all_submodules(path)
 
     error = False
-    for path in _get_all_submodules(root):
-        if not path.exists():
-            click.secho(f"Not initialized: {path}", fg="red")
+    for submodule in _get_all_submodules(root):
+        if not submodule._git_path.exists():
+            click.secho(f"Not initialized: {submodule.path}", fg="red")
             error = True
 
     return not error
