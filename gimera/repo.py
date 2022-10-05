@@ -21,7 +21,7 @@ class Repo(GitCommands):
     def rel_path_to_root_repo(self):
         assert str(self.path).startswith("/")
         return self.path.relative_to(self.root_repo.path)
-
+    
     @property
     def root_repo(self):
         path = self.path
@@ -31,6 +31,9 @@ class Repo(GitCommands):
             path = path.parent
         else:
             return None
+    @property
+    def _git_path(self):
+        return (self.path / ".git")
 
     def ls_files_states(self, params):
         """
@@ -121,10 +124,10 @@ class Repo(GitCommands):
 
     @yieldlist
     def get_submodules(self):
-        submodules = self.out("git", "submodule--helper", "list").splitlines()
+        submodules = self.out("git", "submodule", "status").splitlines()
         for line in submodules:
-            splitted = line.strip().split("\t", 3)
-            yield Submodule(self.next_module_root / splitted[-1], self.next_module_root)
+            splitted = line.strip().split(" ")
+            yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
 
     def _fix_to_remove_subdirectories(self, config):
         # https://stackoverflow.com/questions/4185365/no-submodule-mapping-found-in-gitmodule-for-a-path-thats-not-a-submodule
