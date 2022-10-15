@@ -28,7 +28,7 @@ NAME = metadata['name']
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-	"click>=8.1.3", "inquirer", "pyyaml", "pytest"
+	"click==8.1.3", "inquirer", "pyyaml", "pytest"
 ]
 
 here = os.path.abspath(os.path.dirname(__file__))
