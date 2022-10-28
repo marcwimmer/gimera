@@ -455,7 +455,8 @@ def _make_patches(main_repo, repo_yml):
 
     if not repo_yml.patches:
         _raise_error(
-            f"Please define at least one directory, where patches are stored for {repo_yml['path']}"
+            "Please define at least one directory, "
+            f"where patches are stored for {repo_yml.path}"
         )
 
     if len(repo_yml.patches) == 1:
