@@ -658,7 +658,7 @@ def _apply_patchfile(file, main_repo, repo_yml):
         encoding="utf-8",
     )
     click.secho(
-        (f"Applied patch {file.relative_to(main_repo.working_dir)}"),
+        (f"Applied patch {file}"),
         fg="blue",
     )
 
@@ -666,13 +666,16 @@ def _apply_patchfile(file, main_repo, repo_yml):
 def _apply_patches(main_repo, repo_yml):
     for dir in repo_yml.patches or []:
         dir = main_repo.working_dir / dir
-        dir.relative_to(main_repo.path)
+        if dir.is_relative_to(main_repo.path):
+            dir = dir.relative_to(main_repo.path)
+        else:
+            dir = dir.resolve()
 
         if not dir.exists():
             _raise_error(f"Directory does not exist: {dir}")
         for file in sorted(dir.rglob("*.patch")):
             click.secho(
-                (f"Applying patch {file.relative_to(main_repo.working_dir)}"), fg="blue"
+                (f"Applying patch {file}"), fg="blue"
             )
             # Git apply fails silently if applied within local repos
             try:
