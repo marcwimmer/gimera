@@ -666,9 +666,9 @@ def _apply_patchfile(file, main_repo, repo_yml):
 def _apply_patches(main_repo, repo_yml):
     for dir in repo_yml.patches or []:
         dir = main_repo.working_dir / dir
-        if dir.is_relative_to(main_repo.path):
+        try:
             dir = dir.relative_to(main_repo.path)
-        else:
+        except ValueError:
             dir = dir.resolve()
 
         if not dir.exists():
@@ -698,7 +698,7 @@ def _apply_patches(main_repo, repo_yml):
 
                 click.secho(file.read_text(), fg="cyan")
                 if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
-                    f"Patchfile failed ''{file.relative_to(main_repo.path)}'' - continue with next file?",
+                    f"Patchfile failed ''{file}'' - continue with next file?",
                     default=True,
                 ):
                     sys.exit(-1)
