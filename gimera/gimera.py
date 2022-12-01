@@ -18,6 +18,7 @@ from .repo import Repo, Remote
 from .gitcommands import GitCommands
 from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .tools import yieldlist
+from .consts import gitcmd as git
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -400,7 +401,7 @@ def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
     path = main_repo.path / repo_yml.path
     if path.exists() and not is_empty_dir(path):
         return
-    main_repo.X("git", "submodule", "update", "--init", "--recursive", repo_yml.path)
+    main_repo.X(*(git + ["submodule", "update", "--init", "--recursive", repo_yml.path]))
     if not path.exists():
         _raise_error("After submodule update the path {repo_yml['path']} did not exist")
 

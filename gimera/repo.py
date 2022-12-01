@@ -4,6 +4,7 @@ import shutil
 from .gitcommands import GitCommands
 from pathlib import Path
 from .tools import yieldlist, X, safe_relative_to, _raise_error
+from .consts import gitcmd as git
 
 
 class Repo(GitCommands):
@@ -306,8 +307,7 @@ class Repo(GitCommands):
                 )
 
     def submodule_add(self, branch, url, rel_path):
-        commands = [
-            "git",
+        commands = git + [
             "submodule",
             "add",
             "--force",

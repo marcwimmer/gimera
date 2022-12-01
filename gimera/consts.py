@@ -1,0 +1,1 @@
+gitcmd = ["git", "-c", "protocol.file.allow=always"]
