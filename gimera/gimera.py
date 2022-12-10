@@ -19,6 +19,7 @@ from .gitcommands import GitCommands
 from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .tools import yieldlist
 from .consts import gitcmd as git
+from .consts import inquirer_theme
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -401,7 +402,9 @@ def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
     path = main_repo.path / repo_yml.path
     if path.exists() and not is_empty_dir(path):
         return
-    main_repo.X(*(git + ["submodule", "update", "--init", "--recursive", repo_yml.path]))
+    main_repo.X(
+        *(git + ["submodule", "update", "--init", "--recursive", repo_yml.path])
+    )
     if not path.exists():
         _raise_error("After submodule update the path {repo_yml['path']} did not exist")
 
@@ -420,11 +423,28 @@ def _make_patches(main_repo, repo_yml):
     if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
         correct = True
     else:
-        correct = inquirer.confirm(
-            f"Continue making patches for: {files_in_lines}", default=False
-        )
+        questions = [
+            inquirer.List(
+                "correct",
+                message=f"Continue making patches for: {files_in_lines}",
+                default="no",
+                choices=[
+                    "Yes - make a patch",
+                    "Abort",
+                    "Ignore",
+                ],
+            )
+        ]
+        answers = inquirer.prompt(questions, theme=inquirer_theme)
+        correct = answers["correct"][0]
+        if correct == "Y":
+            correct = True
+        elif correct == "A":
+            correct = False
     if not correct:
         sys.exit(-1)
+    if correct == "I":
+        return
 
     to_reset = []
     if repo_yml.type == REPO_TYPE_INT:
@@ -675,9 +695,7 @@ def _apply_patches(main_repo, repo_yml):
         if not dir.exists():
             _raise_error(f"Directory does not exist: {dir}")
         for file in sorted(dir.rglob("*.patch")):
-            click.secho(
-                (f"Applying patch {file}"), fg="blue"
-            )
+            click.secho((f"Applying patch {file}"), fg="blue")
             # Git apply fails silently if applied within local repos
             try:
                 _apply_patchfile(file, main_repo, repo_yml)
