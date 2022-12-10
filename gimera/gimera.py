@@ -490,7 +490,7 @@ def _make_patches(main_repo, repo_yml):
                 choices=["Type directory"] + repo_yml.patches,
             )
         ]
-        answers = inquirer.prompt(questions)
+        answers = inquirer.prompt(questions, theme=inquirer_theme)
         if answers["path"] == "Type directory":
             questions = [
                 inquirer.Text(
@@ -499,7 +499,7 @@ def _make_patches(main_repo, repo_yml):
                     default="./",
                 )
             ]
-            answers = inquirer.prompt(questions)
+            answers = inquirer.prompt(questions, theme=inquirer_theme)
         patch_dir = Path(answers["path"])
 
     patch_dir.mkdir(exist_ok=True, parents=True)
@@ -512,7 +512,7 @@ def _make_patches(main_repo, repo_yml):
                 message="Please give the patch-file a name",
             )
         ]
-        answers = inquirer.prompt(questions)
+        answers = inquirer.prompt(questions, theme=inquirer_theme)
         if not answers:
             sys.exit(-1)
         patch_filename = answers["filename"]
