@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from ctypes.wintypes import PUSHORT
 import tempfile
+import re
 from contextlib import contextmanager
 import shutil
 import os
@@ -96,7 +97,7 @@ class Config(object):
                 return self.config.force_type
             return self._type
 
-    def __init__(self, force_type):
+    def __init__(self, force_type=None):
         self.force_type = force_type
         self._repos = []
         self.load_config()
@@ -142,6 +143,15 @@ class Config(object):
         if main_repo.staged_files:
             main_repo.X("git", "commit", "-m", "auto update gimera.yml")
 
+def _expand_repos(repos):
+    config = Config()
+    for repo in repos:
+        if '*' not in repo:
+            yield repo
+        repo = repo.replace("*", ".*")
+        for candi in config.repos:
+            if re.findall(repo, str(candi.path)):
+                yield str(candi.path)
 
 @cli.command(name="clean", help="Removes all dirty")
 def clean():
@@ -170,9 +180,15 @@ def combine_patches():
 def _get_available_repos(ctx, param, incomplete):
     config = Config(force_type=False)
     repos = []
+
+
+    if "*" in incomplete:
+        repos = _expand_repos(list(incomplete))
+
     for repo in config.repos:
         if not repo.path:
             continue
+
         if incomplete:
             if "/" not in incomplete:
                 if incomplete not in str(repo.path):
@@ -266,6 +282,11 @@ def _get_available_patchfiles(ctx, param, incomplete):
     "--no-patches",
     is_flag=True,
 )
+@click.option(
+    "-m",
+    "--missing",
+    is_flag=True,
+)
 def apply(
     repos,
     update,
@@ -275,12 +296,20 @@ def apply(
     strict,
     recursive,
     no_patches,
+    missing,
 ):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
     ttype = REPO_TYPE_INT if all_integrated else ttype
     ttype = REPO_TYPE_SUB if all_submodule else ttype
+
+    repos = list(_expand_repos(repos))
+
+    if missing:
+        config = Config()
+        repos = list(map(lambda x: str(x.path), _get_missing_repos(config)))
+
     return _apply(
         repos,
         update,
@@ -331,6 +360,7 @@ def _internal_apply(
     strict=False,
     recursive=False,
     no_patches=False,
+    **options,
 ):
     main_repo = Repo(os.getcwd())
     config = Config(force_type=force_type)
@@ -345,7 +375,7 @@ def _internal_apply(
         elif repo.type == REPO_TYPE_INT:
             if not no_patches:
                 _make_patches(main_repo, repo)
-            _update_integrated_module(main_repo, repo, update, parallel_safe)
+            _update_integrated_module(main_repo, repo, update, parallel_safe, **options)
 
             if not strict:
                 # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
@@ -361,11 +391,19 @@ def _internal_apply(
                 parallel_safe=parallel_safe,
                 strict=strict,
                 no_patches=no_patches,
+                **options,
             )
 
 
 def _apply_subgimera(
-    main_repo, repo, update, force_type, parallel_safe, strict, no_patches
+    main_repo,
+    repo,
+    update,
+    force_type,
+    parallel_safe,
+    strict,
+    no_patches,
+    **options,
 ):
     subgimera = Path(repo.path) / "gimera.yml"
     sub_path = main_repo.path / repo.path
@@ -380,6 +418,7 @@ def _apply_subgimera(
             strict=strict,
             recursive=True,
             no_patches=no_patches,
+            **options,
         )
 
         dirty_files = list(
@@ -533,7 +572,9 @@ def _make_patches(main_repo, repo_yml):
     # subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
 
 
-def _update_integrated_module(main_repo, repo_yml, update, parallel_safe):
+def _update_integrated_module(
+    main_repo, repo_yml, update, parallel_safe, ignore_clone_errors=False
+):
     """
     Put contents of a git repository inside the main repository.
     """
@@ -565,7 +606,11 @@ def _update_integrated_module(main_repo, repo_yml, update, parallel_safe):
     repo.X("git", "fetch", "--all")
     branch = str(repo_yml.branch)
     origin_branch = f"origin/{branch}"
-    repo.X("git", "checkout", "-f", branch)
+    try:
+        repo.X("git", "checkout", "-f", branch)
+    except subprocess.CalledProcessError as ex:
+        click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg='red')
+        sys.exit(-1)
     repo.X("git", "reset", "--hard", origin_branch)
     repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
     repo.X("git", "clean", "-xdff")
@@ -1026,6 +1071,19 @@ def _edit_patch(patchfiles):
                 deactivated_name.parent / f"{deactivated_name.stem}"
             )
         raise
+
+
+def _get_missing_repos(config):
+    for repo in config.repos:
+        if not repo.path.exists():
+            yield repo
+
+@cli.command()
+def status():
+    config = Config()
+    repos = list(_get_missing_repos(config))
+    for repo in repos:
+        click.secho(f"Missing: {repo.path}", fg="red")
 
 
 if __name__ == "__main__":
