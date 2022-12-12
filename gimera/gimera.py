@@ -62,6 +62,9 @@ class Config(object):
                     f"{self.path}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'"
                 )
 
+        def drop_dead(self):
+            Config().remove(self.path)
+
         @property
         def sha(self):
             return self._sha
@@ -119,6 +122,16 @@ class Config(object):
         for repo in config["repos"]:
             Config.RepoItem(self, repo)
         self.config = config
+
+    def remove(self, path):
+        config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
+        repos = config['repos']
+        repos2 = []
+        for repo in repos:
+            if Path(repo["path"]).resolve().absolute() != Path(path).resolve().absolute():
+                repos2.append(repo)
+        config['repos'] = repos2
+        self.config_file.write_text(yaml.dump(config, default_flow_style=False))
 
     def _store(self, repo, value):
         """
@@ -287,6 +300,11 @@ def _get_available_patchfiles(ctx, param, incomplete):
     "--missing",
     is_flag=True,
 )
+@click.option(
+    "--remove-invalid-branches",
+    is_flag=True,
+    help="If branch does not exist in repository, the configuration item is removed."
+)
 def apply(
     repos,
     update,
@@ -297,6 +315,7 @@ def apply(
     recursive,
     no_patches,
     missing,
+    remove_invalid_branches,
 ):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
@@ -318,6 +337,7 @@ def apply(
         strict=strict,
         recursive=recursive,
         no_patches=no_patches,
+        remove_invalid_branches=remove_invalid_branches,
     )
 
 
@@ -329,6 +349,7 @@ def _apply(
     strict=False,
     recursive=False,
     no_patches=False,
+    remove_invalid_branches=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -349,6 +370,7 @@ def _apply(
         strict=strict,
         recursive=recursive,
         no_patches=no_patches,
+        remove_invalid_branches=remove_invalid_branches,
     )
 
 
@@ -573,7 +595,7 @@ def _make_patches(main_repo, repo_yml):
 
 
 def _update_integrated_module(
-    main_repo, repo_yml, update, parallel_safe, ignore_clone_errors=False
+    main_repo, repo_yml, update, parallel_safe, **options,
 ):
     """
     Put contents of a git repository inside the main repository.
@@ -609,8 +631,12 @@ def _update_integrated_module(
     try:
         repo.X("git", "checkout", "-f", branch)
     except subprocess.CalledProcessError as ex:
-        click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg='red')
-        sys.exit(-1)
+        if options.get("remove_invalid_branches"):
+            repo_yml.drop_dead()
+            click.secho(f"Branch {branch} did not exist in {repo_yml.path}; it is removed.", fg='yellow')
+        else:
+            click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg='red')
+        return
     repo.X("git", "reset", "--hard", origin_branch)
     repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
     repo.X("git", "clean", "-xdff")
