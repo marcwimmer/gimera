@@ -125,12 +125,15 @@ class Config(object):
 
     def remove(self, path):
         config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
-        repos = config['repos']
+        repos = config["repos"]
         repos2 = []
         for repo in repos:
-            if Path(repo["path"]).resolve().absolute() != Path(path).resolve().absolute():
+            if (
+                Path(repo["path"]).resolve().absolute()
+                != Path(path).resolve().absolute()
+            ):
                 repos2.append(repo)
-        config['repos'] = repos2
+        config["repos"] = repos2
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
 
     def _store(self, repo, value):
@@ -147,6 +150,9 @@ class Config(object):
             if Path(repo["path"]) == param_repo.path:
                 for k, v in value.items():
                     repo[k] = v
+                break
+        else:
+            config["repos"].append(value)
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
         main_repo.please_no_staged_files()
         if self.config_file.resolve() in [
@@ -156,15 +162,17 @@ class Config(object):
         if main_repo.staged_files:
             main_repo.X("git", "commit", "-m", "auto update gimera.yml")
 
+
 def _expand_repos(repos):
     config = Config()
     for repo in repos:
-        if '*' not in repo:
+        if "*" not in repo:
             yield repo
         repo = repo.replace("*", ".*")
         for candi in config.repos:
             if re.findall(repo, str(candi.path)):
                 yield str(candi.path)
+
 
 @cli.command(name="clean", help="Removes all dirty")
 def clean():
@@ -193,7 +201,6 @@ def combine_patches():
 def _get_available_repos(ctx, param, incomplete):
     config = Config(force_type=False)
     repos = []
-
 
     if "*" in incomplete:
         repos = _expand_repos(list(incomplete))
@@ -303,7 +310,7 @@ def _get_available_patchfiles(ctx, param, incomplete):
 @click.option(
     "--remove-invalid-branches",
     is_flag=True,
-    help="If branch does not exist in repository, the configuration item is removed."
+    help="If branch does not exist in repository, the configuration item is removed.",
 )
 def apply(
     repos,
@@ -595,7 +602,11 @@ def _make_patches(main_repo, repo_yml):
 
 
 def _update_integrated_module(
-    main_repo, repo_yml, update, parallel_safe, **options,
+    main_repo,
+    repo_yml,
+    update,
+    parallel_safe,
+    **options,
 ):
     """
     Put contents of a git repository inside the main repository.
@@ -633,9 +644,12 @@ def _update_integrated_module(
     except subprocess.CalledProcessError as ex:
         if options.get("remove_invalid_branches"):
             repo_yml.drop_dead()
-            click.secho(f"Branch {branch} did not exist in {repo_yml.path}; it is removed.", fg='yellow')
+            click.secho(
+                f"Branch {branch} did not exist in {repo_yml.path}; it is removed.",
+                fg="yellow",
+            )
         else:
-            click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg='red')
+            click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg="red")
         return
     repo.X("git", "reset", "--hard", origin_branch)
     repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
@@ -1008,6 +1022,29 @@ def completion(execute):
 
 
 @cli.command()
+@click.option("-u", "--url", required=True)
+@click.option("-b", "--branch", required=True)
+@click.option("-p", "--path", required=True)
+@click.option("-t", "--type", required=True)
+def add(url, branch, path, type):
+    data = {
+        "url": url,
+        "branch": branch,
+        "path": path,
+        "type": type,
+    }
+    config = Config()
+    repos = config.repos
+    for repo in repos:
+        if repo.path == path:
+            config._store(repo, data)
+            break
+    else:
+        ri = Config.RepoItem(config, data)
+        config._store(ri, data)
+
+
+@cli.command()
 def check_all_submodules_initialized():
     if not _check_all_submodules_initialized():
         sys.exit(-1)
@@ -1103,6 +1140,7 @@ def _get_missing_repos(config):
     for repo in config.repos:
         if not repo.path.exists():
             yield repo
+
 
 @cli.command()
 def status():
