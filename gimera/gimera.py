@@ -235,18 +235,9 @@ def _get_available_patchfiles(ctx, param, incomplete):
             for file in _dir.glob("*.patch"):
                 patchfiles.append(file.relative_to(cwd))
     if incomplete:
-        if "/" not in incomplete:
-            for file in patchfiles:
-                if incomplete in str(file):
-                    filtered_patchfiles.append(file)
-        else:
-            splitted = incomplete.split("/")
-            _dir = "/".join(splitted[:-1])
-            name = splitted[-1]
-            for file in patchfiles:
-                if _dir in str(file):
-                    if name in file.name:
-                        filtered_patchfiles.append(file)
+        for file in patchfiles:
+            if incomplete in str(file):
+                filtered_patchfiles.append(file)
     else:
         filtered_patchfiles = patchfiles
     filtered_patchfiles = list(sorted(filtered_patchfiles))
