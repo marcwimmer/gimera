@@ -631,12 +631,13 @@ def _update_integrated_module(
                 f"Caching the repository {repo_yml.url} for quicker reuse",
                 fg="yellow",
             )
-            with prepare_dir(path) as path:
-                Repo(main_repo.path).X("git", "clone", url, path)
+            with prepare_dir(path) as _path:
+                Repo(main_repo.path).X("git", "clone", url, _path)
         return path
 
     # use a cache directory for pulling the repository and updating it
     local_repo_dir = _get_cache_dir()
+    import pudb;pudb.set_trace()
     with wait_git_lock(local_repo_dir):
         if not os.access(local_repo_dir, os.W_OK):
             _raise_error(f"No R/W rights on {local_repo_dir}")

@@ -60,8 +60,12 @@ def prepare_dir(path):
     tmp_path = path.parent / f"{path.name}.{uuid.uuid4()}"
     assert path.parent.exists()
     assert len(path.parts) > 1
+    tmp_path.mkdir(parents=True)
     try:
         yield tmp_path
+        if path.exists():
+            shutil.rmtree(path)
+        shutil.move(tmp_path, path)
     except Exception as ex:
         raise
     finally:
