@@ -637,7 +637,6 @@ def _update_integrated_module(
 
     # use a cache directory for pulling the repository and updating it
     local_repo_dir = _get_cache_dir()
-    import pudb;pudb.set_trace()
     with wait_git_lock(local_repo_dir):
         if not os.access(local_repo_dir, os.W_OK):
             _raise_error(f"No R/W rights on {local_repo_dir}")
