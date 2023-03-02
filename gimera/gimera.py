@@ -21,6 +21,8 @@ from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .tools import yieldlist
 from .consts import gitcmd as git
 from .consts import inquirer_theme
+from .tools import prepare_dir
+from .tools import wait_git_lock
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -36,6 +38,7 @@ class Config(object):
         def __init__(self, config, config_section):
             self.config = config
             self._sha = config_section.get("sha", None)
+            self.enabled = config_section.get("enabled", True)
             self.path = Path(config_section["path"])
             self.branch = str(config_section["branch"])
             self.merges = config_section.get("merges", [])
@@ -170,6 +173,8 @@ def _expand_repos(repos):
             yield repo
         repo = repo.replace("*", ".*")
         for candi in config.repos:
+            if not candi.enabled:
+                continue
             if re.findall(repo, str(candi.path)):
                 yield str(candi.path)
 
@@ -206,6 +211,8 @@ def _get_available_repos(ctx, param, incomplete):
         repos = _expand_repos(list(incomplete))
 
     for repo in config.repos:
+        if not repo.enabled:
+            continue
         if not repo.path:
             continue
 
@@ -226,6 +233,8 @@ def _get_available_patchfiles(ctx, param, incomplete):
     patchfiles = []
     filtered_patchfiles = []
     for repo in config.repos:
+        if not repo.enabled:
+            continue
         if not repo.patches:
             continue
         for patchdir in repo.patches:
@@ -357,7 +366,9 @@ def _apply(
 
     repos = list(_strip_paths(repos))
     for check in repos:
-        if check not in map(lambda x: str(x.path), config.repos):
+        if check not in map(
+            lambda x: str(x.path), filter(lambda x: x.enabled, config.repos)
+        ):
             _raise_error(f"Invalid path: {check}")
 
     _internal_apply(
@@ -386,6 +397,8 @@ def _internal_apply(
     config = Config(force_type=force_type)
 
     for repo in config.repos:
+        if not repo.enabled:
+            continue
         if repos and str(repo.path) not in repos:
             continue
         _turn_into_correct_repotype(main_repo, repo, config)
@@ -618,79 +631,81 @@ def _update_integrated_module(
                 f"Caching the repository {repo_yml.url} for quicker reuse",
                 fg="yellow",
             )
-            Repo(main_repo.path).X("git", "clone", url, path)
+            with prepare_dir(path) as path:
+                Repo(main_repo.path).X("git", "clone", url, path)
         return path
 
     # use a cache directory for pulling the repository and updating it
     local_repo_dir = _get_cache_dir()
-    if not os.access(local_repo_dir, os.W_OK):
-        _raise_error(f"No R/W rights on {local_repo_dir}")
-    repo = Repo(local_repo_dir)
-    repo.X("git", "remote", "set-url", "origin", repo_yml.url)
-    repo.X("git", "fetch", "--all")
-    branch = str(repo_yml.branch)
-    origin_branch = f"origin/{branch}"
-    try:
-        repo.X("git", "checkout", "-f", branch)
-    except subprocess.CalledProcessError as ex:
-        if options.get("remove_invalid_branches"):
-            repo_yml.drop_dead()
-            click.secho(
-                f"Branch {branch} did not exist in {repo_yml.path}; it is removed.",
-                fg="yellow",
-            )
-        else:
-            click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg="red")
-        return
-    repo.X("git", "reset", "--hard", origin_branch)
-    repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
-    repo.X("git", "clean", "-xdff")
-    repo.pull(repo_yml=repo_yml)
+    with wait_git_lock(local_repo_dir):
+        if not os.access(local_repo_dir, os.W_OK):
+            _raise_error(f"No R/W rights on {local_repo_dir}")
+        repo = Repo(local_repo_dir)
+        repo.X("git", "remote", "set-url", "origin", repo_yml.url)
+        repo.X("git", "fetch", "--all")
+        branch = str(repo_yml.branch)
+        origin_branch = f"origin/{branch}"
+        try:
+            repo.X("git", "checkout", "-f", branch)
+        except subprocess.CalledProcessError as ex:
+            if options.get("remove_invalid_branches"):
+                repo_yml.drop_dead()
+                click.secho(
+                    f"Branch {branch} did not exist in {repo_yml.path}; it is removed.",
+                    fg="yellow",
+                )
+            else:
+                click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg="red")
+            return
+        repo.X("git", "reset", "--hard", origin_branch)
+        repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
+        repo.X("git", "clean", "-xdff")
+        repo.pull(repo_yml=repo_yml)
 
-    if not update and repo_yml.sha:
-        branches = repo.get_all_branches()
-        if repo_yml.branch not in branches:
-            repo.pull(repo_yml=repo_yml)
-            repo_yml.sha = None
-        else:
+        if not update and repo_yml.sha:
+            branches = repo.get_all_branches()
+            if repo_yml.branch not in branches:
+                repo.pull(repo_yml=repo_yml)
+                repo_yml.sha = None
+            else:
+                subprocess.check_call(
+                    ["git", "config", "advice.detachedHead", "false"], cwd=local_repo_dir
+                )
+                repo.checkout(repo_yml.sha, force=True)
+
+        new_sha = repo.hex
+        with _apply_merges(repo, repo_yml, parallel_safe) as (repo, remote_refs):
+
+            dest_path = Path(main_repo.path) / repo_yml.path
+            dest_path.parent.mkdir(exist_ok=True, parents=True)
+            # BTW: delete-after cannot removed unused directories - cool to know; is
+            # just standarded out
+            if dest_path.exists():
+                shutil.rmtree(dest_path)
             subprocess.check_call(
-                ["git", "config", "advice.detachedHead", "false"], cwd=local_repo_dir
+                [
+                    "rsync",
+                    "-ar",
+                    "--exclude=.git",
+                    "--delete-after",
+                    str(repo.path) + "/",
+                    str(dest_path) + "/",
+                ],
+                cwd=main_repo.working_dir,
             )
-            repo.checkout(repo_yml.sha, force=True)
+            msg = [f"Merged: {repo_yml.url}"]
+            for (remote, ref) in remote_refs:
+                msg.append(f"Merged {remote.url}:{ref}")
+            main_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
 
-    new_sha = repo.hex
-    with _apply_merges(repo, repo_yml, parallel_safe) as (repo, remote_refs):
+        del repo
 
-        dest_path = Path(main_repo.path) / repo_yml.path
-        dest_path.parent.mkdir(exist_ok=True, parents=True)
-        # BTW: delete-after cannot removed unused directories - cool to know; is
-        # just standarded out
-        if dest_path.exists():
-            shutil.rmtree(dest_path)
-        subprocess.check_call(
-            [
-                "rsync",
-                "-ar",
-                "--exclude=.git",
-                "--delete-after",
-                str(repo.path) + "/",
-                str(dest_path) + "/",
-            ],
-            cwd=main_repo.working_dir,
+        # apply patches:
+        _apply_patches(main_repo, repo_yml)
+        main_repo.commit_dir_if_dirty(
+            repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
         )
-        msg = [f"Merged: {repo_yml.url}"]
-        for (remote, ref) in remote_refs:
-            msg.append(f"Merged {remote.url}:{ref}")
-        main_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
-
-    del repo
-
-    # apply patches:
-    _apply_patches(main_repo, repo_yml)
-    main_repo.commit_dir_if_dirty(
-        repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
-    )
-    repo_yml.sha = new_sha
+        repo_yml.sha = new_sha
 
 
 @yieldlist
@@ -1085,6 +1100,8 @@ def _get_repo_to_patchfiles(patchfiles):
 
         def _get_repo_of_patchfile():
             for repo in config.repos:
+                if not repo.enabled:
+                    continue
                 if not repo.patches:
                     continue
                 for patchdir in repo.patches:
@@ -1129,6 +1146,8 @@ def _edit_patch(patchfiles):
 
 def _get_missing_repos(config):
     for repo in config.repos:
+        if not repo.enabled:
+            continue
         if not repo.path.exists():
             yield repo
 
