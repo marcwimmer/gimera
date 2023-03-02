@@ -1,9 +1,14 @@
 import subprocess
+import time
+from datetime import datetime
+import shutil
+import uuid
 import os
 from pathlib import Path
 import click
 import sys
 from curses import wrapper
+from contextlib import contextmanager
 
 def yieldlist(method):
     def wrapper(*args, **kwargs):
@@ -48,3 +53,38 @@ def safe_relative_to(path, path2):
 
 def is_empty_dir(path):
     return not any(Path(path).rglob("*"))
+
+
+@contextmanager
+def prepare_dir(path):
+    tmp_path = path.parent / f"{path.name}.{uuid.uuid4()}"
+    assert path.parent.exists()
+    assert len(path.parts) > 1
+    try:
+        yield tmp_path
+    except Exception as ex:
+        raise
+    finally:
+        if tmp_path.exists():
+            try:
+                    shutil.rmtree(tmp_path)
+            except Exception:
+                pass
+
+def file_age(path):
+    return (datetime.now() - datetime.fromtimestamp(os.stat(path).st_mtime)).total_seconds()
+
+@contextmanager
+def wait_git_lock(path):
+    index_lock = path / '.git' / 'index.lock'
+    if not index_lock.exists():
+        yield
+    else:
+        while index_lock.exists():
+            if file_age > 3600:
+                index_lock.unlink()
+                continue
+        
+            time.sleep(0.5)
+        yield
+

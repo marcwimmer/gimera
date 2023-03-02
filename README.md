@@ -34,6 +34,9 @@ repos:
       patches: []
       type: submodule
 
+      # default True
+      enabled: True
+
 
     # instead of submodule put the content directly in the repository;
     # apply patches from local git repository
