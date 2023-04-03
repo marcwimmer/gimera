@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from ctypes.wintypes import PUSHORT
 import tempfile
 import re
 from contextlib import contextmanager
@@ -13,11 +12,9 @@ import yaml
 import sys
 import subprocess
 from pathlib import Path
-from gimera.gitcommands import GitCommands
-from .tools import X, _raise_error, _strip_paths
 from .repo import Repo, Remote
 from .gitcommands import GitCommands
-from .tools import _raise_error, safe_relative_to, is_empty_dir
+from .tools import _raise_error, safe_relative_to, is_empty_dir, _strip_paths
 from .tools import yieldlist
 from .consts import gitcmd as git
 from .consts import inquirer_theme
@@ -187,7 +184,7 @@ def clean():
         return
     Cmd.output_status()
     doit = inquirer.confirm(
-        f"Continue cleaning? All local changes are lost.", default=True
+        "Continue cleaning? All local changes are lost.", default=True
     )
     if not doit:
         return
@@ -312,6 +309,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="If branch does not exist in repository, the configuration item is removed.",
 )
+@click.option(
+    "-d",
+    "--make-missing-patch-directories",
+    is_flag=True,
+    help="Usually gimera is strict about directories. But can create patch directories on demand",
+)
 def apply(
     repos,
     update,
@@ -323,6 +326,7 @@ def apply(
     no_patches,
     missing,
     remove_invalid_branches,
+    make_missing_patch_directories,
 ):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
@@ -345,6 +349,7 @@ def apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
+        make_missing_patch_directoies=make_missing_patch_directories,
     )
 
 
@@ -357,6 +362,7 @@ def _apply(
     recursive=False,
     no_patches=False,
     remove_invalid_branches=False,
+    make_missing_patch_directoies=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -380,6 +386,7 @@ def _apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
+        make_missing_patch_directoies=make_missing_patch_directoies,
     )
 
 
@@ -620,7 +627,7 @@ def _update_integrated_module(
     def _get_cache_dir():
         url = repo_yml.url
         if not url:
-            click.secho(f"Missing url: {json.dumps(repo, indent=4)}")
+            click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
             sys.exit(-1)
         path = Path(os.path.expanduser("~/.cache/gimera")) / url.replace(
             ":", "_"
@@ -647,7 +654,7 @@ def _update_integrated_module(
         origin_branch = f"origin/{branch}"
         try:
             repo.X("git", "checkout", "-f", branch)
-        except subprocess.CalledProcessError as ex:
+        except subprocess.CalledProcessError:
             if options.get("remove_invalid_branches"):
                 repo_yml.drop_dead()
                 click.secho(
@@ -655,7 +662,9 @@ def _update_integrated_module(
                     fg="yellow",
                 )
             else:
-                click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg="red")
+                click.secho(
+                    f"Branch {branch} does not exist in {repo_yml.path}", fg="red"
+                )
             return
         repo.X("git", "reset", "--hard", origin_branch)
         repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
@@ -669,7 +678,8 @@ def _update_integrated_module(
                 repo_yml.sha = None
             else:
                 subprocess.check_call(
-                    ["git", "config", "advice.detachedHead", "false"], cwd=local_repo_dir
+                    ["git", "config", "advice.detachedHead", "false"],
+                    cwd=local_repo_dir,
                 )
                 repo.checkout(repo_yml.sha, force=True)
 
@@ -701,7 +711,11 @@ def _update_integrated_module(
         del repo
 
         # apply patches:
-        _apply_patches(main_repo, repo_yml)
+        _apply_patches(
+            main_repo,
+            repo_yml,
+            make_missing_patch_directoies=options.get("make_missing_patch_directoies"),
+        )
         main_repo.commit_dir_if_dirty(
             repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
         )
@@ -775,7 +789,7 @@ def _apply_patchfile(file, main_repo, repo_yml):
     )
 
 
-def _apply_patches(main_repo, repo_yml):
+def _apply_patches(main_repo, repo_yml, make_missing_patch_directoies=False):
     for dir in repo_yml.patches or []:
         dir = main_repo.working_dir / dir
         try:
@@ -784,7 +798,10 @@ def _apply_patches(main_repo, repo_yml):
             dir = dir.resolve()
 
         if not dir.exists():
-            _raise_error(f"Directory does not exist: {dir}")
+            if make_missing_patch_directoies:
+                dir.mkdir(parents=True)
+            else:
+                _raise_error(f"Directory does not exist: {dir}")
         for file in sorted(dir.rglob("*.patch")):
             click.secho((f"Applying patch {file}"), fg="blue")
             # Git apply fails silently if applied within local repos
@@ -1158,8 +1175,3 @@ def status():
     repos = list(_get_missing_repos(config))
     for repo in repos:
         click.secho(f"Missing: {repo.path}", fg="red")
-
-
-if __name__ == "__main__":
-    # _make_sure_in_root()
-    gimera()
