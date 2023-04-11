@@ -10,11 +10,14 @@ import sys
 from curses import wrapper
 from contextlib import contextmanager
 
+
 def yieldlist(method):
     def wrapper(*args, **kwargs):
         result = list(method(*args, **kwargs))
         return result
+
     return wrapper
+
 
 def X(*params, output=False, cwd=None, allow_error=False):
     params = list(filter(lambda x: x is not None, list(params)))
@@ -32,16 +35,19 @@ def X(*params, output=False, cwd=None, allow_error=False):
             return None
         raise
 
+
 def _raise_error(msg):
     click.secho(msg, fg="red")
-    if os.getenv("GIMERA_EXCEPTION_THAN_SYSEXIT")=="1":
+    if os.getenv("GIMERA_EXCEPTION_THAN_SYSEXIT") == "1":
         raise Exception(msg)
     else:
         sys.exit(-1)
 
+
 def _strip_paths(paths):
     for x in paths:
         yield str(Path(x))
+
 
 def safe_relative_to(path, path2):
     try:
@@ -50,6 +56,7 @@ def safe_relative_to(path, path2):
         return False
     else:
         return res
+
 
 def is_empty_dir(path):
     return not any(Path(path).rglob("*"))
@@ -64,23 +71,27 @@ def prepare_dir(path):
     try:
         yield tmp_path
         if path.exists():
-            shutil.rmtree(path)
+            rmtree(path)
         shutil.move(tmp_path, path)
     except Exception as ex:
         raise
     finally:
         if tmp_path.exists():
             try:
-                    shutil.rmtree(tmp_path)
+                rmtree(tmp_path)
             except Exception:
                 pass
 
+
 def file_age(path):
-    return (datetime.now() - datetime.fromtimestamp(os.stat(path).st_mtime)).total_seconds()
+    return (
+        datetime.now() - datetime.fromtimestamp(os.stat(path).st_mtime)
+    ).total_seconds()
+
 
 @contextmanager
 def wait_git_lock(path):
-    index_lock = path / '.git' / 'index.lock'
+    index_lock = path / ".git" / "index.lock"
     if not index_lock.exists():
         yield
     else:
@@ -88,7 +99,14 @@ def wait_git_lock(path):
             if file_age > 3600:
                 index_lock.unlink()
                 continue
-        
+
             time.sleep(0.5)
         yield
 
+
+def rmtree(path):
+    try:
+        shutil.rmtree(path)
+    except:
+        click.secho(f"Failed to remove {path}", fg="red")
+        sys.exit(-1)

@@ -10,10 +10,11 @@ class GitCommands(object):
     @property
     def configdir(self):
         from .repo import Repo
+
         stop_at = Repo(self.path).root_repo
         here = self.path
         while True:
-            default = here / '.git'
+            default = here / ".git"
             if default.exists() and default.is_dir():
                 return default
             if default.is_file():
