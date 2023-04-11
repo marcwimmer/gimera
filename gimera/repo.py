@@ -3,7 +3,7 @@ import click
 import shutil
 from .gitcommands import GitCommands
 from pathlib import Path
-from .tools import yieldlist, X, safe_relative_to, _raise_error
+from .tools import yieldlist, X, safe_relative_to, _raise_error, rmtree
 from .consts import gitcmd as git
 
 
@@ -22,7 +22,7 @@ class Repo(GitCommands):
     def rel_path_to_root_repo(self):
         assert str(self.path).startswith("/")
         return self.path.relative_to(self.root_repo.path)
-    
+
     @property
     def root_repo(self):
         path = self.path
@@ -32,9 +32,10 @@ class Repo(GitCommands):
             path = path.parent
         else:
             return None
+
     @property
     def _git_path(self):
-        return (self.path / ".git")
+        return self.path / ".git"
 
     def ls_files_states(self, params):
         """
@@ -276,7 +277,7 @@ class Repo(GitCommands):
                 check = check.parent
                 continue
             if not list(check.iterdir()):
-                shutil.rmtree(check)
+                rmtree(check)
             check = check.parent
             if not safe_relative_to(check, self.path):
                 break
@@ -321,7 +322,7 @@ class Repo(GitCommands):
         except subprocess.CalledProcessError:
             self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
             if (self.path / rel_path).exists():
-                shutil.rmtree(self.path / rel_path)
+                rmtree(self.path / rel_path)
             self.out(*commands)
 
     def _remove_internal_submodule_clone(self, rel_path_to_root):
@@ -334,7 +335,7 @@ class Repo(GitCommands):
                 # kill
                 next_path = root / part
                 if next_path.exists():
-                    shutil.rmtree(next_path)
+                    rmtree(next_path)
                 else:
                     _raise_error(
                         f"Could not delete submodule {part} in {root} - not found"

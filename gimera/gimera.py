@@ -20,6 +20,7 @@ from .consts import gitcmd as git
 from .consts import inquirer_theme
 from .tools import prepare_dir
 from .tools import wait_git_lock
+from .tools import rmtree
 
 REPO_TYPE_INT = "integrated"
 REPO_TYPE_SUB = "submodule"
@@ -685,13 +686,12 @@ def _update_integrated_module(
 
         new_sha = repo.hex
         with _apply_merges(repo, repo_yml, parallel_safe) as (repo, remote_refs):
-
             dest_path = Path(main_repo.path) / repo_yml.path
             dest_path.parent.mkdir(exist_ok=True, parents=True)
             # BTW: delete-after cannot removed unused directories - cool to know; is
             # just standarded out
             if dest_path.exists():
-                shutil.rmtree(dest_path)
+                rmtree(dest_path)
             subprocess.check_call(
                 [
                     "rsync",
@@ -704,7 +704,7 @@ def _update_integrated_module(
                 cwd=main_repo.working_dir,
             )
             msg = [f"Merged: {repo_yml.url}"]
-            for (remote, ref) in remote_refs:
+            for remote, ref in remote_refs:
                 msg.append(f"Merged {remote.url}:{ref}")
             main_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
 
@@ -740,7 +740,6 @@ def _apply_merges(repo, repo_yml, parallel_safe):
         return iter([])
 
     try:
-
         if parallel_safe:
             repo2 = tempfile.mktemp(suffix=".")
             repo.X(
@@ -771,7 +770,7 @@ def _apply_merges(repo, repo_yml, parallel_safe):
         yield repo, remotes
     finally:
         if parallel_safe:
-            shutil.rmtree(repo.path)
+            rmtree(repo.path)
 
 
 def _apply_patchfile(file, main_repo, repo_yml):
@@ -923,7 +922,6 @@ def clean_branch_names(arr):
 
 
 def __add_submodule(repo, config, all_config):
-
     if config.type != REPO_TYPE_SUB:
         return
     path = repo.path / config.path
@@ -940,7 +938,7 @@ def __add_submodule(repo, config, all_config):
             if repo.lsfiles(relpath):
                 repo.X("git", "rm", "-f", "-r", relpath)
             if (repo.path / relpath).exists():
-                shutil.rmtree(repo.path / relpath)
+                rmtree(repo.path / relpath)
 
             repo.clear_empty_subpaths(config)
             repo.output_status()
@@ -974,7 +972,7 @@ def __add_submodule(repo, config, all_config):
     if (repo.path / relpath).exists():
         # helped in a in the wild repo, where a submodule was hidden below
         repo.X("git", "rm", "-rf", relpath)
-        shutil.rmtree(repo.path / relpath)
+        rmtree(repo.path / relpath)
 
     repo.submodule_add(config.branch, config.url, relpath)
     # repo.X("git", "add", ".gitmodules", relpath)
