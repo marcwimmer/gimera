@@ -96,7 +96,7 @@ def wait_git_lock(path):
         yield
     else:
         while index_lock.exists():
-            if file_age > 3600:
+            if file_age(index_lock) > 3600:
                 index_lock.unlink()
                 continue
 
