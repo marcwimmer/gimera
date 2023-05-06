@@ -110,3 +110,14 @@ def rmtree(path):
     except:
         click.secho(f"Failed to remove {path}", fg="red")
         sys.exit(-1)
+
+
+@contextmanager
+def remember_cwd(cwd):
+    old = os.getcwd()
+    if cwd is not None:
+        os.chdir(cwd)
+    try:
+        yield Path(cwd)
+    finally:
+        os.chdir(old)
