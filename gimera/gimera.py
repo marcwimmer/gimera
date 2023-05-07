@@ -21,6 +21,9 @@ from .consts import inquirer_theme
 from .tools import prepare_dir
 from .tools import wait_git_lock
 from .tools import rmtree
+from .tools import confirm
+from .tools import temppath
+from .tools import path1inpath2
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 from .config import Config
 
@@ -215,7 +218,7 @@ def apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
-        make_missing_patch_directoies=make_missing_patch_directories,
+        make_missing_patch_directories=make_missing_patch_directories,
     )
 
 
@@ -228,7 +231,7 @@ def _apply(
     recursive=False,
     no_patches=False,
     remove_invalid_branches=False,
-    make_missing_patch_directoies=False,
+    make_missing_patch_directories=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -252,7 +255,7 @@ def _apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
-        make_missing_patch_directoies=make_missing_patch_directoies,
+        make_missing_patch_directories=make_missing_patch_directories,
     )
 
 
@@ -291,7 +294,7 @@ def _internal_apply(
                 force_type = REPO_TYPE_INT
 
         if recursive:
-            common_vars.update(config.yaml_config.get("common", {}).get('vars', {}))
+            common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
             _apply_subgimera(
                 main_repo,
                 repo,
@@ -471,7 +474,26 @@ def _make_patches(main_repo, repo_yml):
     if not patch_filename.endswith(".patch"):
         patch_filename += ".patch"
 
-    (patch_dir._path / patch_filename).write_text(patch_content)
+    if path1inpath2(patch_dir._path, subrepo.path):
+        # case: patch must be put within patches folder of the integrated module
+        # so it must be uploaded via a temp path; and the latest version must be
+        # pulled
+
+        hex = _clone_directory_and_add_patch_file(
+            branch=repo_yml.branch,
+            repo_url=repo_yml.url,
+            patch_path=patch_dir._path.relative_to(subrepo_path) / patch_filename,
+            content=patch_content,
+        )
+        # write latest hex to gimera
+        repo_yml.config._store(repo_yml, {
+            'sha': hex,
+        })
+        repo_yml.sha = hex
+
+    else:
+        # case: patch file is in main repo and can be committed there
+        (patch_dir._path / patch_filename).write_text(patch_content)
 
     for to_reset in to_reset:
         main_repo.X("git", "reset", to_reset)
@@ -480,6 +502,23 @@ def _make_patches(main_repo, repo_yml):
     # subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
     # subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
     # subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
+
+def _clone_directory_and_add_patch_file(branch, repo_url, patch_path, content):
+    with temppath() as path:
+        path = path / "repo"
+        subprocess.check_call(["git", "clone", repo_url, path])
+        repo = Repo(path)
+        repo.X("git", "checkout", branch)
+        patch_path = path / patch_path
+        assert patch_path.relative_to(path)
+        patch_path.parent.mkdir(exist_ok=True, parents=True)
+        patch_path.write_text(content)
+        repo.X("git", "add", patch_path.relative_to(path))
+        repo.X("git", "commit", "-m", f"added patchfile: {patch_path}")
+        repo.X("git", "push")
+        return repo.hex
+
+
 
 
 def _update_integrated_module(
@@ -583,7 +622,7 @@ def _update_integrated_module(
         _apply_patches(
             main_repo,
             repo_yml,
-            make_missing_patch_directoies=options.get("make_missing_patch_directoies"),
+            make_missing_patch_directories=options.get("make_missing_patch_directories") or os.getenv("GIMERA_NON_INTERACTIVE") == "1",
         )
         main_repo.commit_dir_if_dirty(
             repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
@@ -669,14 +708,21 @@ def _apply_patchfile(file, working_dir):
     )
 
 
-def _apply_patches(main_repo, repo_yml, make_missing_patch_directoies=False):
+def _apply_patches(main_repo, repo_yml, make_missing_patch_directories=False):
     for patchdir in repo_yml.all_patch_dirs() or []:
         # with patchdir.path as dir:
         if not patchdir._path.exists():
-            if make_missing_patch_directoies:
+            if make_missing_patch_directories:
                 patchdir._path.mkdir(parents=True)
             else:
-                _raise_error(f"Directory does not exist: {patchdir._path}")
+                if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+                    _raise_error(f"Directory does not exist: {patchdir._path}")
+                else:
+                    if confirm(
+                        f"Directory does not exist: {patchdir._path}\n"
+                        "Create it?\n"
+                    ):
+                        patchdir._path.mkdir(parents=True)
         for file in sorted(patchdir._path.rglob("*.patch")):
             click.secho((f"Applying patch {file}"), fg="blue")
             # Git apply fails silently if applied within local repos
@@ -700,9 +746,7 @@ def _apply_patches(main_repo, repo_yml, make_missing_patch_directoies=False):
                 )
 
                 click.secho(file.read_text(), fg="cyan")
-                if os.getenv(
-                    "GIMERA_NON_INTERACTIVE"
-                ) == "1" or not inquirer.confirm(
+                if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
                     f"Patchfile failed ''{file}'' - continue with next file?",
                     default=True,
                 ):
