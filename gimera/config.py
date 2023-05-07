@@ -59,8 +59,7 @@ class Config(object):
         )
         for repo in self.yaml_config.get("repos", []):
             repoitem = Config.RepoItem(self, repo)
-            if self.recursive:
-                repoitem.collect_recursive_informations()
+            repoitem.collect_recursive_informations()
 
     def remove(self, path):
         config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
