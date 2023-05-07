@@ -49,6 +49,9 @@ repos:
       patches:
           - 'roles2/sub1_patches'
       type: integrated
+      ignored_patchfiles:
+        - file1.patch
+        - roles2/sub1_patches/file1.patch
 
     # apply patches from another remote repository
     #
