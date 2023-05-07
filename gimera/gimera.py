@@ -676,7 +676,7 @@ def _apply_patches(main_repo, repo_yml, make_missing_patch_directoies=False):
             if make_missing_patch_directoies:
                 patchdir._path.mkdir(parents=True)
             else:
-                _raise_error(f"Directory does not exist: {dir}")
+                _raise_error(f"Directory does not exist: {patchdir._path}")
         for file in sorted(patchdir._path.rglob("*.patch")):
             click.secho((f"Applying patch {file}"), fg="blue")
             # Git apply fails silently if applied within local repos
