@@ -27,7 +27,7 @@ Put gimera.yml into your root folder of your project:
 
 ```yaml
 common:
-  - vars:
+  vars:
     VERSION: '15.0'
 repos:
     # make ordinary git submodule:
@@ -135,24 +135,24 @@ main branch and working on version 14.0 for example. Then you create patch dirs
 for each version.
 
 In the submodule:
-```
+```yaml
 gimera.yml
 
-- common:
-  - patches:
-      - patches/${VERSION}
+common:
+  patches:
+    - patches/${VERSION}
 
 ```
 
 The main gimera which integrates the submodule should be:
-```
-- common:
-  - vars:
-      VERSION: 15.0
-- repos:
-  - type: integrated
-    url: .....
-    path: sub1
+```yaml
+common:
+  vars:
+    VERSION: 15.0
+repos:
+  type: integrated
+  url: .....
+  path: sub1
 ```
 
 After that a recursive gimera is required.

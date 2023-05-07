@@ -154,12 +154,13 @@ class Config(object):
         @property
         def common_vars(self):
             res = deepcopy(self.config.parent_common_vars or {})
-            res.update(self.config.yaml_config.get("common", {}).get("vars", {}))
+            common = self.config.yaml_config.get("common", {})
+            res.update(common.get("vars", {}))
             return res
 
         def eval(self, text):
             for k, v in self.common_vars.items():
-                text = text.replace(f"${{{k}}}", v)
+                text = text.replace(f"${{{k}}}", str(v))
             return text
 
         def drop_dead(self):
