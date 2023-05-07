@@ -264,10 +264,12 @@ def _internal_apply(
     strict=False,
     recursive=False,
     no_patches=False,
+    common_vars=None,
     **options,
 ):
+    common_vars = common_vars or {}
     main_repo = Repo(os.getcwd())
-    config = Config(force_type=force_type, recursive=recursive)
+    config = Config(force_type=force_type, recursive=recursive, common_vars=common_vars)
 
     for repo in config.repos:
         if not repo.enabled:
@@ -289,6 +291,7 @@ def _internal_apply(
                 force_type = REPO_TYPE_INT
 
         if recursive:
+            common_vars.update(config.yaml_config.get("common", {}).get('vars', {}))
             _apply_subgimera(
                 main_repo,
                 repo,
@@ -297,6 +300,7 @@ def _internal_apply(
                 parallel_safe=parallel_safe,
                 strict=strict,
                 no_patches=no_patches,
+                common_vars=common_vars,
                 **options,
             )
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+from copy import deepcopy
 import click
 import yaml
 import os
@@ -33,10 +34,11 @@ class Patchdir(object):
 
 
 class Config(object):
-    def __init__(self, force_type=None, recursive=False):
+    def __init__(self, force_type=None, recursive=False, common_vars=None):
         self.force_type = force_type
         self._repos = []
         self.recursive = recursive
+        self.parent_common_vars = common_vars
         self.load_config()
 
     @property
@@ -151,7 +153,9 @@ class Config(object):
 
         @property
         def common_vars(self):
-            return self.config.yaml_config.get("common", {}).get("vars", {})
+            res = deepcopy(self.config.parent_common_vars or {})
+            res.update(self.config.yaml_config.get("common", {}).get("vars", {}))
+            return res
 
         def eval(self, text):
             for k, v in self.common_vars.items():
