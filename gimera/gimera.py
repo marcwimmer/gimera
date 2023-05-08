@@ -441,6 +441,7 @@ def _make_patches(main_repo, repo_yml):
         )
 
     remove_edit_patchfile = False
+    patch_filename = datetime.now().strftime("%Y%m%d_%H%M%S")
     if repo_yml.edit_patchfile:
         click.secho(
             "Editing a patch is in progress - continuing for "
@@ -451,8 +452,11 @@ def _make_patches(main_repo, repo_yml):
             time.sleep(3)
         edit_patchfile = repo_yml.abs(repo_yml.edit_patchfile)
         patch_dir = [
-            x for x in repo_yml.all_patch_dirs('absolute') if x._path == edit_patchfile.parent
+            x
+            for x in repo_yml.all_patch_dirs("absolute")
+            if x._path == edit_patchfile.parent
         ][0]
+        patch_filename = Path(repo_yml.edit_patchfile).name
         remove_edit_patchfile = True
     else:
         if len(patchdirs := repo_yml.all_patch_dirs(rel_or_abs="absolute")) == 1:
@@ -479,8 +483,7 @@ def _make_patches(main_repo, repo_yml):
 
     patch_dir._path.mkdir(exist_ok=True, parents=True)
 
-    patch_filename = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
+    if os.getenv("GIMERA_NON_INTERACTIVE") != "1" and not repo_yml.edit_patchfile:
         questions = [
             inquirer.Text(
                 "filename",
@@ -536,7 +539,6 @@ def _make_patches(main_repo, repo_yml):
                 "edit_patchfile": "",
             },
         )
-
 
 
 def _clone_directory_and_add_patch_file(branch, repo_url, patch_path, content):
