@@ -383,13 +383,16 @@ def _make_patches(main_repo, repo_yml):
     if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
         correct = True
     else:
+        choice_yes = "Yes - make a patch"
+        if repo_yml.edit_patchfile:
+            choice_yes = f"Merge all changes into patchfile {repo_yml.edit_patchfile}"
         questions = [
             inquirer.List(
                 "correct",
                 message=f"Continue making patches for: {files_in_lines}",
                 default="no",
                 choices=[
-                    "Yes - make a patch",
+                    choice_yes,
                     "Abort",
                     "Ignore",
                 ],
@@ -532,6 +535,9 @@ def _make_patches(main_repo, repo_yml):
     # subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
     # subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
 
+    import pudb
+
+    pudb.set_trace()
     if remove_edit_patchfile:
         repo_yml.config._store(
             repo_yml,
@@ -1061,6 +1067,18 @@ def _check_all_submodules_initialized():
 )
 def edit_patch(patchfiles):
     _edit_patch(patchfiles)
+
+
+@cli.command
+def abort():
+    for repo in Config().repos:
+        if repo.edit_patchfile:
+            repo.config._store(
+                repo,
+                {
+                    "edit_patchfile": "",
+                },
+            )
 
 
 def _get_repo_to_patchfiles(patchfiles):
