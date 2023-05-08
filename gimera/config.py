@@ -25,7 +25,7 @@ class Patchdir(object):
         self.apply_from_here_dir = apply_from_here_dir
 
     def __str__(self):
-        return f"{self.path}"
+        return f"{self._path}"
 
     @property
     @contextmanager
@@ -113,6 +113,8 @@ class Config(object):
                 break
         else:
             config["repos"].append(value)
+        for k, v in value.items():
+            setattr(param_repo, k, v)
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
         main_repo.please_no_staged_files()
         if self.config_file.resolve() in [
@@ -197,8 +199,11 @@ class Config(object):
 
         @sha.setter
         def sha(self, value):
+            changed = False
+            changed = self._sha != value
             self._sha = value
-            self.config._store(self, {"sha": value})
+            if changed:
+                self.config._store(self, {"sha": value})
 
         def as_dict(self):
             return {
@@ -256,7 +261,7 @@ class Config(object):
             res += list(map(transform_internal_patchdir, self.internal_patch_dirs))
             for test in res:
                 with test.path as testpath:
-                    if not testpath.exists():
+                    if not (self.config.config_file.parent / testpath).exists():
                         click.secho(f"Warning: not found: {test}", fg="yellow")
             return res
 

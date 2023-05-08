@@ -451,9 +451,23 @@ def _make_patches(main_repo, repo_yml):
             f"{repo_yml.edit_patchfile}",
             fg="yellow",
         )
-        if not os.getenv("GIMERA_NON_INTERACTIVE") == "1":
-            time.sleep(3)
-        edit_patchfile = repo_yml.abs(repo_yml.edit_patchfile)
+        # if path1inpath2(repo_yml.edit_patchfile)
+        if (
+            ttype := repo_yml._get_type_of_patchfolder(
+                Path(repo_yml.edit_patchfile).parent
+            )
+        ) == "from_outside":
+            edit_patchfile = (
+                repo_yml.config.config_file.parent / repo_yml.edit_patchfile
+            )
+        elif ttype == "internal":
+            edit_patchfile = (
+                repo_yml.config.config_file.parent
+                / repo_yml.path
+                / repo_yml.edit_patchfile
+            )
+        else:
+            raise NotImplementedError(ttype)
         patch_dir = [
             x
             for x in repo_yml.all_patch_dirs("absolute")
@@ -469,19 +483,20 @@ def _make_patches(main_repo, repo_yml):
                 inquirer.List(
                     "path",
                     message="Please choose a directory where to put the patch file.",
-                    choices=["Type directory"] + patchdirs,
+                    # choices=["Type directory"] + patchdirs,
+                    choices=patchdirs,
                 )
             ]
             answers = inquirer.prompt(questions, theme=inquirer_theme)
-            if answers["path"] == "Type directory":
-                questions = [
-                    inquirer.Text(
-                        "path",
-                        message="Where shall i put the patch file? (directory)",
-                        default="./",
-                    )
-                ]
-                answers = inquirer.prompt(questions, theme=inquirer_theme)
+            # if answers["path"] == "Type directory":
+            #     questions = [
+            #         inquirer.Text(
+            #             "path",
+            #             message="Where shall i put the patch file? (directory)",
+            #             default="./",
+            #         )
+            #     ]
+            #     answers = inquirer.prompt(questions, theme=inquirer_theme)
             patch_dir = answers["path"]
 
     patch_dir._path.mkdir(exist_ok=True, parents=True)
@@ -503,10 +518,12 @@ def _make_patches(main_repo, repo_yml):
     if not patch_filename.endswith(".patch"):
         patch_filename += ".patch"
 
+    patch_location = None
     if path1inpath2(patch_dir._path, subrepo.path):
         # case: patch must be put within patches folder of the integrated module
         # so it must be uploaded via a temp path; and the latest version must be
         # pulled
+        patch_location = "internal"
 
         hex = _clone_directory_and_add_patch_file(
             branch=repo_yml.branch,
@@ -526,18 +543,21 @@ def _make_patches(main_repo, repo_yml):
     else:
         # case: patch file is in main repo and can be committed there
         (patch_dir._path / patch_filename).write_text(patch_content)
+        patch_location = "outside"
 
     for to_reset in to_reset:
         main_repo.X("git", "reset", to_reset)
 
-    # commit the patches - do NOT - could lie in submodule - is hard to do
-    # subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-    # subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
-    # subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
+    # TODO perhaps activate
+    # if patch_location == "outside":
+    #     # commit the patches - do NOT - could lie in submodule - is hard to do
+    #     subprocess.check_call(["git", "add", repo_yml["path"]], cwd=main_repo.working_dir)
+    #     subprocess.check_call(["git", "add", patch_dir], cwd=main_repo.working_dir)
+    #     subprocess.check_call(
+    #         ["git", "commit", "-m", f"added patch {patch_filename}"],
+    #         cwd=main_repo.working_dir,
+    #     )
 
-    import pudb
-
-    pudb.set_trace()
     if remove_edit_patchfile:
         repo_yml.config._store(
             repo_yml,
