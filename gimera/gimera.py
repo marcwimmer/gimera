@@ -548,15 +548,14 @@ def _make_patches(main_repo, repo_yml):
     for to_reset in to_reset:
         main_repo.X("git", "reset", to_reset)
 
-    # TODO perhaps activate
-    # if patch_location == "outside":
-    #     # commit the patches - do NOT - could lie in submodule - is hard to do
-    #     subprocess.check_call(["git", "add", repo_yml["path"]], cwd=main_repo.working_dir)
-    #     subprocess.check_call(["git", "add", patch_dir], cwd=main_repo.working_dir)
-    #     subprocess.check_call(
-    #         ["git", "commit", "-m", f"added patch {patch_filename}"],
-    #         cwd=main_repo.working_dir,
-    #     )
+    if patch_location == "outside":
+        # commit the patches - do NOT - could lie in submodule - is hard to do
+        subprocess.check_call(["git", "add", repo_yml.path], cwd=main_repo.working_dir)
+        subprocess.check_call(["git", "add", patch_dir._path], cwd=main_repo.working_dir)
+        subprocess.check_call(
+            ["git", "commit", "-m", f"added patch {patch_filename}"],
+            cwd=main_repo.working_dir,
+        )
 
     if remove_edit_patchfile:
         repo_yml.config._store(
