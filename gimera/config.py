@@ -16,9 +16,13 @@ from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 
 
 class Patchdir(object):
-    def __init__(self, path, root_dir):
+    def __init__(self, path, apply_from_here_dir):
+        """
+        Internal patches must be applied starting from subfolder.
+        Patches from the main repo must be applied starting from parent main folder.
+        """
         self._path = Path(path)
-        self.root_dir = root_dir
+        self.apply_from_here_dir = apply_from_here_dir
 
     def __str__(self):
         return f"{self.path}"
@@ -26,24 +30,42 @@ class Patchdir(object):
     @property
     @contextmanager
     def path(self):
-        with remember_cwd(self.root_dir):
+        with remember_cwd(self.apply_from_here_dir):
             path = self._path
-            if self.root_dir:
-                path = self.root_dir
+            if self.apply_from_here_dir:
+                path = self.apply_from_here_dir
             yield path
 
 
 class Config(object):
-    def __init__(self, force_type=None, recursive=False, common_vars=None):
+    def __init__(
+        self, force_type=None, recursive=False, common_vars=None, parent_config=None
+    ):
         self.force_type = force_type
         self._repos = []
         self.recursive = recursive
         self.parent_common_vars = common_vars
+        self.parent_config = parent_config
         self.load_config()
+
+    @property
+    def parent_path(self):
+        if self.parent_config:
+            return self.parent_config.config_file.parent
+        else:
+            return Path(".")
+
 
     @property
     def repos(self):
         return self._repos
+
+    # @property
+    # def root_path(self):
+    #     p = self
+    #     while p.parent_config:
+    #         p = p.parent_config
+    #     return p.config_file.parent
 
     def _get_config_file(self):
         config_file = Path(os.getcwd()) / "gimera.yml"
@@ -110,13 +132,15 @@ class Config(object):
             self.branch = self.eval(str(config_section["branch"]))
             self.merges = config_section.get("merges", [])
             self.patches = config_section.get("patches", [])
+            self.ignored_patchfiles = config_section.get("ignored_patchfiles", [])
+            self.edit_patchfile = config_section.get("edit_patchfile", "")
             self._type = config_section["type"]
             self._url = self.eval(config_section["url"])
             self._remotes = config_section.get("remotes", {})
             if self.path in [x.path for x in config.repos]:
                 _raise_error(f"Duplicate path: {self.path}")
             config._repos.append(self)
-            self.additional_patch_dirs = []
+            self.internal_patch_dirs = []
 
             self.remotes = self._remotes.items() or None
 
@@ -133,22 +157,24 @@ class Config(object):
                     f"{self.path}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'"
                 )
 
+        def ignore_patchfile(self, path):
+            if path.name in [Path(x).name for x in self.ignored_patchfiles]:
+                click.secho(
+                    f"Warning: patchfile {path} is ignored and not applied. As configured.",
+                    fg="yellow",
+                )
+                return True
+            if self.edit_patchfile:
+                if self.edit_patchfile_full_path == path:
+                    return True
+
         def collect_recursive_informations(self):
-            working_dir = self.config.config_file.parent / self.path
-            working_dir = working_dir.absolute()
-            gimera_yml = working_dir / "gimera.yml"
+            gimera_yml = self.config.config_file.parent / self.path / "gimera.yml"
             if not gimera_yml.exists():
                 return
             config = yaml.load(gimera_yml.read_text(), Loader=yaml.FullLoader)
-            additional_patch_dirs = config.get("common", {}).get("patches", [])
-
-            def transform_patchdir(dir):
-                root = working_dir
-                return Patchdir(root / dir, root)
-
-            self.additional_patch_dirs += list(
-                map(transform_patchdir, additional_patch_dirs)
-            )
+            internal_patch_dirs = config.get("common", {}).get("patches", [])
+            self.internal_patch_dirs += internal_patch_dirs
 
         @property
         def common_vars(self):
@@ -200,24 +226,66 @@ class Config(object):
                 return self.config.force_type
             return self._type
 
-        def all_patch_dirs(self):
-            def transform_local_patchdirs(dir):
-                root = self.config.config_file.parent / self.path
-                dir = self.config.config_file.parent / dir
-                return Patchdir(dir, root)
+        def all_patch_dirs(self, rel_or_abs=None):
+            if not rel_or_abs:
+                raise ValueError("Please define rel_or_abs")
 
-            res = list(map(transform_local_patchdirs, self.patches))
-
-            res += list(self.additional_patch_dirs)
-
-            def eval(dir):
-                dir._path = Path(self.eval(str(dir._path)))
-                dir.root_dir = Path(self.eval(str(dir.root_dir)))
+            def transform_outbound_patchdirs(dir):
+                patch_path = Path(dir)
+                apply_from_here = self.config.parent_path / self.path
+                if rel_or_abs == "absolute":
+                    root = self.config.config_file.parent
+                    patch_path = root / patch_path
+                    apply_from_here = root / apply_from_here
+                dir = Patchdir(patch_path, apply_from_here)
                 return dir
 
-            res = list(map(eval, res))
+            res = list(map(transform_outbound_patchdirs, self.patches))
+
+            def transform_internal_patchdir(dir):
+                patch_path = Path(self.eval(str(dir)))
+                apply_from_here = self.path
+
+                if rel_or_abs == "absolute":
+                    root = self.config.config_file.parent
+                    patch_path = root / self.path / patch_path
+                    apply_from_here = root / apply_from_here
+                dir = Patchdir(patch_path, apply_from_here)
+                return dir
+
+            res += list(map(transform_internal_patchdir, self.internal_patch_dirs))
             for test in res:
                 with test.path as testpath:
                     if not testpath.exists():
                         click.secho(f"Warning: not found: {test}", fg="yellow")
             return res
+
+        @property
+        def fullpath(self):
+            return self.config.config_file.parent / self.path
+
+        def _get_type_of_patchfolder(self, path):
+            for test in self.patches:
+                if str(path).startswith(str(test)):
+                    return "from_outside"
+
+            for test in self.internal_patch_dirs:
+                if str(path).startswith(self.eval(str(test))):
+                    return "internal"
+            raise ValueError(f"Undefined patchfolder: {path}")
+
+        @property
+        def edit_patchfile_full_path(self):
+            if (
+                ttype := self._get_type_of_patchfolder(self.edit_patchfile)
+            ) == "from_outside":
+                return self.config.config_file.parent / self.edit_patchfile
+            elif ttype == "internal":
+                return self.fullpath / self.edit_patchfile
+            else:
+                raise NotImplementedError(ttype)
+
+        def abs(self, path):
+            if str(path).startswith("/"):
+                raise ValueError(f"Path must be relative: {path}")
+            return self.config.config_file.parent / self.path / path
