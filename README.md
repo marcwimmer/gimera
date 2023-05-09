@@ -167,7 +167,6 @@ gimera apply -r
 
 ## Edit existing patch file and update it
 
-<iframe src="https://capture.dropbox.com/embed/4q6AvRnlsKlNd0Ok?source=copy-embed" width="560" height="315" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## Contributors
   * Michael Tietz (mtietz@mt-software.de)
