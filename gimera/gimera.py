@@ -559,7 +559,7 @@ def _make_patches(main_repo, repo_yml):
         subprocess.check_call(
             ["git", "add", patch_dir._path], cwd=main_repo.working_dir
         )
-subprocess.check_call(
+        subprocess.check_call(
             ["git", "commit", "-m", f"added patch {patch_filename}"],
             cwd=main_repo.working_dir,
         )
