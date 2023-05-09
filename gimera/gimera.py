@@ -369,6 +369,17 @@ def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
         _raise_error("After submodule update the path {repo_yml['path']} did not exist")
 
 
+def _technically_make_patch(repo, path):
+    repo.X("git", "add", path)
+    repo.X("git", "commit", "-m", "for patch")
+
+    patch_content = Repo(path).out(
+        "git", "format-patch", "HEAD~1", "--stdout", "--relative"
+    )
+    repo.X("git", "reset", "HEAD~1")
+    return patch_content
+
+
 def _make_patches(main_repo, repo_yml):
     subrepo_path = main_repo.path / repo_yml.path
     if not subrepo_path.exists():
@@ -414,6 +425,7 @@ def _make_patches(main_repo, repo_yml):
         cwd = main_repo.working_dir
     else:
         raise NotImplementedError(repo_yml.type)
+    # TODO does this work in subgimeras? because now we have parent_config stored
     repo = Repo(cwd)
     for untracked_file in untracked_files:
         # add with empty blob to index, appears like that then:
@@ -429,13 +441,7 @@ def _make_patches(main_repo, repo_yml):
         del untracked_file
 
     subdir_path = Path(main_repo.working_dir) / repo_yml.path
-    repo.X("git", "add", subdir_path)
-    repo.X("git", "commit", "-m", "for patch")
-
-    patch_content = Repo(subdir_path).out(
-        "git", "format-patch", "HEAD~1", "--stdout", "--relative"
-    )
-    repo.X("git", "reset", "HEAD~1")
+    patch_content = _technically_make_patch(repo, subdir_path)
 
     if not repo_yml.all_patch_dirs(rel_or_abs="relative"):
         _raise_error(
@@ -451,7 +457,6 @@ def _make_patches(main_repo, repo_yml):
             f"{repo_yml.edit_patchfile}",
             fg="yellow",
         )
-        # if path1inpath2(repo_yml.edit_patchfile)
         if (
             ttype := repo_yml._get_type_of_patchfolder(
                 Path(repo_yml.edit_patchfile).parent
@@ -551,8 +556,10 @@ def _make_patches(main_repo, repo_yml):
     if patch_location == "outside":
         # commit the patches - do NOT - could lie in submodule - is hard to do
         subprocess.check_call(["git", "add", repo_yml.path], cwd=main_repo.working_dir)
-        subprocess.check_call(["git", "add", patch_dir._path], cwd=main_repo.working_dir)
         subprocess.check_call(
+            ["git", "add", patch_dir._path], cwd=main_repo.working_dir
+        )
+subprocess.check_call(
             ["git", "commit", "-m", f"added patch {patch_filename}"],
             cwd=main_repo.working_dir,
         )
