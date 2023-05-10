@@ -291,7 +291,11 @@ def _internal_apply(
         elif repo.type == REPO_TYPE_INT:
             if not no_patches:
                 _make_patches(main_repo, repo)
-            _update_integrated_module(main_repo, repo, update, parallel_safe, **options)
+            try:
+                _update_integrated_module(main_repo, repo, update, parallel_safe, **options)
+            except Exception as ex:
+                msg = f"Error updating integrated submodules for: {repo.path}"
+                _raise_error(msg)
 
             if not strict:
                 # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
