@@ -188,6 +188,8 @@ class Config(object):
         def eval(self, text):
             for k, v in self.common_vars.items():
                 text = text.replace(f"${{{k}}}", str(v))
+            if "${" in text:
+                _raise_error(f"Please define variables for {text}")
             return text
 
         def drop_dead(self):
