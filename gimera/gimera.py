@@ -290,7 +290,12 @@ def _internal_apply(
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
         elif repo.type == REPO_TYPE_INT:
             if not no_patches:
-                _make_patches(main_repo, repo)
+                try:
+                    _make_patches(main_repo, repo)
+                except Exception as ex:
+                    msg = f"Error making patches for: {repo.path}"
+                    _raise_error(msg)
+
             try:
                 _update_integrated_module(main_repo, repo, update, parallel_safe, **options)
             except Exception as ex:
