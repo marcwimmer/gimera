@@ -489,7 +489,8 @@ def _make_patches(main_repo, repo_yml):
         patch_filename = Path(repo_yml.edit_patchfile).name
         remove_edit_patchfile = True
     else:
-        if len(patchdirs := repo_yml.all_patch_dirs(rel_or_abs="absolute")) == 1:
+        patchdirs = repo_yml.all_patch_dirs(rel_or_abs="absolute")
+        if len(patchdirs) == 1:
             patch_dir = patchdirs[0]
         else:
             questions = [
