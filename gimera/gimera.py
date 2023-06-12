@@ -297,7 +297,9 @@ def _internal_apply(
                     _raise_error(msg)
 
             try:
-                _update_integrated_module(main_repo, repo, update, parallel_safe, **options)
+                _update_integrated_module(
+                    main_repo, repo, update, parallel_safe, **options
+                )
             except Exception as ex:
                 msg = f"Error updating integrated submodules for: {repo.path}"
                 _raise_error(msg)
@@ -466,11 +468,8 @@ def _make_patches(main_repo, repo_yml):
             f"{repo_yml.edit_patchfile}",
             fg="yellow",
         )
-        if (
-            ttype := repo_yml._get_type_of_patchfolder(
-                Path(repo_yml.edit_patchfile).parent
-            )
-        ) == "from_outside":
+        ttype = repo_yml._get_type_of_patchfolder(Path(repo_yml.edit_patchfile).parent)
+        if (ttype) == "from_outside":
             edit_patchfile = (
                 repo_yml.config.config_file.parent / repo_yml.edit_patchfile
             )

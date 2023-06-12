@@ -55,7 +55,6 @@ class Config(object):
         else:
             return Path(".")
 
-
     @property
     def repos(self):
         return self._repos
@@ -283,9 +282,8 @@ class Config(object):
 
         @property
         def edit_patchfile_full_path(self):
-            if (
-                ttype := self._get_type_of_patchfolder(self.edit_patchfile)
-            ) == "from_outside":
+            ttype = self._get_type_of_patchfolder(self.edit_patchfile)
+            if (ttype) == "from_outside":
                 return self.config.config_file.parent / self.edit_patchfile
             elif ttype == "internal":
                 return self.fullpath / self.edit_patchfile
