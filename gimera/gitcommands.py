@@ -50,7 +50,8 @@ class GitCommands(object):
             if path.startswith(".."):
                 continue
             path = Path(path.strip())
-            if parent_path := getattr(self, "parent_path", None):
+            parent_path = getattr(self, "parent_path", None)
+            if parent_path:
                 path = parent_path / path
             else:
                 path = self.path / path

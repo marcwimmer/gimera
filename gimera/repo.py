@@ -222,7 +222,8 @@ class Repo(GitCommands):
         self.X("git", "clean", "-xdff")
 
     def please_no_staged_files(self):
-        if not (staged := self.staged_files):
+        staged = self.staged_files
+        if not staged:
             return
         _raise_error(
             "For the operation there mustnt be " f"any staged files like {staged}"

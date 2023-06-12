@@ -868,7 +868,8 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
             f"Directory {repo_yml.path} contains modified "
             "files. Please commit or purge before!"
         )
-    if sha := repo_yml.sha:
+    sha = repo_yml.sha
+    if sha:
         try:
             branches = list(
                 clean_branch_names(
