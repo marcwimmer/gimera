@@ -1,4 +1,5 @@
 import subprocess
+import tempfile
 import time
 from datetime import datetime
 import shutil
@@ -110,3 +111,43 @@ def rmtree(path):
     except:
         click.secho(f"Failed to remove {path}", fg="red")
         sys.exit(-1)
+
+
+@contextmanager
+def remember_cwd(cwd):
+    old = os.getcwd()
+    if cwd is not None:
+        os.chdir(cwd)
+    try:
+        yield Path(cwd)
+    finally:
+        os.chdir(old)
+
+
+def confirm(msg, raise_exception=True):
+    if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+        return True
+    click.secho(msg, fg="yellow")
+    res = click.confirm("Continue?", default=True)
+    if not res and raise_exception:
+        _raise_error("Aborted by user")
+    return res
+
+
+@contextmanager
+def temppath():
+    path = Path(tempfile.mktemp(suffix="."))
+    try:
+        path.mkdir()
+        yield path
+    finally:
+        if path.exists():
+            shutil.rmtree(path)
+
+
+def path1inpath2(path1, path2):
+    try:
+        path1.relative_to(path2)
+        return True
+    except:
+        return False

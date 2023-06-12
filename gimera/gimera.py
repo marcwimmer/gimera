@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import time
 import tempfile
 import re
 from contextlib import contextmanager
@@ -21,147 +22,16 @@ from .consts import inquirer_theme
 from .tools import prepare_dir
 from .tools import wait_git_lock
 from .tools import rmtree
-
-REPO_TYPE_INT = "integrated"
-REPO_TYPE_SUB = "submodule"
+from .tools import confirm
+from .tools import temppath
+from .tools import path1inpath2
+from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
+from .config import Config
 
 
 @click.group()
 def cli():
     pass
-
-
-class Config(object):
-    class RepoItem(object):
-        def __init__(self, config, config_section):
-            self.config = config
-            self._sha = config_section.get("sha", None)
-            self.enabled = config_section.get("enabled", True)
-            self.path = Path(config_section["path"])
-            self.branch = str(config_section["branch"])
-            self.merges = config_section.get("merges", [])
-            self.patches = config_section.get("patches", [])
-            self._type = config_section["type"]
-            self._url = config_section["url"]
-            self._remotes = config_section.get("remotes", {})
-            if self.path in [x.path for x in config.repos]:
-                _raise_error(f"Duplicate path: {self.path}")
-            config._repos.append(self)
-
-            self.remotes = self._remotes.items() or None
-
-            if self.merges:
-                _merges = []
-                for merge in self.merges:
-                    remote, ref = merge.split(" ")
-                    _merges.append((remote.strip(), ref.strip()))
-                self.merges = _merges
-
-            if self.type not in [REPO_TYPE_SUB, REPO_TYPE_INT]:
-                _raise_error(
-                    "Please provide type for repo "
-                    f"{self.path}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'"
-                )
-
-        def drop_dead(self):
-            Config().remove(self.path)
-
-        @property
-        def sha(self):
-            return self._sha
-
-        @sha.setter
-        def sha(self, value):
-            self._sha = value
-            self.config._store(self, {"sha": value})
-
-        def as_dict(self):
-            return {
-                "path": self.path,
-                "branch": self.branch,
-                "patches": self.patches,
-                "type": self._type,
-                "url": self._url,
-                "merges": self._merges,
-                "remotes": self._remotes,
-            }
-
-        @property
-        def url(self):
-            return self._url
-
-        @property
-        def url_public(self):
-            url = self._url.replace("ssh://git@", "https://")
-            return url
-
-        @property
-        def type(self):
-            if self.config.force_type:
-                return self.config.force_type
-            return self._type
-
-    def __init__(self, force_type=None):
-        self.force_type = force_type
-        self._repos = []
-        self.load_config()
-
-    @property
-    def repos(self):
-        return self._repos
-
-    def _get_config_file(self):
-        config_file = Path(os.getcwd()) / "gimera.yml"
-        if not config_file.exists():
-            _raise_error(f"Did not find: {config_file}")
-        return config_file
-
-    def load_config(self):
-        self.config_file = self._get_config_file()
-
-        config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
-        for repo in config["repos"]:
-            Config.RepoItem(self, repo)
-        self.config = config
-
-    def remove(self, path):
-        config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
-        repos = config["repos"]
-        repos2 = []
-        for repo in repos:
-            if (
-                Path(repo["path"]).resolve().absolute()
-                != Path(path).resolve().absolute()
-            ):
-                repos2.append(repo)
-        config["repos"] = repos2
-        self.config_file.write_text(yaml.dump(config, default_flow_style=False))
-
-    def _store(self, repo, value):
-        """
-        Makes a commit of the changes.
-        """
-        main_repo = Repo(self.config_file.parent)
-        if main_repo.staged_files:
-            _raise_error("There mustnt be any staged files when updating gimera.yml")
-
-        config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
-        param_repo = repo
-        for repo in config["repos"]:
-            if Path(repo["path"]) == param_repo.path:
-                for k, v in value.items():
-                    repo[k] = v
-                break
-        else:
-            config["repos"].append(value)
-        self.config_file.write_text(yaml.dump(config, default_flow_style=False))
-        main_repo.please_no_staged_files()
-        if self.config_file.resolve() in [
-            x.resolve() for x in main_repo.all_dirty_files
-        ]:
-            main_repo.X("git", "add", self.config_file)
-        if main_repo.staged_files:
-            main_repo.X("git", "commit", "-m", "auto update gimera.yml")
 
 
 def _expand_repos(repos):
@@ -226,20 +96,17 @@ def _get_available_repos(ctx, param, incomplete):
 
 
 def _get_available_patchfiles(ctx, param, incomplete):
-    config = Config(force_type=False)
+    config = Config(force_type=False, recursive=True)
     cwd = Path(os.getcwd())
     patchfiles = []
     filtered_patchfiles = []
     for repo in config.repos:
         if not repo.enabled:
             continue
-        if not repo.patches:
-            continue
-        for patchdir in repo.patches:
-            _dir = cwd / patchdir
-            if not _dir.exists():
+        for patchdir in repo.all_patch_dirs(rel_or_abs="absolute"):
+            if not patchdir._path.exists():
                 continue
-            for file in _dir.glob("*.patch"):
+            for file in patchdir._path.glob("*.patch"):
                 patchfiles.append(file.relative_to(cwd))
     if incomplete:
         for file in patchfiles:
@@ -350,7 +217,7 @@ def apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
-        make_missing_patch_directoies=make_missing_patch_directories,
+        make_missing_patch_directories=make_missing_patch_directories,
     )
 
 
@@ -363,13 +230,13 @@ def _apply(
     recursive=False,
     no_patches=False,
     remove_invalid_branches=False,
-    make_missing_patch_directoies=False,
+    make_missing_patch_directories=False,
 ):
     """
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
     """
-    config = Config(force_type=force_type)
+    config = Config(force_type=force_type, recursive=recursive)
 
     repos = list(_strip_paths(repos))
     for check in repos:
@@ -387,7 +254,7 @@ def _apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
-        make_missing_patch_directoies=make_missing_patch_directoies,
+        make_missing_patch_directories=make_missing_patch_directories,
     )
 
 
@@ -399,10 +266,18 @@ def _internal_apply(
     strict=False,
     recursive=False,
     no_patches=False,
+    common_vars=None,
+    parent_config=None,
     **options,
 ):
+    common_vars = common_vars or {}
     main_repo = Repo(os.getcwd())
-    config = Config(force_type=force_type)
+    config = Config(
+        force_type=force_type,
+        recursive=recursive,
+        common_vars=common_vars,
+        parent_config=parent_config,
+    )
 
     for repo in config.repos:
         if not repo.enabled:
@@ -415,8 +290,17 @@ def _internal_apply(
             _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
         elif repo.type == REPO_TYPE_INT:
             if not no_patches:
-                _make_patches(main_repo, repo)
-            _update_integrated_module(main_repo, repo, update, parallel_safe, **options)
+                try:
+                    _make_patches(main_repo, repo)
+                except Exception as ex:
+                    msg = f"Error making patches for: {repo.path}"
+                    _raise_error(msg)
+
+            try:
+                _update_integrated_module(main_repo, repo, update, parallel_safe, **options)
+            except Exception as ex:
+                msg = f"Error updating integrated submodules for: {repo.path}"
+                _raise_error(msg)
 
             if not strict:
                 # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
@@ -424,6 +308,7 @@ def _internal_apply(
                 force_type = REPO_TYPE_INT
 
         if recursive:
+            common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
             _apply_subgimera(
                 main_repo,
                 repo,
@@ -432,6 +317,8 @@ def _internal_apply(
                 parallel_safe=parallel_safe,
                 strict=strict,
                 no_patches=no_patches,
+                common_vars=common_vars,
+                parent_config=config,
                 **options,
             )
 
@@ -444,6 +331,7 @@ def _apply_subgimera(
     parallel_safe,
     strict,
     no_patches,
+    parent_config,
     **options,
 ):
     subgimera = Path(repo.path) / "gimera.yml"
@@ -459,6 +347,7 @@ def _apply_subgimera(
             strict=strict,
             recursive=True,
             no_patches=no_patches,
+            parent_config=parent_config,
             **options,
         )
 
@@ -489,6 +378,17 @@ def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
         _raise_error("After submodule update the path {repo_yml['path']} did not exist")
 
 
+def _technically_make_patch(repo, path):
+    repo.X("git", "add", path)
+    repo.X("git", "commit", "-m", "for patch")
+
+    patch_content = Repo(path).out(
+        "git", "format-patch", "HEAD~1", "--stdout", "--relative"
+    )
+    repo.X("git", "reset", "HEAD~1")
+    return patch_content
+
+
 def _make_patches(main_repo, repo_yml):
     subrepo_path = main_repo.path / repo_yml.path
     if not subrepo_path.exists():
@@ -503,13 +403,16 @@ def _make_patches(main_repo, repo_yml):
     if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
         correct = True
     else:
+        choice_yes = "Yes - make a patch"
+        if repo_yml.edit_patchfile:
+            choice_yes = f"Merge all changes into patchfile {repo_yml.edit_patchfile}"
         questions = [
             inquirer.List(
                 "correct",
                 message=f"Continue making patches for: {files_in_lines}",
                 default="no",
                 choices=[
-                    "Yes - make a patch",
+                    choice_yes,
                     "Abort",
                     "Ignore",
                 ],
@@ -531,6 +434,7 @@ def _make_patches(main_repo, repo_yml):
         cwd = main_repo.working_dir
     else:
         raise NotImplementedError(repo_yml.type)
+    # TODO does this work in subgimeras? because now we have parent_config stored
     repo = Repo(cwd)
     for untracked_file in untracked_files:
         # add with empty blob to index, appears like that then:
@@ -546,46 +450,72 @@ def _make_patches(main_repo, repo_yml):
         del untracked_file
 
     subdir_path = Path(main_repo.working_dir) / repo_yml.path
-    repo.X("git", "add", subdir_path)
-    repo.X("git", "commit", "-m", "for patch")
+    patch_content = _technically_make_patch(repo, subdir_path)
 
-    patch_content = Repo(subdir_path).out(
-        "git", "format-patch", "HEAD~1", "--stdout", "--relative"
-    )
-    repo.X("git", "reset", "HEAD~1")
-
-    if not repo_yml.patches:
+    if not repo_yml.all_patch_dirs(rel_or_abs="relative"):
         _raise_error(
             "Please define at least one directory, "
             f"where patches are stored for {repo_yml.path}"
         )
 
-    if len(repo_yml.patches) == 1:
-        patch_dir = Path(repo_yml.patches[0])
-    else:
-        questions = [
-            inquirer.List(
-                "path",
-                message="Please choose a directory where to put the patch file.",
-                choices=["Type directory"] + repo_yml.patches,
+    remove_edit_patchfile = False
+    patch_filename = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if repo_yml.edit_patchfile:
+        click.secho(
+            "Editing a patch is in progress - continuing for "
+            f"{repo_yml.edit_patchfile}",
+            fg="yellow",
+        )
+        if (
+            ttype := repo_yml._get_type_of_patchfolder(
+                Path(repo_yml.edit_patchfile).parent
             )
-        ]
-        answers = inquirer.prompt(questions, theme=inquirer_theme)
-        if answers["path"] == "Type directory":
+        ) == "from_outside":
+            edit_patchfile = (
+                repo_yml.config.config_file.parent / repo_yml.edit_patchfile
+            )
+        elif ttype == "internal":
+            edit_patchfile = (
+                repo_yml.config.config_file.parent
+                / repo_yml.path
+                / repo_yml.edit_patchfile
+            )
+        else:
+            raise NotImplementedError(ttype)
+        patch_dir = [
+            x
+            for x in repo_yml.all_patch_dirs("absolute")
+            if x._path == edit_patchfile.parent
+        ][0]
+        patch_filename = Path(repo_yml.edit_patchfile).name
+        remove_edit_patchfile = True
+    else:
+        if len(patchdirs := repo_yml.all_patch_dirs(rel_or_abs="absolute")) == 1:
+            patch_dir = patchdirs[0]
+        else:
             questions = [
-                inquirer.Text(
+                inquirer.List(
                     "path",
-                    message="Where shall i put the patch file? (directory)",
-                    default="./",
+                    message="Please choose a directory where to put the patch file.",
+                    # choices=["Type directory"] + patchdirs,
+                    choices=patchdirs,
                 )
             ]
             answers = inquirer.prompt(questions, theme=inquirer_theme)
-        patch_dir = Path(answers["path"])
+            # if answers["path"] == "Type directory":
+            #     questions = [
+            #         inquirer.Text(
+            #             "path",
+            #             message="Where shall i put the patch file? (directory)",
+            #             default="./",
+            #         )
+            #     ]
+            #     answers = inquirer.prompt(questions, theme=inquirer_theme)
+            patch_dir = answers["path"]
 
-    patch_dir.mkdir(exist_ok=True, parents=True)
+    patch_dir._path.mkdir(exist_ok=True, parents=True)
 
-    patch_filename = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
+    if os.getenv("GIMERA_NON_INTERACTIVE") != "1" and not repo_yml.edit_patchfile:
         questions = [
             inquirer.Text(
                 "filename",
@@ -602,15 +532,70 @@ def _make_patches(main_repo, repo_yml):
     if not patch_filename.endswith(".patch"):
         patch_filename += ".patch"
 
-    (patch_dir / patch_filename).write_text(patch_content)
+    patch_location = None
+    if path1inpath2(patch_dir._path, subrepo.path):
+        # case: patch must be put within patches folder of the integrated module
+        # so it must be uploaded via a temp path; and the latest version must be
+        # pulled
+        patch_location = "internal"
+
+        hex = _clone_directory_and_add_patch_file(
+            branch=repo_yml.branch,
+            repo_url=repo_yml.url,
+            patch_path=patch_dir._path.relative_to(subrepo_path) / patch_filename,
+            content=patch_content,
+        )
+        # write latest hex to gimera
+        repo_yml.config._store(
+            repo_yml,
+            {
+                "sha": hex,
+            },
+        )
+        repo_yml.sha = hex
+
+    else:
+        # case: patch file is in main repo and can be committed there
+        (patch_dir._path / patch_filename).write_text(patch_content)
+        patch_location = "outside"
 
     for to_reset in to_reset:
         main_repo.X("git", "reset", to_reset)
 
-    # commit the patches - do NOT - could lie in submodule - is hard to do
-    # subprocess.check_call(['git', 'add', repo['path']], cwd=main_repo.working_dir)
-    # subprocess.check_call(['git', 'add', patch_dir], cwd=main_repo.working_dir)
-    # subprocess.check_call(['git', 'commit', '-m', 'added patches'], cwd=main_repo.working_dir)
+    if patch_location == "outside":
+        # commit the patches - do NOT - could lie in submodule - is hard to do
+        subprocess.check_call(["git", "add", repo_yml.path], cwd=main_repo.working_dir)
+        subprocess.check_call(
+            ["git", "add", patch_dir._path], cwd=main_repo.working_dir
+        )
+        subprocess.check_call(
+            ["git", "commit", "-m", f"added patch {patch_filename}"],
+            cwd=main_repo.working_dir,
+        )
+
+    if remove_edit_patchfile:
+        repo_yml.config._store(
+            repo_yml,
+            {
+                "edit_patchfile": "",
+            },
+        )
+
+
+def _clone_directory_and_add_patch_file(branch, repo_url, patch_path, content):
+    with temppath() as path:
+        path = path / "repo"
+        subprocess.check_call(["git", "clone", repo_url, path])
+        repo = Repo(path)
+        repo.X("git", "checkout", branch)
+        patch_path = path / patch_path
+        assert patch_path.relative_to(path)
+        patch_path.parent.mkdir(exist_ok=True, parents=True)
+        patch_path.write_text(content)
+        repo.X("git", "add", patch_path.relative_to(path))
+        repo.X("git", "commit", "-m", f"added patchfile: {patch_path}")
+        repo.X("git", "push")
+        return repo.hex
 
 
 def _update_integrated_module(
@@ -712,14 +697,19 @@ def _update_integrated_module(
 
         # apply patches:
         _apply_patches(
-            main_repo,
             repo_yml,
-            make_missing_patch_directoies=options.get("make_missing_patch_directoies"),
+            make_missing_patch_directories=options.get("make_missing_patch_directories")
+            or os.getenv("GIMERA_NON_INTERACTIVE") == "1",
         )
         main_repo.commit_dir_if_dirty(
             repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
         )
         repo_yml.sha = new_sha
+
+        if repo_yml.edit_patchfile:
+            _apply_patchfile(
+                repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
+            )
 
 
 @yieldlist
@@ -773,63 +763,79 @@ def _apply_merges(repo, repo_yml, parallel_safe):
             rmtree(repo.path)
 
 
-def _apply_patchfile(file, main_repo, repo_yml):
-    cwd = Path(main_repo.working_dir) / repo_yml.path
+def _apply_patchfile(file, working_dir, error_ok=False):
+    cwd = Path(working_dir)
     # must be check_output due to input keyword
-    subprocess.check_output(
-        ["patch", "-p1", "--no-backup-if-mismatch"],
-        input=file.read_text(),  # bytes().decode('utf-8'),
-        cwd=cwd,
-        encoding="utf-8",
-    )
-    click.secho(
-        (f"Applied patch {file}"),
-        fg="blue",
-    )
+    # Explaining -R option:
+    #   at testing a patchfile is created ; although not comitting
+    #   git detects, that the file was removed and same patch tries to be applied
+    #   Very intelligent but we force defined state over such smart behaviours.
+    """
+    /tmp/gimeratest/workspace/integrated/sub1/patches/15.0/superpatches/my.patch
+    =============================================================================================
+    patching file file1.txt
+    Reversed (or previously applied) patch detected!  Assume -R? [n]
+    Apply anyway? [n]
+    Skipping patch.
+    1 out of 1 hunk ignored -- saving rejects to file file1.txt.rej
+    """
+    file = Path(file)
+    try:
+        subprocess.check_output(
+            ["patch", "-p1", "--no-backup-if-mismatch", "--force", "-i", str(file)],
+            cwd=cwd,
+            encoding="utf-8",
+        )
+        click.secho(
+            (f"Applied patch {file}"),
+            fg="blue",
+        )
+    except subprocess.CalledProcessError as ex:
+        click.secho(
+            ("\n\nFailed to apply the following patch file:\n\n"),
+            fg="yellow",
+        )
+        click.secho(
+            (
+                f"{file}\n"
+                "============================================================================================="
+            ),
+            fg="red",
+            bold=True,
+        )
+        click.secho((f"{ex.stdout or ''}\n" f"{ex.stderr or ''}\n"), fg="yellow")
+
+        click.secho(file.read_text(), fg="cyan")
+        if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
+            f"Patchfile failed ''{file}'' - continue with next file?",
+            default=True,
+        ):
+            if not error_ok:
+                _raise_error(f"Error applying patch: {file}")
+    except Exception as ex:  # pylint: disable=broad-except
+        _raise_error(str(ex))
 
 
-def _apply_patches(main_repo, repo_yml, make_missing_patch_directoies=False):
-    for dir in repo_yml.patches or []:
-        dir = main_repo.working_dir / dir
-        try:
-            dir = dir.relative_to(main_repo.path)
-        except ValueError:
-            dir = dir.resolve()
-
-        if not dir.exists():
-            if make_missing_patch_directoies:
-                dir.mkdir(parents=True)
+def _apply_patches(repo_yml, make_missing_patch_directories=False):
+    for patchdir in repo_yml.all_patch_dirs(rel_or_abs="absolute") or []:
+        # with patchdir.path as dir:
+        if not patchdir._path.exists():
+            if make_missing_patch_directories:
+                patchdir._path.mkdir(parents=True)
             else:
-                _raise_error(f"Directory does not exist: {dir}")
-        for file in sorted(dir.rglob("*.patch")):
+                if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+                    _raise_error(f"Directory does not exist: {patchdir._path}")
+                else:
+                    if confirm(
+                        f"Directory does not exist: {patchdir._path}\n" "Create it?\n"
+                    ):
+                        patchdir._path.mkdir(parents=True)
+        for file in sorted(patchdir._path.rglob("*.patch")):
+            if repo_yml.ignore_patchfile(file):
+                continue
             click.secho((f"Applying patch {file}"), fg="blue")
             # Git apply fails silently if applied within local repos
-            try:
-                _apply_patchfile(file, main_repo, repo_yml)
-            except subprocess.CalledProcessError as ex:
-                click.secho(
-                    ("\n\nFailed to apply the following patch file:\n\n"), fg="yellow"
-                )
-                click.secho(
-                    (
-                        f"{file}\n"
-                        "============================================================================================="
-                    ),
-                    fg="red",
-                    bold=True,
-                )
-                click.secho(
-                    (f"{ex.stdout or ''}\n" f"{ex.stderr or ''}\n"), fg="yellow"
-                )
-
-                click.secho(file.read_text(), fg="cyan")
-                if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
-                    f"Patchfile failed ''{file}'' - continue with next file?",
-                    default=True,
-                ):
-                    sys.exit(-1)
-            except Exception as ex:  # pylint: disable=broad-except
-                _raise_error(str(ex))
+            _apply_patchfile(file, patchdir.apply_from_here_dir, error_ok=False)
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
@@ -1099,6 +1105,18 @@ def edit_patch(patchfiles):
     _edit_patch(patchfiles)
 
 
+@cli.command
+def abort():
+    for repo in Config().repos:
+        if repo.edit_patchfile:
+            repo.config._store(
+                repo,
+                {
+                    "edit_patchfile": "",
+                },
+            )
+
+
 def _get_repo_to_patchfiles(patchfiles):
     for patchfile in patchfiles:
         patchfile = Path(patchfile)
@@ -1118,10 +1136,12 @@ def _get_repo_to_patchfiles(patchfiles):
             for repo in config.repos:
                 if not repo.enabled:
                     continue
-                if not repo.patches:
+                patch_dirs = repo.all_patch_dirs(rel_or_abs="absolute")
+                if not patch_dirs:
                     continue
-                for patchdir in repo.patches:
-                    for file in (cwd / patchdir).glob("*.patch"):
+                for patchdir in patch_dirs:
+                    path = patchdir._path
+                    for file in path.glob("*.patch"):
                         if file == patchfile:
                             return repo
 
@@ -1136,28 +1156,22 @@ def _get_repo_to_patchfiles(patchfiles):
 
 def _edit_patch(patchfiles):
     patchfiles = list(sorted(set(patchfiles)))
-    deactivated_names = []
-    main_repo = Repo(Path(os.getcwd()))
     for patchfile in list(_get_repo_to_patchfiles(patchfiles)):
         repo, patchfile = patchfile
-        deactivated_name = patchfile.parent / f"{patchfile.name}.deactivated"
-        deactivated_names.append(deactivated_name)
-        patchfile.rename(deactivated_name)
-    try:
-        _internal_apply(str(repo.path), update=False, force_type=None)
-
-        # apply just the patchfile now
-        for deactivated_name in sorted(set(deactivated_names)):
-            _apply_patchfile(deactivated_name, main_repo, repo)
-
-        deactivated_name.unlink()
-
-    except Exception:  # pylint: disable=broad-except
-        for deactivated_name in sorted(set(deactivated_names)):
-            deactivated_name.rename(
-                deactivated_name.parent / f"{deactivated_name.stem}"
-            )
-        raise
+        if repo.edit_patchfile:
+            _raise_error(f"Already WIP for patchfile: {repo.edit_patchfile}")
+        try:
+            repo.edit_patchfile = str(patchfile.relative_to(repo.fullpath))
+        except ValueError:
+            repo.edit_patchfile = patchfile.relative_to(repo.config.config_file.parent)
+        repo.config._store(
+            repo,
+            {
+                "edit_patchfile": str(repo.edit_patchfile),
+            },
+        )
+        break
+    _internal_apply(str(repo.path), update=False, force_type=None)
 
 
 def _get_missing_repos(config):
