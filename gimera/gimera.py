@@ -177,12 +177,6 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="If branch does not exist in repository, the configuration item is removed.",
 )
-@click.option(
-    "-d",
-    "--make-missing-patch-directories",
-    is_flag=True,
-    help="Usually gimera is strict about directories. But can create patch directories on demand",
-)
 def apply(
     repos,
     update,
@@ -194,7 +188,6 @@ def apply(
     no_patches,
     missing,
     remove_invalid_branches,
-    make_missing_patch_directories,
 ):
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
@@ -217,7 +210,6 @@ def apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
-        make_missing_patch_directories=make_missing_patch_directories,
     )
 
 
@@ -230,7 +222,6 @@ def _apply(
     recursive=False,
     no_patches=False,
     remove_invalid_branches=False,
-    make_missing_patch_directories=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -254,7 +245,6 @@ def _apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
-        make_missing_patch_directories=make_missing_patch_directories,
     )
 
 
@@ -698,8 +688,6 @@ def _update_integrated_module(
         # apply patches:
         _apply_patches(
             repo_yml,
-            make_missing_patch_directories=options.get("make_missing_patch_directories")
-            or os.getenv("GIMERA_NON_INTERACTIVE") == "1",
         )
         main_repo.commit_dir_if_dirty(
             repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
@@ -816,20 +804,11 @@ def _apply_patchfile(file, working_dir, error_ok=False):
         _raise_error(str(ex))
 
 
-def _apply_patches(repo_yml, make_missing_patch_directories=False):
+def _apply_patches(repo_yml):
     for patchdir in repo_yml.all_patch_dirs(rel_or_abs="absolute") or []:
         # with patchdir.path as dir:
         if not patchdir._path.exists():
-            if make_missing_patch_directories:
-                patchdir._path.mkdir(parents=True)
-            else:
-                if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
-                    _raise_error(f"Directory does not exist: {patchdir._path}")
-                else:
-                    if confirm(
-                        f"Directory does not exist: {patchdir._path}\n" "Create it?\n"
-                    ):
-                        patchdir._path.mkdir(parents=True)
+            patchdir._path.mkdir(parents=True)
         for file in sorted(patchdir._path.rglob("*.patch")):
             if repo_yml.ignore_patchfile(file):
                 continue
