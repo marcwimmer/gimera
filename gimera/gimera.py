@@ -177,12 +177,6 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="If branch does not exist in repository, the configuration item is removed.",
 )
-@click.option(
-    "-d",
-    "--make-missing-patch-directories",
-    is_flag=True,
-    help="Usually gimera is strict about directories. But can create patch directories on demand",
-)
 def apply(
     repos,
     update,
