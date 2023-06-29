@@ -177,6 +177,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="If branch does not exist in repository, the configuration item is removed.",
 )
+@click.option(
+    "-I",
+    "--non-interactive",
+    is_flag=True,
+    help="",
+)
 def apply(
     repos,
     update,
@@ -188,7 +194,10 @@ def apply(
     no_patches,
     missing,
     remove_invalid_branches,
+    non_interactive,
 ):
+    if non_interactive:
+        os.environ['GIMERA_NON_INTERACTIVE'] = '1'
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
