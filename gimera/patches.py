@@ -29,7 +29,6 @@ def make_patches(main_repo, repo_yml):
             cwd = main_repo.working_dir
         else:
             raise NotImplementedError(repo_yml.type)
-        # TODO does this work in subgimeras? because now we have parent_config stored
         repo = Repo(cwd)
         with _make_patch_reset_untracked_files(main_repo, repo, untracked_files):
             subdir_path = Path(main_repo.working_dir) / repo_yml.path
