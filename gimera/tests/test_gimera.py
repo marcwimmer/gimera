@@ -1629,7 +1629,7 @@ def test_patch_ignored_path(temppath):
     subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
     subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(git + ["push"], cwd=workspace)
-    (workspace / repos["repos"][1]["patches"][0]).mkdir(exist_ok=True, parents=True)
+    (workspace / repos["repos"][0]["patches"][0]).mkdir(exist_ok=True, parents=True)
     os.chdir(workspace)
     # make gitignore file
     (workspace / '.gitignore').write_text(
@@ -1649,8 +1649,9 @@ def test_patch_ignored_path(temppath):
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     (workspace / repos["repos"][0]["patches"][0]).mkdir(exist_ok=True, parents=True)
+    import pudb;pudb.set_trace()
     gimera_apply([], update=True)
-    assert len(list(workspace / 'sub1_patches').glob("*")) == 1
+    assert len(list((workspace / 'sub1_patches').glob("*"))) == 1
 
     shutil.rmtree(workspace / 'sub1')
     # should apply patches now
