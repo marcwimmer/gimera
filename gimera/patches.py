@@ -22,6 +22,8 @@ def make_patches(main_repo, repo_yml):
         changed_files,
         untracked_files,
     ):
+        if not changed_files:
+            return
         if not _make_patch_start_question(repo_yml, changed_files):
             return
 
@@ -135,7 +137,7 @@ def _make_patch_prepare_patchdir(repo_yml):
 
 def _make_patch_start_question(repo_yml, changed_files):
     files_in_lines = "\n".join(map(str, sorted(changed_files)))
-    if os.getenv("GIMERA_NON_INTERACTIVE") == "0":
+    if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
         correct = True
     else:
         choice_yes = "Yes - make a patch"
@@ -226,11 +228,14 @@ def _make_patch_reset_untracked_files(main_repo, repo, untracked_files):
 def _make_patches_prepare(main_repo, repo_yml):
     subrepo_path = main_repo.path / repo_yml.path
     if not subrepo_path.exists():
-        return
-    subrepo = main_repo.get_submodule(repo_yml.path, force=True)
-    changed_files = subrepo.filterout_submodules(subrepo.all_dirty_files)
-    untracked_files = subrepo.filterout_submodules(subrepo.untracked_files)
-    if changed_files:
+        yield None, None, [], []
+    else:
+        subrepo = main_repo.get_submodule(repo_yml.path, force=True)
+        if subrepo.path.exists():
+            changed_files = subrepo.filterout_submodules(subrepo.all_dirty_files)
+            untracked_files = subrepo.filterout_submodules(subrepo.untracked_files)
+        else:
+            changed_files, untracked_files = [], []
         yield subrepo, subrepo_path, changed_files, untracked_files
 
 
