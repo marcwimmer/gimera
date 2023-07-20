@@ -1657,10 +1657,9 @@ def test_patch_ignored_path(temppath):
     os.chdir(workspace)
     gimera_apply([], update=False)
 
-    # check if test is applied
+    # check if patch is applied
     content = (workspace / 'sub1' / 'file1.txt').read_text()
     assert content == "new_content arrived!"
-    raise Exception("FINISH")
 
     # now lets edit that patch again
     Repo(workspace).simple_commit_all()

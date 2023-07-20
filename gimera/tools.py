@@ -135,12 +135,8 @@ def confirm(msg, raise_exception=True):
 
 
 @contextmanager
-def temppath(forcename=None):
+def temppath():
     path = Path(tempfile.mktemp(suffix="."))
-    if forcename:
-        path = Path(forcename)
-        if path.exists():
-            shutil.rmtree(path)
     try:
         path.mkdir()
         yield path

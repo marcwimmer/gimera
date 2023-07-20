@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import subprocess
 import click
@@ -43,7 +44,6 @@ def make_patches(main_repo, repo_yml):
                         f"where patches are stored for {repo_yml.path}"
                     )
 
-                import pudb;pudb.set_trace()
                 with _prepare_patchdir(repo_yml) as (patch_dir, patch_filename):
                     _write_patch_content(
                         main_repo,
@@ -56,6 +56,16 @@ def make_patches(main_repo, repo_yml):
                     )
 
 @contextmanager
+def _temporarily_move_gimera(repo_yml, to_path):
+    remember_config_path = repo_yml.config.config_file
+    repo_yml.config.config_file = to_path / 'gimera.yml'
+    shutil.copy(remember_config_path, repo_yml.config.config_file)
+
+    yield
+
+    repo_yml.config.config_file = remember_config_path
+
+@contextmanager
 def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
     """
     If directory is ignored then move to temporary path.
@@ -66,22 +76,23 @@ def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
 
     if main_repo.check_ignore(repo_yml.path) and (main_repo.path / repo_yml.path).exists():
         # TODO perhaps faster when just copied .git into the hidden dir
-        with temppath(forcename='/tmp/aaa') as path:
+        with temppath() as path:
             subprocess.check_call(["git", "init", "--initial-branch=main", "."], cwd=path)
             main_repo2 = Repo(path)
             for patchdir in repo_yml.patches:
                 rsync(main_repo.path / patchdir, main_repo2.path / patchdir)
             main_repo2.simple_commit_all()
+            with _temporarily_move_gimera(repo_yml, main_repo2.path):
 
-            _update_integrated_module(main_repo2, repo_yml, update=False, parallel_safe=True)
-            main_repo2.simple_commit_all()
+                _update_integrated_module(main_repo2, repo_yml, update=False, parallel_safe=True)
+                main_repo2.simple_commit_all()
 
-            # now transfer the latest changes:
-            rsync(main_repo.path / repo_yml.path, path /repo_yml.path, exclude=['.git'])
-            yield main_repo2
+                # now transfer the latest changes:
+                rsync(main_repo.path / repo_yml.path, path /repo_yml.path, exclude=['.git'])
+                yield main_repo2
 
-            for patchdir in repo_yml.patches:
-                rsync(main_repo2.path / patchdir, main_repo.path / patchdir)
+                for patchdir in repo_yml.patches:
+                    rsync(main_repo2.path / patchdir, main_repo.path / patchdir)
     else:
         yield main_repo
 
