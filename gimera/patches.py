@@ -59,6 +59,7 @@ def make_patches(main_repo, repo_yml):
 def _temporarily_move_gimera(repo_yml, to_path):
     remember_config_path = repo_yml.config.config_file
     repo_yml.config.config_file = to_path / 'gimera.yml'
+    repo_yml.config.config_file.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy(remember_config_path, repo_yml.config.config_file)
 
     yield
@@ -80,7 +81,9 @@ def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
             subprocess.check_call(["git", "init", "--initial-branch=main", "."], cwd=path)
             main_repo2 = Repo(path)
             for patchdir in repo_yml.patches:
-                rsync(main_repo.path / patchdir, main_repo2.path / patchdir)
+                dest_path = main_repo2.path / patchdir
+                dest_path.mkdir(exist_ok=True, parents=True)
+                rsync(main_repo.path / patchdir, dest_path)
             main_repo2.simple_commit_all()
             with _temporarily_move_gimera(repo_yml, main_repo2.path):
 
