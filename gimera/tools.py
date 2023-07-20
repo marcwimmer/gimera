@@ -151,3 +151,16 @@ def path1inpath2(path1, path2):
         return True
     except:
         return False
+
+def rsync(dir1, dir2, exclude=None, delete_after=True):
+    cmd = [
+                "rsync",
+                "-ar",
+    ]
+    if delete_after:
+        cmd += ["--delete-after"]
+    for X in (exclude or []):
+        cmd += ["--exclude={X}"]
+    cmd.append(str(dir1) + "/")
+    cmd.append(str(dir2) + "/")
+    subprocess.check_call(cmd)

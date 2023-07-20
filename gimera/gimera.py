@@ -375,6 +375,23 @@ def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
         _raise_error("After submodule update the path {repo_yml['path']} did not exist")
 
 
+def _get_cache_dir(main_repo, repo_yml):
+    url = repo_yml.url
+    if not url:
+        click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
+        sys.exit(-1)
+    path = Path(os.path.expanduser("~/.cache/gimera")) / url.replace(
+        ":", "_"
+    ).replace("/", "_")
+    path.parent.mkdir(exist_ok=True, parents=True)
+    if not path.exists():
+        click.secho(
+            f"Caching the repository {repo_yml.url} for quicker reuse",
+            fg="yellow",
+        )
+        with prepare_dir(path) as _path:
+            Repo(main_repo.path).X("git", "clone", url, _path)
+    return path
 
 
 
@@ -390,26 +407,9 @@ def _update_integrated_module(
     """
 
     # TODO eval parallelsafe
-    def _get_cache_dir():
-        url = repo_yml.url
-        if not url:
-            click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
-            sys.exit(-1)
-        path = Path(os.path.expanduser("~/.cache/gimera")) / url.replace(
-            ":", "_"
-        ).replace("/", "_")
-        path.parent.mkdir(exist_ok=True, parents=True)
-        if not path.exists():
-            click.secho(
-                f"Caching the repository {repo_yml.url} for quicker reuse",
-                fg="yellow",
-            )
-            with prepare_dir(path) as _path:
-                Repo(main_repo.path).X("git", "clone", url, _path)
-        return path
 
     # use a cache directory for pulling the repository and updating it
-    local_repo_dir = _get_cache_dir()
+    local_repo_dir = _get_cache_dir(main_repo, repo_yml)
     with wait_git_lock(local_repo_dir):
         if not os.access(local_repo_dir, os.W_OK):
             _raise_error(f"No R/W rights on {local_repo_dir}")

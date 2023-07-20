@@ -10,7 +10,6 @@ from .consts import gitcmd as git
 class Repo(GitCommands):
     def __init__(self, path):
         self.path = Path(path)
-        self.working_dir = Path(path)
 
     def __repr__(self):
         return f"{self.path}"
@@ -130,6 +129,14 @@ class Repo(GitCommands):
         for line in submodules:
             splitted = line.strip().split(" ")
             yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
+
+    def check_ignore(self, path):
+        try:
+            self.X("git", "check-ignore", "-q", path, allow_error=False)
+        except subprocess.CalledProcessError:
+            return False
+        else:
+            return True
 
     def _fix_to_remove_subdirectories(self, config):
         # https://stackoverflow.com/questions/4185365/no-submodule-mapping-found-in-gitmodule-for-a-path-thats-not-a-submodule

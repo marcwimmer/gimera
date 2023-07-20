@@ -1649,7 +1649,6 @@ def test_patch_ignored_path(temppath):
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     (workspace / repos["repos"][0]["patches"][0]).mkdir(exist_ok=True, parents=True)
-    import pudb;pudb.set_trace()
     gimera_apply([], update=True)
     assert len(list((workspace / 'sub1_patches').glob("*"))) == 1
 
@@ -1659,7 +1658,7 @@ def test_patch_ignored_path(temppath):
     gimera_apply([], update=False)
 
     # check if test is applied
-    content = (workspace / 'sub1' / 'main.txt').read_text()
+    content = (workspace / 'sub1' / 'file1.txt').read_text()
     assert content == "new_content arrived!"
     raise Exception("FINISH")
 
