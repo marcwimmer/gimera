@@ -1663,14 +1663,20 @@ def test_patch_ignored_path(temppath):
 
     # now lets edit that patch again
     Repo(workspace).simple_commit_all()
-    patchfile = list((workspace / "integrated" / "sub1_patches").glob("*"))[
+    patchfile = list((workspace / "sub1_patches").glob("*"))[
         0
     ].relative_to(workspace)
     os.chdir(workspace)
     from ..gimera import _edit_patch as edit_patch
 
     edit_patch([patchfile])
+
+    # make some dirt
+    (workspace / "sub1" / "file2.txt").write_text("a change!")
+    (workspace / "sub1" / "file3.txt").write_text("a new file!")
+
     dirty_files = Repo(workspace).all_dirty_files
     assert (workspace / str(patchfile)) not in dirty_files
-    assert (workspace / "integrated/sub1/file3.txt") in dirty_files
-    assert (workspace / "integrated/sub1/file2.txt") in dirty_files
+    # because hidden not in dirty files
+    assert (workspace / "sub1/file3.txt") not in dirty_files
+    assert (workspace / "sub1/file2.txt") not in dirty_files
