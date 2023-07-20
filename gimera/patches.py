@@ -34,7 +34,7 @@ def make_patches(main_repo, repo_yml):
                 return
 
             with _temporarily_add_untracked_files(main_repo, untracked_files):
-                subdir_path = Path(main_repo.working_dir) / repo_yml.path
+                subdir_path = Path(main_repo.path) / repo_yml.path
                 patch_content = _technically_make_patch(main_repo, subdir_path)
 
                 if not repo_yml.all_patch_dirs(rel_or_abs="relative"):
@@ -43,6 +43,7 @@ def make_patches(main_repo, repo_yml):
                         f"where patches are stored for {repo_yml.path}"
                     )
 
+                import pudb;pudb.set_trace()
                 with _prepare_patchdir(repo_yml) as (patch_dir, patch_filename):
                     _write_patch_content(
                         main_repo,
@@ -61,38 +62,28 @@ def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
     Apply changes from local dir to get the diffs.
     """
     from .gimera import _get_cache_dir
+    from .gimera import _update_integrated_module
 
     if main_repo.check_ignore(repo_yml.path) and (main_repo.path / repo_yml.path).exists():
         # TODO perhaps faster when just copied .git into the hidden dir
-        with temppath() as path:
-            import pudb;pudb.set_trace()
-            subprocess.check_call(["git", "init", "."], cwd=path)
+        with temppath(forcename='/tmp/aaa') as path:
+            subprocess.check_call(["git", "init", "--initial-branch=main", "."], cwd=path)
             main_repo2 = Repo(path)
-            cachedir = _get_cache_dir(main_repo, repo_yml)
-            rsync(cachedir, path / repo_yml.path)
-            for patchdir in repo_yml.patchesdirs:
+            for patchdir in repo_yml.patches:
                 rsync(main_repo.path / patchdir, main_repo2.path / patchdir)
+            main_repo2.simple_commit_all()
 
-            repo = Repo(path)
-            repo.X("git", "checkout", "-f", repo_yml.sha)
-            repo.X("git", "clean", "-xdff")
-            subprocess.check_call(
-                    [
-                        "rsync",
-                        "-ar",
-                        "--exclude=.git",
-                        "--delete-after",
-                        str(main_repo.working_dir / repo_yml.path) + "/",
-                        str(path) + "/",
-                    ],
-                    cwd=main_repo.working_dir,
-            )
-            yield main_repo2, path
+            _update_integrated_module(main_repo2, repo_yml, update=False, parallel_safe=True)
+            main_repo2.simple_commit_all()
 
-            for patchdir in repo_yml.patchesdirs:
+            # now transfer the latest changes:
+            rsync(main_repo.path / repo_yml.path, path /repo_yml.path, exclude=['.git'])
+            yield main_repo2
+
+            for patchdir in repo_yml.patches:
                 rsync(main_repo2.path / patchdir, main_repo.path / patchdir)
     else:
-        yield main_repo.path
+        yield main_repo
 
 
 def _update_edited_patchfile(repo_yml):
@@ -140,11 +131,11 @@ def _get_new_patchfilename(repo_yml):
 def _prepare_patchdir(repo_yml):
     remove_edit_patchfile = False
     if repo_yml.edit_patchfile:
-        patch_dir, patch_filename = _make_patch_update_edited_patchfile(repo_yml)
+        patch_dir, patch_filename = _update_edited_patchfile(repo_yml)
         remove_edit_patchfile = True
     else:
         patch_filename = datetime.now().strftime("%Y%m%d_%H%M%S")
-        patch_dir = _make_patch_get_new_patchfilename(repo_yml)
+        patch_dir = _get_new_patchfilename(repo_yml)
 
     patch_dir._path.mkdir(exist_ok=True, parents=True)
 

@@ -16,6 +16,7 @@ from .repo import Repo, Remote
 from .gitcommands import GitCommands
 from .tools import _raise_error, safe_relative_to, is_empty_dir, _strip_paths
 from .tools import yieldlist
+from .tools import rsync
 from .consts import gitcmd as git
 from .tools import prepare_dir
 from .tools import wait_git_lock
@@ -457,17 +458,7 @@ def _update_integrated_module(
             # just standarded out
             if dest_path.exists():
                 rmtree(dest_path)
-            subprocess.check_call(
-                [
-                    "rsync",
-                    "-ar",
-                    "--exclude=.git",
-                    "--delete-after",
-                    str(repo.path) + "/",
-                    str(dest_path) + "/",
-                ],
-                cwd=main_repo.working_dir,
-            )
+            rsync(repo.path, dest_path, exclude=['.git'])
             msg = [f"Merged: {repo_yml.url}"]
             for remote, ref in remote_refs:
                 msg.append(f"Merged {remote.url}:{ref}")

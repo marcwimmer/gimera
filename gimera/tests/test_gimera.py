@@ -1643,7 +1643,7 @@ def test_patch_ignored_path(temppath):
         "Now we have a repo with integrated and gitignored sub"
         "\nWe change something and check if a patch is made."
     )
-    (workspace / 'sub1' / 'main.txt').write_text("new_content arrived!")
+    (workspace / 'sub1' / 'file1.txt').write_text("new_content arrived!")
 
     os.chdir(workspace)
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"

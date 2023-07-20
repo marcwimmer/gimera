@@ -135,8 +135,12 @@ def confirm(msg, raise_exception=True):
 
 
 @contextmanager
-def temppath():
+def temppath(forcename=None):
     path = Path(tempfile.mktemp(suffix="."))
+    if forcename:
+        path = Path(forcename)
+        if path.exists():
+            shutil.rmtree(path)
     try:
         path.mkdir()
         yield path
@@ -160,7 +164,7 @@ def rsync(dir1, dir2, exclude=None, delete_after=True):
     if delete_after:
         cmd += ["--delete-after"]
     for X in (exclude or []):
-        cmd += ["--exclude={X}"]
+        cmd += [f"--exclude={X}"]
     cmd.append(str(dir1) + "/")
     cmd.append(str(dir2) + "/")
     subprocess.check_call(cmd)
