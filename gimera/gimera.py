@@ -24,6 +24,8 @@ from .tools import rmtree
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 from .config import Config
 from .patches import make_patches
+from .patches import _apply_patches
+from .patches import _apply_patchfile
 
 
 @click.group()
@@ -381,9 +383,9 @@ def _get_cache_dir(main_repo, repo_yml):
     if not url:
         click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
         sys.exit(-1)
-    path = Path(os.path.expanduser("~/.cache/gimera")) / url.replace(
-        ":", "_"
-    ).replace("/", "_")
+    path = Path(os.path.expanduser("~/.cache/gimera")) / url.replace(":", "_").replace(
+        "/", "_"
+    )
     path.parent.mkdir(exist_ok=True, parents=True)
     if not path.exists():
         click.secho(
@@ -393,7 +395,6 @@ def _get_cache_dir(main_repo, repo_yml):
         with prepare_dir(path) as _path:
             Repo(main_repo.path).X("git", "clone", url, _path)
     return path
-
 
 
 def _update_integrated_module(
@@ -458,7 +459,7 @@ def _update_integrated_module(
             # just standarded out
             if dest_path.exists():
                 rmtree(dest_path)
-            rsync(repo.path, dest_path, exclude=['.git'])
+            rsync(repo.path, dest_path, exclude=[".git"])
             msg = [f"Merged: {repo_yml.url}"]
             for remote, ref in remote_refs:
                 msg.append(f"Merged {remote.url}:{ref}")
@@ -583,19 +584,6 @@ def _apply_patchfile(file, working_dir, error_ok=False):
                 _raise_error(f"Error applying patch: {file}")
     except Exception as ex:  # pylint: disable=broad-except
         _raise_error(str(ex))
-
-
-def _apply_patches(repo_yml):
-    for patchdir in repo_yml.all_patch_dirs(rel_or_abs="absolute") or []:
-        # with patchdir.path as dir:
-        if not patchdir._path.exists():
-            patchdir._path.mkdir(parents=True)
-        for file in sorted(patchdir._path.rglob("*.patch")):
-            if repo_yml.ignore_patchfile(file):
-                continue
-            click.secho((f"Applying patch {file}"), fg="blue")
-            # Git apply fails silently if applied within local repos
-            _apply_patchfile(file, patchdir.apply_from_here_dir, error_ok=False)
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):

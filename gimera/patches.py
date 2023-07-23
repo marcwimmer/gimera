@@ -10,7 +10,14 @@ from .tools import confirm
 from .tools import temppath
 from .tools import path1inpath2
 from .consts import inquirer_theme
-from .tools import _raise_error, safe_relative_to, is_empty_dir, _strip_paths, temppath, rsync
+from .tools import (
+    _raise_error,
+    safe_relative_to,
+    is_empty_dir,
+    _strip_paths,
+    temppath,
+    rsync,
+)
 import inquirer
 from pathlib import Path
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
@@ -20,9 +27,7 @@ def make_patches(main_repo, repo_yml):
     if repo_yml.type != REPO_TYPE_INT:
         raise NotImplementedError(repo_yml.type)
 
-    with _if_ignored_move_to_separate_dir(main_repo, repo_yml) as (
-        main_repo
-    ):
+    with _if_ignored_move_to_separate_dir(main_repo, repo_yml) as (main_repo):
         with _prepare(main_repo, repo_yml) as (
             subrepo,
             subrepo_path,
@@ -55,16 +60,18 @@ def make_patches(main_repo, repo_yml):
                         patch_content,
                     )
 
+
 @contextmanager
 def _temporarily_move_gimera(repo_yml, to_path):
     remember_config_path = repo_yml.config.config_file
-    repo_yml.config.config_file = to_path / 'gimera.yml'
+    repo_yml.config.config_file = to_path / "gimera.yml"
     repo_yml.config.config_file.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy(remember_config_path, repo_yml.config.config_file)
 
     yield
 
     repo_yml.config.config_file = remember_config_path
+
 
 @contextmanager
 def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
@@ -75,10 +82,15 @@ def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
     from .gimera import _get_cache_dir
     from .gimera import _update_integrated_module
 
-    if main_repo.check_ignore(repo_yml.path) and (main_repo.path / repo_yml.path).exists():
+    if (
+        main_repo.check_ignore(repo_yml.path)
+        and (main_repo.path / repo_yml.path).exists()
+    ):
         # TODO perhaps faster when just copied .git into the hidden dir
         with temppath() as path:
-            subprocess.check_call(["git", "init", "--initial-branch=main", "."], cwd=path)
+            subprocess.check_call(
+                ["git", "init", "--initial-branch=main", "."], cwd=path
+            )
             main_repo2 = Repo(path)
             for patchdir in repo_yml.patches:
                 dest_path = main_repo2.path / patchdir
@@ -86,12 +98,17 @@ def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
                 rsync(main_repo.path / patchdir, dest_path)
             main_repo2.simple_commit_all()
             with _temporarily_move_gimera(repo_yml, main_repo2.path):
-
-                _update_integrated_module(main_repo2, repo_yml, update=False, parallel_safe=True)
+                _update_integrated_module(
+                    main_repo2, repo_yml, update=False, parallel_safe=True
+                )
                 main_repo2.simple_commit_all()
 
                 # now transfer the latest changes:
-                rsync(main_repo.path / repo_yml.path, path /repo_yml.path, exclude=['.git'])
+                rsync(
+                    main_repo.path / repo_yml.path,
+                    path / repo_yml.path,
+                    exclude=[".git"],
+                )
                 yield main_repo2
 
                 for patchdir in repo_yml.patches:
@@ -243,9 +260,7 @@ def _write_patch_content(
 
         # commit the patches - do NOT - could lie in submodule - is hard to do
         subprocess.check_call(["git", "add", repo_yml.path], cwd=main_repo.path)
-        subprocess.check_call(
-            ["git", "add", patch_dir._path], cwd=main_repo.path
-        )
+        subprocess.check_call(["git", "add", patch_dir._path], cwd=main_repo.path)
         subprocess.check_call(
             ["git", "commit", "-m", f"added patch {patch_filename}"],
             cwd=main_repo.path,
@@ -310,3 +325,99 @@ def _technically_make_patch(repo, path):
     )
     repo.X("git", "reset", "HEAD~1")
     return patch_content
+
+
+def _apply_patches(repo_yml):
+    for patchdir in repo_yml.all_patch_dirs(rel_or_abs="absolute") or []:
+        # with patchdir.path as dir:
+        if not patchdir._path.exists():
+            patchdir._path.mkdir(parents=True)
+        relevant_patch_files = []
+        for file in sorted(patchdir._path.rglob("*.patch")):
+            if repo_yml.ignore_patchfile(file):
+                continue
+            relevant_patch_files.append(file)
+
+        problems = []
+        for file in relevant_patch_files:
+            click.secho((f"Checking patch {file}"), fg="blue")
+            # Git apply fails silently if applied within local repos
+            if not _apply_patchfile(
+                file, patchdir.apply_from_here_dir, error_ok=False, just_check=True
+            ):
+                problems.append(file)
+
+        if problems:
+            click.secho("Error at following patchfiles", fg="red")
+            for file in problems:
+                click.secho(f"{file}", fg="red")
+            sys.exit(-1)
+
+        for file in relevant_patch_files:
+            click.secho((f"Applying patch {file}"), fg="blue")
+            # Git apply fails silently if applied within local repos
+            _apply_patchfile(file, patchdir.apply_from_here_dir, error_ok=False)
+
+
+def _apply_patchfile(file, working_dir, error_ok=False, just_check=False):
+    cwd = Path(working_dir)
+    # must be check_output due to input keyword
+    # Explaining -R option:
+    #   at testing a patchfile is created ; although not comitting
+    #   git detects, that the file was removed and same patch tries to be applied
+    #   Very intelligent but we force defined state over such smart behaviours.
+    """
+    /tmp/gimeratest/workspace/integrated/sub1/patches/15.0/superpatches/my.patch
+    =============================================================================================
+    patching file file1.txt
+    Reversed (or previously applied) patch detected!  Assume -R? [n]
+    Apply anyway? [n]
+    Skipping patch.
+    1 out of 1 hunk ignored -- saving rejects to file file1.txt.rej
+    """
+    file = Path(file)
+    try:
+        cmd = [
+            "patch",
+            "-p1",
+            "--no-backup-if-mismatch",
+            "--force",
+            "-s",
+            "-i",
+            str(file),
+        ]
+        if just_check:
+            cmd += ["--dry-run"]
+        subprocess.check_output(cmd, cwd=cwd, encoding="utf-8")
+        click.secho(
+            (f"Applied patch {file}"),
+            fg="blue",
+        )
+    except subprocess.CalledProcessError as ex:
+        click.secho(
+            ("\n\nFailed to apply the following patch file:\n\n"),
+            fg="yellow",
+        )
+        click.secho(
+            (
+                f"{file}\n"
+                "============================================================================================="
+            ),
+            fg="red",
+            bold=True,
+        )
+        click.secho((f"{ex.stdout or ''}\n" f"{ex.stderr or ''}\n"), fg="yellow")
+
+        click.secho(file.read_text(), fg="cyan")
+        if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
+            f"Patchfile failed ''{file}'' - continue with next file?",
+            default=True,
+        ):
+            if not error_ok:
+                _raise_error(f"Error applying patch: {file}")
+        return False
+    except Exception as ex:  # pylint: disable=broad-except
+        _raise_error(str(ex))
+        return False
+    else:
+        return True
