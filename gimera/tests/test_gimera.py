@@ -1593,3 +1593,90 @@ def test_make_patch_in_local_directory_in_integrated_submodule(temppath):
     assert not yaml.safe_load((workspace / "gimera.yml").read_text())["repos"][0][
         "edit_patchfile"
     ]
+
+def test_patch_ignored_path(temppath):
+    """
+    * if odoo path is ignored, it is cool to make a patch for it, too
+    """
+    workspace = temppath / "workspace"
+
+    remote_main_repo = _make_remote_repo(temppath / "mainrepo")
+    remote_sub_repo = _make_remote_repo(temppath / "sub1")
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(remote_main_repo), workspace.name],
+        cwd=workspace.parent,
+    )
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+
+    # region gimera config
+    repos = {
+        "repos": [
+            {
+                "url": f"file://{remote_sub_repo}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": ["sub1_patches"],
+                "type": "integrated",
+            },
+        ]
+    }
+    # endregion
+
+    (workspace / "gimera.yml").write_text(yaml.dump(repos))
+    (workspace / "main.txt").write_text("main repo")
+    subprocess.check_call(git + ["add", "main.txt"], cwd=workspace)
+    subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
+    subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
+    subprocess.check_call(git + ["push"], cwd=workspace)
+    (workspace / repos["repos"][0]["patches"][0]).mkdir(exist_ok=True, parents=True)
+    os.chdir(workspace)
+    # make gitignore file
+    (workspace / '.gitignore').write_text(
+        "sub1"
+    )
+    gimera_apply([], None)
+    Repo(workspace).simple_commit_all()
+    assert not Repo(workspace).staged_files
+
+    click.secho(
+        "Now we have a repo with integrated and gitignored sub"
+        "\nWe change something and check if a patch is made."
+    )
+    (workspace / 'sub1' / 'file1.txt').write_text("new_content arrived!")
+
+    os.chdir(workspace)
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+    (workspace / repos["repos"][0]["patches"][0]).mkdir(exist_ok=True, parents=True)
+    gimera_apply([], update=True)
+    assert len(list((workspace / 'sub1_patches').glob("*"))) == 1
+
+    shutil.rmtree(workspace / 'sub1')
+    # should apply patches now
+    os.chdir(workspace)
+    gimera_apply([], update=False)
+
+    # check if patch is applied
+    content = (workspace / 'sub1' / 'file1.txt').read_text()
+    assert content == "new_content arrived!"
+
+    # now lets edit that patch again
+    Repo(workspace).simple_commit_all()
+    patchfile = list((workspace / "sub1_patches").glob("*"))[
+        0
+    ].relative_to(workspace)
+    os.chdir(workspace)
+    from ..gimera import _edit_patch as edit_patch
+
+    edit_patch([patchfile])
+
+    # make some dirt
+    (workspace / "sub1" / "file2.txt").write_text("a change!")
+    (workspace / "sub1" / "file3.txt").write_text("a new file!")
+
+    dirty_files = Repo(workspace).all_dirty_files
+    assert (workspace / str(patchfile)) not in dirty_files
+    # because hidden not in dirty files
+    assert (workspace / "sub1/file3.txt") not in dirty_files
+    assert (workspace / "sub1/file2.txt") not in dirty_files
