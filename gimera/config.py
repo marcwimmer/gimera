@@ -113,7 +113,10 @@ class Config(object):
         else:
             config["repos"].append(value)
         for k, v in value.items():
-            setattr(param_repo, k, v)
+            try:
+                setattr(param_repo, k, v)
+            except AttributeError as ex:
+                raise Exception(f"Cannot set attribute {k}") from ex
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
         main_repo.please_no_staged_files()
         if self.config_file.resolve() in [
