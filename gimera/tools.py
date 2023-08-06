@@ -134,20 +134,24 @@ def confirm(msg, raise_exception=True):
     return res
 
 
+@contextmanager
+def retry(attempts=3, sleep=5):
+    for i in range(attempts):
+        try:
+            yield
+        except Exception:
+            if i == attempts - 1:
+                raise
+            time.sleep(sleep)
+        else:
+            break
+
+
 def try_rm_tree(path):
     if not path.exists():
         return
-    MAX = 3
-    sl = 5
-    for i in range(MAX):
-        try:
-            shutil.rmtree(path)
-        except:
-            time.sleep(sl)
-            if i > MAX:
-                raise
-        else:
-            break
+    with retry():
+        shutil.rmtree(path)
 
 
 @contextmanager
