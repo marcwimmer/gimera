@@ -5,6 +5,7 @@ from .gitcommands import GitCommands
 from pathlib import Path
 from .tools import yieldlist, X, safe_relative_to, _raise_error, rmtree
 from .consts import gitcmd as git
+from contextlib import contextmanager
 
 
 class Repo(GitCommands):
@@ -355,6 +356,15 @@ class Repo(GitCommands):
                     root = next_path
                 else:
                     _raise_error(f"Could not find submodule in .git for {part}")
+
+    @contextmanager
+    def stay_at_commit(self, enabled):
+        commit = self.hex
+        try:
+            yield
+        finally:
+            if enabled:
+                self.X("git", "reset", "--soft", commit)
 
 
 class Remote(object):
