@@ -134,6 +134,22 @@ def confirm(msg, raise_exception=True):
     return res
 
 
+def try_rm_tree(path):
+    if not path.exists():
+        return
+    MAX = 3
+    sl = 5
+    for i in range(MAX):
+        try:
+            shutil.rmtree(path)
+        except:
+            time.sleep(sl)
+            if i > MAX:
+                raise
+        else:
+            break
+
+
 @contextmanager
 def temppath():
     path = Path(tempfile.mktemp(suffix="."))
@@ -141,8 +157,7 @@ def temppath():
         path.mkdir()
         yield path
     finally:
-        if path.exists():
-            shutil.rmtree(path)
+        try_rm_tree(path)
 
 
 def path1inpath2(path1, path2):
@@ -152,14 +167,15 @@ def path1inpath2(path1, path2):
     except:
         return False
 
+
 def rsync(dir1, dir2, exclude=None, delete_after=True):
     cmd = [
-                "rsync",
-                "-ar",
+        "rsync",
+        "-ar",
     ]
     if delete_after:
         cmd += ["--delete-after"]
-    for X in (exclude or []):
+    for X in exclude or []:
         cmd += [f"--exclude={X}"]
     cmd.append(str(dir1) + "/")
     cmd.append(str(dir2) + "/")
