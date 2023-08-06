@@ -225,7 +225,7 @@ def apply(
         recursive=recursive,
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
-        auto_commit=no_auto_commit,
+        auto_commit=not no_auto_commit,
     )
 
 
