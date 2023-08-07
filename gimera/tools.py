@@ -134,10 +134,10 @@ def confirm(msg, raise_exception=True):
     return res
 
 
-def retry(attempts=3, sleep=5):
+def retry(func, attempts=3, sleep=5):
     for i in range(attempts):
         try:
-            yield
+            func()
         except Exception:
             if i == attempts - 1:
                 raise
@@ -149,8 +149,10 @@ def retry(attempts=3, sleep=5):
 def try_rm_tree(path):
     if not path.exists():
         return
-    for attempt in retry():
+
+    def _action():
         shutil.rmtree(path)
+    retry(func=_action)
 
 
 @contextmanager
