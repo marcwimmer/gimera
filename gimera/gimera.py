@@ -302,6 +302,7 @@ def _internal_apply(
                     try:
                         make_patches(main_repo, repo)
                     except Exception as ex:
+                        raise
                         msg = f"Error making patches for: {repo.path}\n\n{ex}"
                         _raise_error(msg)
 
