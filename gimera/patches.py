@@ -206,10 +206,14 @@ def _start_question(repo_yml, changed_files):
         choice_yes = "Yes - make a patch"
         if repo_yml.edit_patchfile:
             choice_yes = f"Merge all changes into patchfile {repo_yml.edit_patchfile}"
+
+        for file in files_in_lines.splitlines():
+            click.secho(f"  * {file}")
+
         questions = [
             inquirer.List(
                 "correct",
-                message=f"Continue making patches for: {files_in_lines}",
+                message=f"Continue making patches for the lines above?",
                 default="no",
                 choices=[
                     choice_yes,
