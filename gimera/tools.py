@@ -134,7 +134,6 @@ def confirm(msg, raise_exception=True):
     return res
 
 
-@contextmanager
 def retry(attempts=3, sleep=5):
     for i in range(attempts):
         try:
@@ -150,7 +149,7 @@ def retry(attempts=3, sleep=5):
 def try_rm_tree(path):
     if not path.exists():
         return
-    with retry():
+    for attempt in retry():
         shutil.rmtree(path)
 
 
