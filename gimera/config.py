@@ -249,6 +249,8 @@ class Config(object):
                 dir = Patchdir(patch_path, apply_from_here)
                 return dir
 
+            if isinstance(self.patches, str):
+                raise ValueError(f"Patches must be a list. But is {self.patches} for {self.url}")
             res = list(map(transform_outbound_patchdirs, self.patches))
 
             def transform_internal_patchdir(dir):
