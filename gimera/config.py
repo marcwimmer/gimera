@@ -224,6 +224,10 @@ class Config(object):
         def url(self):
             return self._url
 
+        @url.setter
+        def url(self, value):
+            self._url = value
+
         @property
         def url_public(self):
             url = self._url.replace("ssh://git@", "https://")
