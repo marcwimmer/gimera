@@ -127,17 +127,9 @@ You should call update to pull the latest version.
 gimera apply <path> -I --update
 ```
 
-## Recursive setup
+## Deliver Patches with reused submodules.
 
-If you have your tools in git submodules and depending where you add your modules
-specific patches have to be applied, you can use the following structure. A concrete
-use case is for example odoo and using sub modules.
-
-So instead of creating a branch for 13.0 / 14.0 / 15.0 / 16.0 you just create the
-main branch and working on version 14.0 for example. Then you create patch dirs
-for each version.
-
-In the submodule:
+In the su-bmodule:
 ```yaml
 gimera.yml
 
@@ -166,6 +158,10 @@ gimera apply -r
 # Demo Videos
 
 ## Edit existing patch file and update it
+
+[![Patching Gimera]](https://youtu.be/WQU9db5z9IY)
+
+
 
 
 ## Contributors
