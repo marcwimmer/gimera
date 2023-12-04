@@ -216,7 +216,7 @@ class Config(object):
                 "patches": self.patches,
                 "type": self._type,
                 "url": self._url,
-                "merges": self._merges,
+                "merges": self.merges,
                 "remotes": self._remotes,
             }
 
