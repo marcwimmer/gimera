@@ -74,23 +74,13 @@ def _get_available_repos(ctx, param, incomplete):
     config = Config(force_type=False)
     repos = []
 
-    if "*" in incomplete:
-        repos = _expand_repos(list(incomplete))
+    if '/' in incomplete:
+        incomplete = incomplete.replace("/", "/*") + "*"
+    else:
+        incomplete = "*" + incomplete + "*"
 
-    for repo in config.repos:
-        if not repo.enabled:
-            continue
-        if not repo.path:
-            continue
+    repos = list(_expand_repos([incomplete]))
 
-        if incomplete:
-            if "/" not in incomplete:
-                if incomplete not in str(repo.path):
-                    continue
-            else:
-                if not str(repo.path).startswith(incomplete):
-                    continue
-        repos.append(str(repo.path))
     return sorted(repos)
 
 
