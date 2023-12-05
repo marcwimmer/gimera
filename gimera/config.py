@@ -239,6 +239,10 @@ class Config(object):
                 return self.config.force_type
             return self._type
 
+        @type.setter
+        def type(self, value):
+            self._type = value
+
         def all_patch_dirs(self, rel_or_abs=None):
             if not rel_or_abs:
                 raise ValueError("Please define rel_or_abs")
