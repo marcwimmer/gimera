@@ -71,10 +71,9 @@ def combine_patches():
 
 
 def _get_available_repos(ctx, param, incomplete):
-    config = Config(force_type=False)
     repos = []
 
-    if '/' in incomplete:
+    if "/" in incomplete:
         incomplete = incomplete.replace("/", "/*") + "*"
     else:
         incomplete = "*" + incomplete + "*"
@@ -301,7 +300,9 @@ def _internal_apply(
                         main_repo, repo, update, parallel_safe, **options
                     )
                 except Exception as ex:
-                    msg = f"Error updating integrated submodules for: {repo.path}\n\n{ex}"
+                    msg = (
+                        f"Error updating integrated submodules for: {repo.path}\n\n{ex}"
+                    )
                     _raise_error(msg)
 
                 if not strict:
