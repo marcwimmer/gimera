@@ -47,12 +47,15 @@ class GitCommands(object):
             #         ??  asasdasd
             modifier = line[:2]
             path = line.strip().split(" ", 1)[1]
+            parent_path = getattr(self, "parent_path", None)
             if path.startswith(".."):
                 continue
             path = Path(path.strip())
-            parent_path = getattr(self, "parent_path", None)
             if parent_path:
-                path = parent_path / path
+                if self.is_git_submodule:
+                    path = parent_path / self.relpath / path
+                else:
+                    path = parent_path / path
             else:
                 path = self.path / path
             if safe_relative_to(path, self.path):
