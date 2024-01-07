@@ -280,7 +280,7 @@ def _internal_apply(
 
     repos = list(
         filter(
-            lambda r: r.enabled and (not repos or str(repo.path) in repos), config.repos
+            lambda r: r.enabled and (not repos or str(r.path) in repos), config.repos
         )
     )
 
@@ -407,11 +407,13 @@ def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
     path = main_repo.path / repo_yml.path
     if path.exists() and not is_empty_dir(path):
         return
-    main_repo.X(
-        *(git + ["submodule", "update", "--init", "--recursive", repo_yml.path])
-    )
+    with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+        main_repo.X(*(git + ["submodule", "update", "--init", "--recursive", path]))
+
     if not path.exists():
-        _raise_error("After submodule update the path {repo_yml['path']} did not exist")
+        _raise_error(
+            f"After submodule update the path {repo_yml['path']} did not exist"
+        )
 
 
 def _get_cache_dir(main_repo, repo_yml):
@@ -633,6 +635,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
     if not path.exists():
         return
     subrepo = main_repo.get_submodule(repo_yml.path)
+    cache_dir = _get_cache_dir(main_repo, repo_yml)
     if subrepo.dirty:
         _raise_error(
             f"Directory {repo_yml.path} contains modified "
@@ -659,25 +662,26 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
             )
         sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
         if sha_of_branch == sha:
-            subrepo.X("git", "checkout", "-f", repo_yml.branch)
+            subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
         else:
-            subrepo.X("git", "checkout", "-f", sha)
+            subrepo.X(*(git + ["checkout", "-f", sha]))
     else:
         try:
-            subrepo.X("git", "checkout", "-f", repo_yml.branch)
+            subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
         except Exception:  # pylint: disable=broad-except
             _raise_error(f"Failed to checkout {repo_yml.branch} in {path}")
         else:
             _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
-    subrepo.X("git", "submodule", "update", "--init", "--recursive")
+    subrepo.X(*(git + ["submodule", "update", "--init", "--recursive"]))
     _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
     # check if sha collides with branch
-    subrepo.X("git", "clean", "-xdff")
+    subrepo.X(*(git + ["clean", "-xdff"]))
     if not repo_yml.sha or update:
-        subrepo.X("git", "checkout", "-f", repo_yml.branch)
-        subrepo.pull(repo_yml=repo_yml)
+        subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+        with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+            subrepo.pull(repo_yml=repo_yml)
         _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
     # update gimera.yml on demand
@@ -974,3 +978,13 @@ def _pull_branch(repo, repo_yml, **options):
     repo.X("git", "reset", "--hard", origin_branch)
     repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
     repo.X("git", "clean", "-xdff")
+
+
+@contextmanager
+def _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+    cache_dir = _get_cache_dir(main_repo, repo_yml)
+    main_repo.X(*(git + ["submodule", "set-url", repo_yml.path, f"file://{cache_dir}"]))
+    try:
+        yield
+    finally:
+        main_repo.X(*(git + ["submodule", "set-url", repo_yml.path, repo_yml.url]))
