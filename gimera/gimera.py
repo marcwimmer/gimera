@@ -757,6 +757,7 @@ def __add_submodule(repo, config, all_config):
     cache_dir = _get_cache_dir(repo, config)
     repo.submodule_add(config.branch, f"file://{cache_dir}", relpath)
     repo.X(*(git + ["submodule", "set-url", relpath, config.url]))
+    repo.X(*(git + ["add", ".gitmodules"]))
     click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
     if repo.staged_files:
         repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
