@@ -328,7 +328,7 @@ class Repo(GitCommands):
         ]
         try:
             self.out(*commands)
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as ex:
             self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
             if (self.path / rel_path).exists():
                 rmtree(self.path / rel_path)

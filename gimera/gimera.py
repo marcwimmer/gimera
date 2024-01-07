@@ -285,8 +285,7 @@ def _internal_apply(
     )
 
     # update repos in parallel to be faster
-    if update:
-        _fetch_repos_in_parallel(main_repo, repos)
+    _fetch_repos_in_parallel(main_repo, repos, update=update)
     with main_repo.stay_at_commit(not auto_commit):
         for repo in repos:
             _turn_into_correct_repotype(main_repo, repo, config)
@@ -334,7 +333,7 @@ def _internal_apply(
                 )
 
 
-def _fetch_repos_in_parallel(main_repo, repos):
+def _fetch_repos_in_parallel(main_repo, repos, update=None):
     results = {"errors": {}, "urls": set()}
 
     def _pull_repo(index, main_repo, repo_yml):
@@ -345,7 +344,7 @@ def _fetch_repos_in_parallel(main_repo, repos):
             local_repo_dir = _get_cache_dir(main_repo, repo_yml)
             with wait_git_lock(local_repo_dir):
                 repo = Repo(local_repo_dir)
-                _pull_branch(repo, repo_yml)
+                _fetch_and_reset_branch(repo, repo_yml)
 
         except Exception as ex:
             results["errors"][index] = ex
@@ -458,7 +457,7 @@ def _update_integrated_module(
             _raise_error(f"No R/W rights on {local_repo_dir}")
         repo = Repo(local_repo_dir)
         # no_fetch - because everything was pulled in parallel step before
-        _pull_branch(repo, repo_yml, no_fetch=True, **options)
+        _fetch_and_reset_branch(repo, repo_yml, no_fetch=True, **options)
 
         if not update and repo_yml.sha:
             branches = repo.get_all_branches()
@@ -965,7 +964,7 @@ def status():
         click.secho(f"Missing: {repo.path}", fg="red")
 
 
-def _pull_branch(repo, repo_yml, no_fetch=False, **options):
+def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
     repo.X("git", "remote", "set-url", "origin", repo_yml.url)
     if not no_fetch:
         repo.X("git", "fetch", "--all")
