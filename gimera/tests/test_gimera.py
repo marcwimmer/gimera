@@ -462,6 +462,8 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
 
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
     os.chdir(workspace_main)
+    repo.X(*(git + ["add", "sub1"]))
+    repo.X(*(git + ["commit", "-m", "submodule new revision"]))
     gimera_apply([], None)
     try:
         repo.get_submodule("sub1")
@@ -569,6 +571,73 @@ def test_switch_submodule_to_integrated_and_sub_with_gitignores(temppath):
     except ValueError:
         raise Exception("Should be found")
     assert not repo.all_dirty_files
+
+
+def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
+    """
+    A gimera sub has changes and is submodule.
+    Changes shall not be lost when switching to integrated modus.
+    """
+    workspace = temppath / "test_switch_submodule_to_integrated_dont_loose_changes"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos_sub = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    repos_int = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function")
+        (repopath / "dont_look_at_me").write_text("i am ugly")
+        Repo(repopath).simple_commit_all()
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    (workspace_main / "main.txt").write_text("main repo")
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+    repo.X(*(git + ["push"]))
+
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    repo.simple_commit_all()
+
+    # make it dirty
+    (workspace_main / "sub1" / "file1.txt").write_text("i changed the file")
+
+    os.chdir(workspace_main)
+    try:
+        gimera_apply([], None)
+    except:
+        pass
+    else:
+        raise Exception("Should warn about changed content.")
 
 
 def test_switch_submodule_to_other_url(temppath):
@@ -1372,7 +1441,6 @@ def test_common_patchfiles_in_subgimera(temppath):
     assert not testfile.exists()
 
 
-
 def test_common_patchfiles_in_subgimera_2_levels(temppath):
     """
     * put same repo integrated and submodule into main repo
@@ -1594,6 +1662,7 @@ def test_make_patch_in_local_directory_in_integrated_submodule(temppath):
         "edit_patchfile"
     ]
 
+
 def test_patch_ignored_path(temppath):
     """
     * if odoo path is ignored, it is cool to make a patch for it, too
@@ -1632,9 +1701,7 @@ def test_patch_ignored_path(temppath):
     (workspace / repos["repos"][0]["patches"][0]).mkdir(exist_ok=True, parents=True)
     os.chdir(workspace)
     # make gitignore file
-    (workspace / '.gitignore').write_text(
-        "sub1"
-    )
+    (workspace / ".gitignore").write_text("sub1")
     gimera_apply([], None)
     Repo(workspace).simple_commit_all()
     assert not Repo(workspace).staged_files
@@ -1643,29 +1710,27 @@ def test_patch_ignored_path(temppath):
         "Now we have a repo with integrated and gitignored sub"
         "\nWe change something and check if a patch is made."
     )
-    (workspace / 'sub1' / 'file1.txt').write_text("new_content arrived!")
+    (workspace / "sub1" / "file1.txt").write_text("new_content arrived!")
 
     os.chdir(workspace)
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     (workspace / repos["repos"][0]["patches"][0]).mkdir(exist_ok=True, parents=True)
     gimera_apply([], update=True)
-    assert len(list((workspace / 'sub1_patches').glob("*"))) == 1
+    assert len(list((workspace / "sub1_patches").glob("*"))) == 1
 
-    shutil.rmtree(workspace / 'sub1')
+    shutil.rmtree(workspace / "sub1")
     # should apply patches now
     os.chdir(workspace)
     gimera_apply([], update=False)
 
     # check if patch is applied
-    content = (workspace / 'sub1' / 'file1.txt').read_text()
+    content = (workspace / "sub1" / "file1.txt").read_text()
     assert content == "new_content arrived!"
 
     # now lets edit that patch again
     Repo(workspace).simple_commit_all()
-    patchfile = list((workspace / "sub1_patches").glob("*"))[
-        0
-    ].relative_to(workspace)
+    patchfile = list((workspace / "sub1_patches").glob("*"))[0].relative_to(workspace)
     os.chdir(workspace)
     from ..gimera import _edit_patch as edit_patch
 

@@ -62,14 +62,14 @@ class Repo(GitCommands):
         self.please_no_staged_files()
 
         # if there are dirty files, then abort to not destroy data
-        dirty_files = self.ls_files_states(["-dmok"])
         dirty_files = list(
             filter(
-                lambda file: not file.is_dir()
-                and safe_relative_to(self.path / file, self.path / path),
-                dirty_files,
+                lambda file: safe_relative_to(self.path / file, self.path / path),
+                self.all_dirty_files,
             )
         )
+        if dirty_files:
+            _raise_error(f"Path is dirty: {path}. Changes would be lost.")
         fullpath = self.path / path
         if fullpath.exists():
             self.X(
@@ -383,14 +383,15 @@ class Submodule(Repo):
 
     @property
     def is_git_submodule(self):
-        gitmodules = self.parent_path / '.gitmodules'
+        gitmodules = self.parent_path / ".gitmodules"
         if not gitmodules.exists():
             return False
         module = [
-            x for x in gitmodules.read_text().splitlines()
+            x
+            for x in gitmodules.read_text().splitlines()
             if x.startswith("[submodule")
             if f'"{self.relpath}"]' in x
-            ]
+        ]
         return bool(module)
 
     def __repr__(self):
