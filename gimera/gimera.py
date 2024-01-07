@@ -335,10 +335,13 @@ def _internal_apply(
 
 
 def _fetch_repos_in_parallel(main_repo, repos):
-    results = {"errors": {}}
+    results = {"errors": {}, "urls": set()}
 
     def _pull_repo(index, main_repo, repo_yml):
         try:
+            if repo_yml.url in results['urls']:
+                return
+            results['urls'].add(repo_yml.url)
             local_repo_dir = _get_cache_dir(main_repo, repo_yml)
             with wait_git_lock(local_repo_dir):
                 repo = Repo(local_repo_dir)
