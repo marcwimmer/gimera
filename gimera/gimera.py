@@ -522,9 +522,6 @@ def _apply_merges(repo, repo_yml, parallel_safe):
     try:
         if parallel_safe:
             repo2 = tempfile.mktemp(suffix=".")
-            import pudb
-
-            pudb.set_trace()
             repo.X(
                 "git",
                 "clone",

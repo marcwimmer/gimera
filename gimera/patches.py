@@ -17,6 +17,7 @@ from .tools import (
     _strip_paths,
     temppath,
     rsync,
+    wait_git_lock,
 )
 import inquirer
 from pathlib import Path
@@ -244,6 +245,8 @@ def _write_patch_content(
         # pulled
 
         hex = _clone_directory_and_add_patch_file(
+            main_repo=main_repo,
+            repo_yml=repo_yml,
             branch=repo_yml.branch,
             repo_url=repo_yml.url,
             patch_path=patch_dir._path.relative_to(subrepo_path) / patch_filename,
@@ -304,7 +307,11 @@ def _prepare(main_repo, repo_yml):
         yield subrepo, subrepo_path, changed_files, untracked_files
 
 
-def _clone_directory_and_add_patch_file(branch, repo_url, patch_path, content):
+def _clone_directory_and_add_patch_file(
+    main_repo, repo_yml, branch, repo_url, patch_path, content
+):
+    from .gimera import _fetch_and_reset_branch, _get_cache_dir
+
     with temppath() as path:
         path = path / "repo"
         subprocess.check_call(["git", "clone", repo_url, path])
@@ -317,6 +324,12 @@ def _clone_directory_and_add_patch_file(branch, repo_url, patch_path, content):
         repo.X("git", "add", patch_path.relative_to(path))
         repo.X("git", "commit", "-m", f"added patchfile: {patch_path}")
         repo.X("git", "push")
+        # also make sure that local cache is updated, because
+        # latest repo version is applied to project
+        local_repo_dir = _get_cache_dir(main_repo, repo_yml)
+        with wait_git_lock(local_repo_dir):
+            repo = Repo(local_repo_dir)
+            _fetch_and_reset_branch(repo, repo_yml)
         return repo.hex
 
 
