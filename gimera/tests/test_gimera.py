@@ -629,7 +629,9 @@ def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
     repo.simple_commit_all()
 
     # make it dirty
-    (workspace_main / "sub1" / "file1.txt").write_text("i changed the file")
+    dirty_file = workspace_main / "sub1" / "file1.txt"
+    original_content = dirty_file.read_text()
+    dirty_file.write_text("i changed the file")
 
     os.chdir(workspace_main)
     try:
@@ -638,6 +640,22 @@ def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
         pass
     else:
         raise Exception("Should warn about changed content.")
+
+    # switch back
+    dirty_file.write_text(original_content)
+    gimera_apply([], None)
+
+    # now change in the integrated mode the file and try to switch to submodule
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    dirty_file.write_text('dirty content')
+    try:
+        gimera_apply([], None)
+    except:
+        pass
+    else:
+        raise Exception("Should warn about changed content.")
+    dirty_file.write_text(original_content)
+    gimera_apply([], None)
 
 
 def test_switch_submodule_to_other_url(temppath):

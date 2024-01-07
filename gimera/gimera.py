@@ -338,9 +338,9 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None):
 
     def _pull_repo(index, main_repo, repo_yml):
         try:
-            if repo_yml.url in results['urls']:
+            if repo_yml.url in results["urls"]:
                 return
-            results['urls'].add(repo_yml.url)
+            results["urls"].add(repo_yml.url)
             local_repo_dir = _get_cache_dir(main_repo, repo_yml)
             with wait_git_lock(local_repo_dir):
                 repo = Repo(local_repo_dir)
@@ -711,6 +711,16 @@ def __add_submodule(repo, config, all_config):
             repo.output_status()
             repo.please_no_staged_files()
             # remove current path
+
+            dirty_files = [
+                x
+                for x in repo.all_dirty_files
+                if safe_relative_to(x, repo.path / relpath)
+            ]
+            if dirty_files:
+                _raise_error(
+                    f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
+                )
 
             if repo.lsfiles(relpath):
                 repo.X("git", "rm", "-f", "-r", relpath)
