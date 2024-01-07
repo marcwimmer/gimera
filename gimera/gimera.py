@@ -454,8 +454,8 @@ def _update_integrated_module(
         if not os.access(local_repo_dir, os.W_OK):
             _raise_error(f"No R/W rights on {local_repo_dir}")
         repo = Repo(local_repo_dir)
-        _pull_branch(repo, repo_yml, **options)
-        # repo.pull(repo_yml=repo_yml) was done in parallel now before
+        # no_fetch - because everything was pulled in parallel step before
+        _pull_branch(repo, repo_yml, no_fetch=True, **options)
 
         if not update and repo_yml.sha:
             branches = repo.get_all_branches()
@@ -520,6 +520,9 @@ def _apply_merges(repo, repo_yml, parallel_safe):
     try:
         if parallel_safe:
             repo2 = tempfile.mktemp(suffix=".")
+            import pudb
+
+            pudb.set_trace()
             repo.X(
                 "git",
                 "clone",
@@ -959,9 +962,10 @@ def status():
         click.secho(f"Missing: {repo.path}", fg="red")
 
 
-def _pull_branch(repo, repo_yml, **options):
+def _pull_branch(repo, repo_yml, no_fetch=False, **options):
     repo.X("git", "remote", "set-url", "origin", repo_yml.url)
-    repo.X("git", "fetch", "--all")
+    if not no_fetch:
+        repo.X("git", "fetch", "--all")
     branch = str(repo_yml.branch)
     origin_branch = f"origin/{branch}"
     try:
