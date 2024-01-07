@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import threading
 import time
 import tempfile
 import re
@@ -276,12 +277,18 @@ def _internal_apply(
         common_vars=common_vars,
         parent_config=parent_config,
     )
+
+    repos = list(
+        filter(
+            lambda r: r.enabled and (not repos or str(r.path) in repos), config.repos
+        )
+    )
+
+    # update repos in parallel to be faster
+    if update:
+        _fetch_repos_in_parallel(main_repo, repos)
     with main_repo.stay_at_commit(not auto_commit):
-        for repo in config.repos:
-            if not repo.enabled:
-                continue
-            if repos and str(repo.path) not in repos:
-                continue
+        for repo in repos:
             _turn_into_correct_repotype(main_repo, repo, config)
             if repo.type == REPO_TYPE_SUB:
                 _make_sure_subrepo_is_checked_out(main_repo, repo)
@@ -325,6 +332,31 @@ def _internal_apply(
                     auto_commit=auto_commit,
                     **options,
                 )
+
+
+def _fetch_repos_in_parallel(main_repo, repos):
+    results = {"errors": {}}
+
+    def _pull_repo(index, main_repo, repo_yml):
+        try:
+            local_repo_dir = _get_cache_dir(main_repo, repo_yml)
+            with wait_git_lock(local_repo_dir):
+                repo = Repo(local_repo_dir)
+                _pull_branch(repo, repo_yml)
+
+        except Exception as ex:
+            results["errors"][index] = ex
+
+    threads = []
+    for index, repo in enumerate(repos):
+        t = threading.Thread(target=_pull_repo, args=(index, main_repo, repo))
+        t.daemon = True
+        threads.append(t)
+    [x.start() for x in threads]
+    [x.join() for x in threads]
+
+    if results["errors"]:
+        raise Exception(results["errors"])
 
 
 def _apply_subgimera(
@@ -375,11 +407,13 @@ def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
     path = main_repo.path / repo_yml.path
     if path.exists() and not is_empty_dir(path):
         return
-    main_repo.X(
-        *(git + ["submodule", "update", "--init", "--recursive", repo_yml.path])
-    )
+    with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+        main_repo.X(*(git + ["submodule", "update", "--init", "--recursive", path]))
+
     if not path.exists():
-        _raise_error("After submodule update the path {repo_yml['path']} did not exist")
+        _raise_error(
+            f"After submodule update the path {repo_yml['path']} did not exist"
+        )
 
 
 def _get_cache_dir(main_repo, repo_yml):
@@ -420,28 +454,8 @@ def _update_integrated_module(
         if not os.access(local_repo_dir, os.W_OK):
             _raise_error(f"No R/W rights on {local_repo_dir}")
         repo = Repo(local_repo_dir)
-        repo.X("git", "remote", "set-url", "origin", repo_yml.url)
-        repo.X("git", "fetch", "--all")
-        branch = str(repo_yml.branch)
-        origin_branch = f"origin/{branch}"
-        try:
-            repo.X("git", "checkout", "-f", branch)
-        except subprocess.CalledProcessError:
-            if options.get("remove_invalid_branches"):
-                repo_yml.drop_dead()
-                click.secho(
-                    f"Branch {branch} did not exist in {repo_yml.path}; it is removed.",
-                    fg="yellow",
-                )
-            else:
-                click.secho(
-                    f"Branch {branch} does not exist in {repo_yml.path}", fg="red"
-                )
-            return
-        repo.X("git", "reset", "--hard", origin_branch)
-        repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
-        repo.X("git", "clean", "-xdff")
-        repo.pull(repo_yml=repo_yml)
+        # no_fetch - because everything was pulled in parallel step before
+        _pull_branch(repo, repo_yml, no_fetch=True, **options)
 
         if not update and repo_yml.sha:
             branches = repo.get_all_branches()
@@ -506,6 +520,9 @@ def _apply_merges(repo, repo_yml, parallel_safe):
     try:
         if parallel_safe:
             repo2 = tempfile.mktemp(suffix=".")
+            import pudb
+
+            pudb.set_trace()
             repo.X(
                 "git",
                 "clone",
@@ -621,6 +638,7 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
     if not path.exists():
         return
     subrepo = main_repo.get_submodule(repo_yml.path)
+    cache_dir = _get_cache_dir(main_repo, repo_yml)
     if subrepo.dirty:
         _raise_error(
             f"Directory {repo_yml.path} contains modified "
@@ -647,25 +665,26 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
             )
         sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
         if sha_of_branch == sha:
-            subrepo.X("git", "checkout", "-f", repo_yml.branch)
+            subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
         else:
-            subrepo.X("git", "checkout", "-f", sha)
+            subrepo.X(*(git + ["checkout", "-f", sha]))
     else:
         try:
-            subrepo.X("git", "checkout", "-f", repo_yml.branch)
+            subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
         except Exception:  # pylint: disable=broad-except
             _raise_error(f"Failed to checkout {repo_yml.branch} in {path}")
         else:
             _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
-    subrepo.X("git", "submodule", "update", "--init", "--recursive")
+    subrepo.X(*(git + ["submodule", "update", "--init", "--recursive"]))
     _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
     # check if sha collides with branch
-    subrepo.X("git", "clean", "-xdff")
+    subrepo.X(*(git + ["clean", "-xdff"]))
     if not repo_yml.sha or update:
-        subrepo.X("git", "checkout", "-f", repo_yml.branch)
-        subrepo.pull(repo_yml=repo_yml)
+        subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+        with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+            subrepo.pull(repo_yml=repo_yml)
         _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
 
     # update gimera.yml on demand
@@ -733,8 +752,9 @@ def __add_submodule(repo, config, all_config):
         repo.X("git", "rm", "-rf", relpath)
         rmtree(repo.path / relpath)
 
-    repo.submodule_add(config.branch, config.url, relpath)
-    # repo.X("git", "add", ".gitmodules", relpath)
+    cache_dir = _get_cache_dir(repo, config)
+    repo.submodule_add(config.branch, f"file://{cache_dir}", relpath)
+    repo.X(*(git + ["submodule", "set-url", relpath, config.url]))
     click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
     if repo.staged_files:
         repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
@@ -940,3 +960,36 @@ def status():
     repos = list(_get_missing_repos(config))
     for repo in repos:
         click.secho(f"Missing: {repo.path}", fg="red")
+
+
+def _pull_branch(repo, repo_yml, no_fetch=False, **options):
+    repo.X("git", "remote", "set-url", "origin", repo_yml.url)
+    if not no_fetch:
+        repo.X("git", "fetch", "--all")
+    branch = str(repo_yml.branch)
+    origin_branch = f"origin/{branch}"
+    try:
+        repo.X("git", "checkout", "-f", branch)
+    except subprocess.CalledProcessError:
+        if options.get("remove_invalid_branches"):
+            repo_yml.drop_dead()
+            click.secho(
+                f"Branch {branch} did not exist in {repo_yml.path}; it is removed.",
+                fg="yellow",
+            )
+        else:
+            click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg="red")
+        return
+    repo.X("git", "reset", "--hard", origin_branch)
+    repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
+    repo.X("git", "clean", "-xdff")
+
+
+@contextmanager
+def _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+    cache_dir = _get_cache_dir(main_repo, repo_yml)
+    main_repo.X(*(git + ["submodule", "set-url", repo_yml.path, f"file://{cache_dir}"]))
+    try:
+        yield
+    finally:
+        main_repo.X(*(git + ["submodule", "set-url", repo_yml.path, repo_yml.url]))
