@@ -1,3 +1,9 @@
+# 0.7.27
+  * fixed switching integrated/submodule and loosing file; added test with level 1
+    modules and module of module (two levels)
+  * parallel downloading / fetching subrepo updates even for gitsubmodules
+  * cloning submodules from local cache and changing url to internet source
+  
 # 0.6.55
   * [NEW] strict at patchs of patch files
 # 0.6.54
