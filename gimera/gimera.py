@@ -27,6 +27,7 @@ from .config import Config
 from .patches import make_patches
 from .patches import _apply_patches
 from .patches import _apply_patchfile
+from .tools import is_forced
 
 
 @click.group()
@@ -727,9 +728,10 @@ def __add_submodule(repo, config, all_config):
                 if safe_relative_to(x, repo.path / relpath)
             ]
             if dirty_files:
-                _raise_error(
-                    f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
-                )
+                if not is_forced():
+                    _raise_error(
+                        f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
+                    )
 
             if repo.lsfiles(relpath):
                 repo.X("git", "rm", "-f", "-r", relpath)
