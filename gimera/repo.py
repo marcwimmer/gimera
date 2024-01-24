@@ -6,6 +6,7 @@ from pathlib import Path
 from .tools import yieldlist, X, safe_relative_to, _raise_error, rmtree
 from .consts import gitcmd as git
 from contextlib import contextmanager
+from .tools import is_forced
 
 
 class Repo(GitCommands):
@@ -69,7 +70,8 @@ class Repo(GitCommands):
             )
         )
         if dirty_files:
-            _raise_error(f"Path is dirty: {path}. Changes would be lost.")
+            if not is_forced():
+                _raise_error(f"Path is dirty: {path}. Changes would be lost.")
         fullpath = self.path / path
         if fullpath.exists():
             self.X(

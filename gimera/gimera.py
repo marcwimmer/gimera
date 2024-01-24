@@ -178,6 +178,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="",
 )
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    help="",
+)
 def apply(
     repos,
     update,
@@ -191,7 +197,10 @@ def apply(
     remove_invalid_branches,
     non_interactive,
     no_auto_commit,
+    force,
 ):
+    if force:
+        os.environ["GIMERA_FORCE"] = "1"
     if non_interactive:
         os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     if all_integrated and all_submodule:
