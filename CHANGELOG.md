@@ -1,3 +1,6 @@
+# 0.7.30
+  * gimera commit command to easily commit sub modules to branches
+
 # 0.7.27
   * fixed switching integrated/submodule and loosing file; added test with level 1
     modules and module of module (two levels)

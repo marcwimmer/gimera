@@ -27,6 +27,7 @@ from .config import Config
 from .patches import make_patches
 from .patches import _apply_patches
 from .patches import _apply_patchfile
+from .patches import _technically_make_patch
 from .tools import is_forced
 
 
@@ -36,16 +37,20 @@ def cli():
 
 
 def _expand_repos(repos):
-    config = Config()
-    for repo in repos:
-        if "*" not in repo:
-            yield repo
-        repo = repo.replace("*", ".*")
-        for candi in config.repos:
-            if not candi.enabled:
-                continue
-            if re.findall(repo, str(candi.path)):
-                yield str(candi.path)
+    def unique():
+        config = Config()
+        for repo in repos:
+            if "*" not in repo:
+                yield repo
+            repo = repo.replace("*", ".*")
+            for candi in config.repos:
+                if not candi.enabled:
+                    continue
+                if re.findall(repo, str(candi.path)):
+                    yield str(candi.path)
+
+    res = list(set(unique()))
+    return res
 
 
 @cli.command(name="clean", help="Removes all dirty")
@@ -246,12 +251,7 @@ def _apply(
     """
     config = Config(force_type=force_type, recursive=recursive)
 
-    repos = list(_strip_paths(repos))
-    for check in repos:
-        if check not in map(
-            lambda x: str(x.path), filter(lambda x: x.enabled, config.repos)
-        ):
-            _raise_error(f"Invalid path: {check}")
+    repos = config.get_repos(repos)
 
     _internal_apply(
         repos,
@@ -264,6 +264,15 @@ def _apply(
         remove_invalid_branches=remove_invalid_branches,
         auto_commit=auto_commit,
     )
+
+
+def _get_main_repo():
+    # main_repo = Repo(os.getcwd())
+    path = Path(os.getcwd())
+    while (path.parent / ".git").exists() and (path.parent / ".git").is_dir():
+        path = path.parent
+
+    return Repo(path)
 
 
 def _internal_apply(
@@ -280,18 +289,12 @@ def _internal_apply(
     **options,
 ):
     common_vars = common_vars or {}
-    main_repo = Repo(os.getcwd())
+    main_repo = _get_main_repo()
     config = Config(
         force_type=force_type,
         recursive=recursive,
         common_vars=common_vars,
         parent_config=parent_config,
-    )
-
-    repos = list(
-        filter(
-            lambda r: r.enabled and (not repos or str(r.path) in repos), config.repos
-        )
     )
 
     # update repos in parallel to be faster
@@ -1014,3 +1017,51 @@ def _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
         yield
     finally:
         main_repo.X(*(git + ["submodule", "set-url", repo_yml.path, repo_yml.url]))
+
+
+@cli.command(
+    name="commit", help="Collects changes and commits them to the specified branch."
+)
+@click.argument(
+    "repo", default=None, shell_complete=_get_available_repos, required=True
+)
+@click.argument("message", required=True)
+@click.option(
+    "-p",
+    "--preview",
+    is_flag=True,
+)
+@click.argument("branch", required=True)
+def commit(repo, branch, message, preview):
+    return _commit(repo, branch, message, preview)
+
+def _commit(repo, branch, message, preview):
+    config = Config()
+    repo = config.get_repos(Path(repo))
+    path2 = Path(tempfile.mktemp(suffix="."))
+    main_repo = _get_main_repo()
+    assert len(repo) == 1
+    repo = repo[0]
+
+    with prepare_dir(path2) as path2:
+        path2 = path2 / "repo"
+        gitrepo = Repo(path2)
+        main_repo.X("git", "clone", repo.url, path2)
+        gitrepo.X("git", "checkout", "-f", branch)
+        src_path = main_repo.path / repo.path
+        patch_content = _technically_make_patch(main_repo, src_path)
+
+        patchfile = gitrepo.path / "1.patch"
+        patchfile.write_text(patch_content)
+
+        _apply_patchfile(patchfile, gitrepo.path, error_ok=False)
+
+        patchfile.unlink()
+        gitrepo.X("git", "add", ".")
+        if preview:
+            gitrepo.X("git", "diff")
+            doit = inquirer.confirm("Commit this?", default=True)
+            if not doit:
+                return
+        gitrepo.X("git", "commit", "-m", message)
+        gitrepo.X("git", "push")

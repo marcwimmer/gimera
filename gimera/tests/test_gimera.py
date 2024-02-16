@@ -29,6 +29,10 @@ def gimera_apply(*args, **kwargs):
 
     return _apply(*args, **kwargs)
 
+def gimera_commit(*args, **kwargs):
+    from ..gimera import _commit
+
+    return _commit(*args, **kwargs)
 
 @pytest.fixture(autouse=True)
 def python():
@@ -1855,3 +1859,70 @@ def test_patch_ignored_path(temppath):
     # because hidden not in dirty files
     assert (workspace / "sub1/file3.txt") not in dirty_files
     assert (workspace / "sub1/file2.txt") not in dirty_files
+
+def test_commit(temppath):
+    """
+    * if odoo path is ignored, it is cool to make a patch for it, too
+    """
+    workspace = temppath / "workspace"
+
+    remote_main_repo = _make_remote_repo(temppath / "mainrepo")
+    remote_sub_repo = _make_remote_repo(temppath / "sub1")
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(remote_main_repo), workspace.name],
+        cwd=workspace.parent,
+    )
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+
+    # region gimera config
+    repos = {
+        "repos": [
+            {
+                "url": f"file://{remote_sub_repo}",
+                "branch": "branch1",
+                "path": "sub1",
+                "type": "integrated",
+            },
+        ]
+    }
+    # endregion
+
+    (workspace / "gimera.yml").write_text(yaml.dump(repos))
+    (workspace / "main.txt").write_text("main repo")
+    subprocess.check_call(git + ["add", "main.txt"], cwd=workspace)
+    subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
+    subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
+    subprocess.check_call(git + ["push"], cwd=workspace)
+    os.chdir(workspace)
+    gimera_apply([], None)
+    Repo(workspace).simple_commit_all()
+    assert not Repo(workspace).staged_files
+
+    click.secho(
+        "Now we have a repo with integrated and gitignored sub"
+        "\nWe change something and check if a patch is made."
+    )
+    os.chdir(workspace)
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+
+    os.chdir(workspace)
+    gimera_apply([], update=False)
+
+    (workspace / "sub1" / "file2.txt").write_text("a new file!")
+
+    gimera_commit('sub1', 'branch1', 'i committed', False)
+    os.environ["GIMERA_FORCE"] = "1"
+    os.unlink(workspace / "sub1" / "file2.txt")
+    subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
+    gimera_apply([], update=True)
+    assert (workspace / 'sub1' / 'file2.txt').exists(), "sub1/file2.txt should now exist"
+
+    # failed patch handling
+    file1 = (workspace / "sub1" / "file1.txt")
+    file1.write_text("main\na change!")
+    gimera_commit('sub1', 'branch1', 'i committed', False)
+    subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
+    gimera_apply([], update=True)
+    assert 'a change!' in (workspace / 'sub1' / 'file1.txt').read_text()

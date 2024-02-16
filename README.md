@@ -162,9 +162,23 @@ gimera apply -r
 [![Patching Gimera]](https://youtu.be/WQU9db5z9IY)
 
 
+## gimera commit command
 
+Case: you change code inside an integrated submodule and want to easily commit this.
+Just do
+
+```
+git commit path branch message
+```
+
+How it works:
+  * a patch file is created
+  * the repo is cloned
+  * patch file is applied
+  * if something conflicts, then it is reported and you have to decide what to do
 
 ## Contributors
+  * Marc Wimmer (marc@zebroo.de)
   * Michael Tietz (mtietz@mt-software.de)
   * Walter Saltzmann
 
