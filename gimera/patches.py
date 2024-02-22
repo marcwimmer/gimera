@@ -24,11 +24,11 @@ from pathlib import Path
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 
 
-def make_patches(main_repo, repo_yml):
+def make_patches(working_dir, main_repo, repo_yml):
     if repo_yml.type != REPO_TYPE_INT:
         raise NotImplementedError(repo_yml.type)
 
-    with _if_ignored_move_to_separate_dir(main_repo, repo_yml) as (main_repo):
+    with _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml) as (main_repo):
         with _prepare(main_repo, repo_yml) as (
             subrepo,
             subrepo_path,
@@ -75,7 +75,7 @@ def _temporarily_move_gimera(repo_yml, to_path):
 
 
 @contextmanager
-def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
+def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml):
     """
     If directory is ignored then move to temporary path.
     Apply changes from local dir to get the diffs.
@@ -100,6 +100,7 @@ def _if_ignored_move_to_separate_dir(main_repo, repo_yml):
             main_repo2.simple_commit_all()
             with _temporarily_move_gimera(repo_yml, main_repo2.path):
                 _update_integrated_module(
+                    main_repo2.path,
                     main_repo2, repo_yml, update=False, parallel_safe=True
                 )
                 main_repo2.simple_commit_all()
