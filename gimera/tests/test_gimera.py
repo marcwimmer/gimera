@@ -809,7 +809,6 @@ def test_switch_submodule_to_other_url(temppath):
             },
         ]
     }
-
     main_repo = Repo(workspace_main)
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos1))
     main_repo.simple_commit_all()
@@ -1380,6 +1379,7 @@ def test_2_submodules(temppath):
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
 
     os.chdir(workspace_main)
+    import pudb;pudb.set_trace()
     gimera_apply([], update=None, recursive=True)
 
     assert (workspace_main / "repo1" / "repo1.txt").exists()
