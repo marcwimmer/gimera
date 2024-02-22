@@ -249,10 +249,6 @@ def _apply(
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
     """
-    config = Config(force_type=force_type, recursive=recursive)
-
-    repos = config.get_repos(repos)
-
     _internal_apply(
         repos,
         update,
@@ -269,8 +265,13 @@ def _apply(
 def _get_main_repo():
     # main_repo = Repo(os.getcwd())
     path = Path(os.getcwd())
-    while (path.parent / ".git").exists() and (path.parent / ".git").is_dir():
+    while True:
+        if (path / ".git").exists() and (path / ".git").is_dir():
+            break
         path = path.parent
+        if len(path.parts) == 1:
+            path = Path(os.getcwd())
+            break
 
     return Repo(path)
 
@@ -296,6 +297,7 @@ def _internal_apply(
         common_vars=common_vars,
         parent_config=parent_config,
     )
+    repos = config.get_repos(repos)
 
     # update repos in parallel to be faster
     _fetch_repos_in_parallel(main_repo, repos, update=update)
