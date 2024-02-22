@@ -287,6 +287,7 @@ def _internal_apply(
     common_vars=None,
     parent_config=None,
     auto_commit=True,
+    sub_path=None,
     **options,
 ):
     common_vars = common_vars or {}
@@ -301,12 +302,12 @@ def _internal_apply(
 
     # update repos in parallel to be faster
     _fetch_repos_in_parallel(main_repo, repos, update=update)
-    with main_repo.stay_at_commit(not auto_commit):
+    with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
-            _turn_into_correct_repotype(main_repo, repo, config)
+            _turn_into_correct_repotype(sub_path or main_repo.path, main_repo, repo, config)
             if repo.type == REPO_TYPE_SUB:
-                _make_sure_subrepo_is_checked_out(main_repo, repo)
-                _fetch_latest_commit_in_submodule(main_repo, repo, update=update)
+                _make_sure_subrepo_is_checked_out(sub_path or main_repo.path, main_repo, repo)
+                _fetch_latest_commit_in_submodule(sub_path or main_repo.path, main_repo, repo, update=update)
             elif repo.type == REPO_TYPE_INT:
                 if not no_patches:
                     try:
@@ -318,7 +319,7 @@ def _internal_apply(
 
                 try:
                     _update_integrated_module(
-                        main_repo, repo, update, parallel_safe, **options
+                        sub_path or main_repo.path, main_repo, repo, update, parallel_safe, **options
                     )
                 except Exception as ex:
                     msg = (
@@ -401,6 +402,7 @@ def _apply_subgimera(
             recursive=True,
             no_patches=no_patches,
             parent_config=parent_config,
+            sub_path=sub_path,
             **options,
         )
 
@@ -416,12 +418,12 @@ def _apply_subgimera(
     os.chdir(pwd)
 
 
-def _make_sure_subrepo_is_checked_out(main_repo, repo_yml):
+def _make_sure_subrepo_is_checked_out(working_dir, main_repo, repo_yml):
     """
     Could be, that git submodule update was not called yet.
     """
     assert repo_yml.type == REPO_TYPE_SUB
-    path = main_repo.path / repo_yml.path
+    path = working_dir / repo_yml.path
     if path.exists() and not is_empty_dir(path):
         return
     with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
@@ -453,6 +455,7 @@ def _get_cache_dir(main_repo, repo_yml):
 
 
 def _update_integrated_module(
+    working_dir,
     main_repo,
     repo_yml,
     update,
@@ -474,6 +477,10 @@ def _update_integrated_module(
         # no_fetch - because everything was pulled in parallel step before
         _fetch_and_reset_branch(repo, repo_yml, no_fetch=True, **options)
 
+        parent_repo = main_repo
+        if (working_dir / '.git').exists():
+            parent_repo = Repo(working_dir)
+
         if not update and repo_yml.sha:
             branches = repo.get_all_branches()
             if repo_yml.branch not in branches:
@@ -488,7 +495,7 @@ def _update_integrated_module(
 
         new_sha = repo.hex
         with _apply_merges(repo, repo_yml, parallel_safe) as (repo, remote_refs):
-            dest_path = Path(main_repo.path) / repo_yml.path
+            dest_path = Path(working_dir) / repo_yml.path
             dest_path.parent.mkdir(exist_ok=True, parents=True)
             # BTW: delete-after cannot removed unused directories - cool to know; is
             # just standarded out
@@ -498,7 +505,7 @@ def _update_integrated_module(
             msg = [f"Merged: {repo_yml.url}"]
             for remote, ref in remote_refs:
                 msg.append(f"Merged {remote.url}:{ref}")
-            main_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
+            parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
 
         del repo
 
@@ -506,7 +513,7 @@ def _update_integrated_module(
         _apply_patches(
             repo_yml,
         )
-        main_repo.commit_dir_if_dirty(
+        parent_repo.commit_dir_if_dirty(
             repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
         )
         repo_yml.sha = new_sha
@@ -647,17 +654,28 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
     )
 
 
-def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
-    path = Path(main_repo.path) / repo_yml.path
+def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=False):
+    path = Path(working_dir) / repo_yml.path
     if not path.exists():
         return
-    subrepo = main_repo.get_submodule(repo_yml.path)
+
+    repo = main_repo
+    if (working_dir / '.git').exists():
+        repo = Repo(working_dir)
+    subrepo = repo.get_submodule(repo_yml.path)
     if subrepo.dirty:
         _raise_error(
             f"Directory {repo_yml.path} contains modified "
             "files. Please commit or purge before!"
         )
     sha = repo_yml.sha
+
+    def _commit_submodule():
+        _commit_submodule_inside_clean_but_not_linked_to_parent(repo, subrepo)
+        if main_repo.path != repo.path:
+            _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, repo)
+
+
     if sha:
         try:
             branches = list(
@@ -687,18 +705,18 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
         except Exception:  # pylint: disable=broad-except
             _raise_error(f"Failed to checkout {repo_yml.branch} in {path}")
         else:
-            _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
+            _commit_submodule()
 
     subrepo.X(*(git + ["submodule", "update", "--init", "--recursive"]))
-    _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
+    _commit_submodule()
 
     # check if sha collides with branch
     subrepo.X(*(git + ["clean", "-xdff"]))
     if not repo_yml.sha or update:
         subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
-        with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+        with _temporary_switch_remote_to_cachedir(repo, repo_yml):
             subrepo.pull(repo_yml=repo_yml)
-        _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo)
+        _commit_submodule()
 
     # update gimera.yml on demand
     repo_yml.sha = subrepo.hex
@@ -712,10 +730,10 @@ def clean_branch_names(arr):
         yield x
 
 
-def __add_submodule(repo, config, all_config):
+def __add_submodule(working_dir, repo, config, all_config):
     if config.type != REPO_TYPE_SUB:
         return
-    path = repo.path / config.path
+    path = working_dir / config.path
     relpath = path.relative_to(repo.path)
     if path.exists():
         # if it is already a submodule, dont touch
@@ -785,7 +803,7 @@ def __add_submodule(repo, config, all_config):
         repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
 
 
-def _turn_into_correct_repotype(repo, repo_config, config):
+def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
     """
     if git submodule and exists: nothing todo
     if git submodule and not exists: cloned
@@ -797,6 +815,9 @@ def _turn_into_correct_repotype(repo, repo_config, config):
 
     """
     path = repo_config.path
+    repo = main_repo
+    if (working_dir / '.git').exists():
+        repo = Repo(working_dir)
     if repo_config.type == REPO_TYPE_INT:
         # always delete
         submodules = repo.get_submodules()
@@ -806,7 +827,7 @@ def _turn_into_correct_repotype(repo, repo_config, config):
         if existing_submodules:
             repo.force_remove_submodule(path)
     else:
-        __add_submodule(repo, repo_config, config)
+        __add_submodule(working_dir, repo, repo_config, config)
         submodules = repo.get_submodules()
         existing_submodules = list(
             filter(lambda x: x.equals(repo.path / path), submodules)
