@@ -266,7 +266,8 @@ def _get_main_repo():
     # main_repo = Repo(os.getcwd())
     path = Path(os.getcwd())
     while True:
-        if (path / ".git").exists() and (path / ".git").is_dir():
+        # if (path / ".git").exists() and (path / ".git").is_dir():
+        if (path / ".git").exists():
             break
         path = path.parent
         if len(path.parts) == 1:
@@ -311,7 +312,7 @@ def _internal_apply(
             elif repo.type == REPO_TYPE_INT:
                 if not no_patches:
                     try:
-                        make_patches(main_repo, repo)
+                        make_patches(sub_path or main_repo.path, main_repo, repo)
                     except Exception as ex:
                         raise
                         msg = f"Error making patches for: {repo.path}\n\n{ex}"

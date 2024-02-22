@@ -736,6 +736,7 @@ def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(tem
     os.chdir(workspace_main / 'sub1')
     switch_to(Path('gimera.yml'), 'submodule')
     try:
+        import pudb;pudb.set_trace()
         gimera_apply([], None)
     except:
         pass
