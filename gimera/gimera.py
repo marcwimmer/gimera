@@ -650,7 +650,6 @@ def _fetch_latest_commit_in_submodule(main_repo, repo_yml, update=False):
     if not path.exists():
         return
     subrepo = main_repo.get_submodule(repo_yml.path)
-    cache_dir = _get_cache_dir(main_repo, repo_yml)
     if subrepo.dirty:
         _raise_error(
             f"Directory {repo_yml.path} contains modified "
