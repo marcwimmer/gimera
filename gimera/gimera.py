@@ -300,7 +300,6 @@ def _internal_apply(
         parent_config=parent_config,
     )
     repos = config.get_repos(repos)
-
     # update repos in parallel to be faster
     _fetch_repos_in_parallel(main_repo, repos, update=update)
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
@@ -346,6 +345,7 @@ def _internal_apply(
                     common_vars=common_vars,
                     parent_config=config,
                     auto_commit=auto_commit,
+                    sub_path=sub_path,
                     **options,
                 )
 
@@ -387,13 +387,17 @@ def _apply_subgimera(
     strict,
     no_patches,
     parent_config,
+    sub_path,
     **options,
 ):
     subgimera = Path(repo.path) / "gimera.yml"
-    sub_path = main_repo.path / repo.path
+    if sub_path and sub_path.relative_to(main_repo.path) == Path('.'):
+        sub_path = main_repo.path
+
+    new_sub_path = Path(sub_path or main_repo.path) / repo.path
     pwd = os.getcwd()
     if subgimera.exists():
-        os.chdir(sub_path)
+        os.chdir(new_sub_path)
         _internal_apply(
             [],
             update,
@@ -403,12 +407,12 @@ def _apply_subgimera(
             recursive=True,
             no_patches=no_patches,
             parent_config=parent_config,
-            sub_path=sub_path,
+            sub_path=new_sub_path,
             **options,
         )
 
         dirty_files = list(
-            filter(lambda x: safe_relative_to(x, sub_path), main_repo.all_dirty_files)
+            filter(lambda x: safe_relative_to(x, new_sub_path), main_repo.all_dirty_files)
         )
         if dirty_files:
             main_repo.please_no_staged_files()
