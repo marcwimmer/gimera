@@ -11,6 +11,7 @@ import sys
 from curses import wrapper
 from contextlib import contextmanager
 
+
 def is_forced():
     return os.getenv("GIMERA_FORCE", "0") == "1"
 
@@ -155,6 +156,7 @@ def try_rm_tree(path):
 
     def _action():
         shutil.rmtree(path)
+
     retry(func=_action)
 
 
@@ -188,3 +190,29 @@ def rsync(dir1, dir2, exclude=None, delete_after=True):
     cmd.append(str(dir1) + "/")
     cmd.append(str(dir2) + "/")
     subprocess.check_call(cmd)
+
+
+def get_url_type(url):
+    if url.startswith("https"):
+        return "http"
+    if url.startswith("git@"):
+        return "git"
+    if url.startswith("/"):
+        return "file"
+    raise NotImplementedError(url)
+
+
+def reformat_url(url, ttype):
+    assert ttype in ["http", "git"]
+
+    current = get_url_type(url)
+    if ttype == "http" and current == "git":
+        if url.startswith("git@"):
+            url = url[4:]
+        if ":" in url:
+            # colon in password possible
+            url = "/".join(url.split(":", 1))
+        url = "https://" + url
+        return url
+    else:
+        raise NotImplementedError(f"{url} + {ttype}")
