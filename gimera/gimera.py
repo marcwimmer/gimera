@@ -29,6 +29,8 @@ from .patches import _apply_patches
 from .patches import _apply_patchfile
 from .patches import _technically_make_patch
 from .tools import is_forced
+from .tools import get_url_type
+from .tools import reformat_url
 
 
 @click.group()
@@ -304,10 +306,16 @@ def _internal_apply(
     _fetch_repos_in_parallel(main_repo, repos, update=update)
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
-            _turn_into_correct_repotype(sub_path or main_repo.path, main_repo, repo, config)
+            _turn_into_correct_repotype(
+                sub_path or main_repo.path, main_repo, repo, config
+            )
             if repo.type == REPO_TYPE_SUB:
-                _make_sure_subrepo_is_checked_out(sub_path or main_repo.path, main_repo, repo)
-                _fetch_latest_commit_in_submodule(sub_path or main_repo.path, main_repo, repo, update=update)
+                _make_sure_subrepo_is_checked_out(
+                    sub_path or main_repo.path, main_repo, repo
+                )
+                _fetch_latest_commit_in_submodule(
+                    sub_path or main_repo.path, main_repo, repo, update=update
+                )
             elif repo.type == REPO_TYPE_INT:
                 if not no_patches:
                     try:
@@ -319,7 +327,12 @@ def _internal_apply(
 
                 try:
                     _update_integrated_module(
-                        sub_path or main_repo.path, main_repo, repo, update, parallel_safe, **options
+                        sub_path or main_repo.path,
+                        main_repo,
+                        repo,
+                        update,
+                        parallel_safe,
+                        **options,
                     )
                 except Exception as ex:
                     msg = (
@@ -391,7 +404,7 @@ def _apply_subgimera(
     **options,
 ):
     subgimera = Path(repo.path) / "gimera.yml"
-    if sub_path and sub_path.relative_to(main_repo.path) == Path('.'):
+    if sub_path and sub_path.relative_to(main_repo.path) == Path("."):
         sub_path = main_repo.path
 
     new_sub_path = Path(sub_path or main_repo.path) / repo.path
@@ -412,7 +425,9 @@ def _apply_subgimera(
         )
 
         dirty_files = list(
-            filter(lambda x: safe_relative_to(x, new_sub_path), main_repo.all_dirty_files)
+            filter(
+                lambda x: safe_relative_to(x, new_sub_path), main_repo.all_dirty_files
+            )
         )
         if dirty_files:
             main_repo.please_no_staged_files()
@@ -483,7 +498,7 @@ def _update_integrated_module(
         _fetch_and_reset_branch(repo, repo_yml, no_fetch=True, **options)
 
         parent_repo = main_repo
-        if (working_dir / '.git').exists():
+        if (working_dir / ".git").exists():
             parent_repo = Repo(working_dir)
 
         if not update and repo_yml.sha:
@@ -665,7 +680,7 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
         return
 
     repo = main_repo
-    if (working_dir / '.git').exists():
+    if (working_dir / ".git").exists():
         repo = Repo(working_dir)
     subrepo = repo.get_submodule(repo_yml.path)
     if subrepo.dirty:
@@ -679,7 +694,6 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
         _commit_submodule_inside_clean_but_not_linked_to_parent(repo, subrepo)
         if main_repo.path != repo.path:
             _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, repo)
-
 
     if sha:
         try:
@@ -821,7 +835,7 @@ def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
     """
     path = repo_config.path
     repo = main_repo
-    if (working_dir / '.git').exists():
+    if (working_dir / ".git").exists():
         repo = Repo(working_dir)
     if repo_config.type == REPO_TYPE_INT:
         # always delete
@@ -1014,9 +1028,25 @@ def status():
 
 
 def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
-    repo.X("git", "remote", "set-url", "origin", repo_yml.url)
-    if not no_fetch:
+    url = repo_yml.url
+
+    def set_url_and_fetch(url):
+        repo.X("git", "remote", "set-url", "origin", url)
         repo.X("git", "fetch", "--all")
+
+    fetch_exception = None
+    if not no_fetch:
+        try:
+            set_url_and_fetch(url)
+        except Exception as ex:
+            fetch_exception = ex
+            if get_url_type(url) == "git":
+                url_http = reformat_url(url)
+                try:
+                    set_url_and_fetch(url_http)
+                except Exception:
+                    raise fetch_exception
+
     branch = str(repo_yml.branch)
     origin_branch = f"origin/{branch}"
     try:
@@ -1061,6 +1091,7 @@ def _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
 @click.argument("branch", required=True)
 def commit(repo, branch, message, preview):
     return _commit(repo, branch, message, preview)
+
 
 def _commit(repo, branch, message, preview):
     config = Config()

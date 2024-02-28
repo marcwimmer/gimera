@@ -1,3 +1,7 @@
+# 0.7.32
+  * download may fail for git@... addresses; retries with https:; example for 
+    https://github.com/OCA/queue
+
 # 0.7.30
   * gimera commit command to easily commit sub modules to branches
 

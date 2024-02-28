@@ -1926,3 +1926,11 @@ def test_commit(temppath):
     subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
     gimera_apply([], update=True)
     assert 'a change!' in (workspace / 'sub1' / 'file1.txt').read_text()
+
+def test_reformat_url():
+    from ..tools import get_url_type, reformat_url
+    url = "git@github.com:marcwimmer/gimera.git"
+    assert get_url_type(url) == 'git'
+
+    assert reformat_url(url, 'http') == "https://github.com/marcwimmer/gimera.git"
+
