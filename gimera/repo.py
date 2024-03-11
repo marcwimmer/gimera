@@ -195,11 +195,22 @@ class Repo(GitCommands):
     def get_remote(self, name):
         return [x for x in self.remotes if x.name == name][0]
 
+    def set_remote_url(self, name, url):
+        remote = Remote(self, name, url)
+        self.add_remote(remote, exist_ok=True, no_set_url=True)
+        self.X("git", "remote", "set-url", name, url)
+
     def remove_remote(self, remote):
         self.X("git", "remote", "rm", remote and remote.name or None)
 
-    def add_remote(self, repo):
-        self.X("git", "remote", "add", repo.name, repo.url)
+    def add_remote(self, remote, exist_ok=False, no_set_url=False):
+        output = self.out("git", "remote").splitlines()
+        if [x for x in output if x.strip() == remote.name]:
+            if not no_set_url:
+                self.set_remote_url(remote.name, remote.url)
+        else:
+            self.X("git", "remote", "add", remote.name, remote.url)
+        self.X("git", "fetch", remote.name)
 
     def pull(self, remote=None, ref=None, repo_yml=None):
         """

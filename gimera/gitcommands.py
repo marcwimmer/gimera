@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from .tools import safe_relative_to, yieldlist, X
+from .tools import safe_relative_to, yieldlist, X, wait_git_lock
 
 
 class GitCommands(object):
@@ -27,7 +27,8 @@ class GitCommands(object):
         raise Exception("Config dir not found")
 
     def X(self, *params, allow_error=False):
-        return X(*params, output=False, cwd=self.path, allow_error=allow_error)
+        with wait_git_lock(self.path):
+            return X(*params, output=False, cwd=self.path, allow_error=allow_error)
 
     def out(self, *params, allow_error=False):
         return X(*params, output=True, cwd=self.path, allow_error=allow_error)

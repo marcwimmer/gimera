@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import shutil
 import threading
+import traceback
 import time
 import tempfile
 import re
@@ -378,7 +380,8 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None):
                 _fetch_and_reset_branch(repo, repo_yml)
 
         except Exception as ex:
-            results["errors"][index] = ex
+            trace = traceback.format_exc()
+            results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
 
     threads = []
     for index, repo in enumerate(repos):
@@ -465,6 +468,10 @@ def _get_cache_dir(main_repo, repo_yml):
         "/", "_"
     )
     path.parent.mkdir(exist_ok=True, parents=True)
+
+    if path.exists() and not (path / '.git').exists():
+        shutil.rmtree(path)
+
     if not path.exists():
         click.secho(
             f"Caching the repository {repo_yml.url} for quicker reuse",
@@ -581,8 +588,8 @@ def _apply_merges(repo, repo_yml, parallel_safe):
         configured_remotes.append(Remote(repo, "origin", repo_yml.url))
         for remote in configured_remotes:
             if list(filter(lambda x: x.name == remote.name, repo.remotes)):
-                repo.remove_remote(remote)
-            repo.add_remote(remote)
+                repo.set_remote_url(remote.name, remote.url)
+            repo.add_remote(remote, exist_ok=True)
 
         remotes = []
         for remote, ref in repo_yml.merges:
@@ -1032,8 +1039,8 @@ def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
     url = repo_yml.url
 
     def set_url_and_fetch(url):
-        repo.X("git", "remote", "set-url", "origin", url)
-        repo.X("git", "fetch", "--all")
+        repo.set_remote_url("origin", url)
+        repo.X("git", "fetch", "origin")
 
     fetch_exception = None
     if not no_fetch:
@@ -1042,7 +1049,7 @@ def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
         except Exception as ex:
             fetch_exception = ex
             if get_url_type(url) == "git":
-                url_http = reformat_url(url)
+                url_http = reformat_url(url, 'http')
                 try:
                     set_url_and_fetch(url_http)
                 except Exception:

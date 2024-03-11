@@ -89,24 +89,51 @@ def prepare_dir(path):
 
 
 def file_age(path):
+    try:
+        mtime = datetime.fromtimestamp(os.stat(path).st_mtime)
+    except:
+        return 0
     return (
-        datetime.now() - datetime.fromtimestamp(os.stat(path).st_mtime)
+        datetime.now() - mtime
     ).total_seconds()
 
 
 @contextmanager
 def wait_git_lock(path):
+    MAX_TIMEOUT = 3600
+    from .filelock import FileLock
+
+    gimera_lock = path / ".git" / "gimera.lock"
+    if not gimera_lock.parent.exists():
+        gimera_lock = None
     index_lock = path / ".git" / "index.lock"
+
+    def lock_exists():
+        if index_lock.exists():
+            return True
+        if gimera_lock and gimera_lock.exists():
+            return True
+        return False
+
     if not index_lock.exists():
         yield
     else:
-        while index_lock.exists():
-            if file_age(index_lock) > 3600:
+        while lock_exists():
+            if file_age(index_lock) > MAX_TIMEOUT:
                 index_lock.unlink()
                 continue
 
+            if gimera_lock and file_age(gimera_lock) > MAX_TIMEOUT:
+                gimera_lock.unlink()
+                continue
+
             time.sleep(0.5)
-        yield
+
+        if gimera_lock:
+            with FileLock(gimera_lock, timeout=MAX_TIMEOUT):
+                yield
+        else:
+            yield
 
 
 def rmtree(path):
