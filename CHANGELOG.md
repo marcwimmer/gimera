@@ -1,3 +1,8 @@
+# 0.7.34
+  * gimera apply addons_tools/ works and fetches all repositories from that parent url
+    gimera apply addons_tools/* did not work out of the box; zsh complains about expanding
+    '*'
+
 # 0.7.32
   * download may fail for git@... addresses; retries with https:; example for 
     https://github.com/OCA/queue
