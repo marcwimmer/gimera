@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
+import shutil
 import threading
+import traceback
 import time
 import tempfile
 import re
@@ -378,7 +380,8 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None):
                 _fetch_and_reset_branch(repo, repo_yml)
 
         except Exception as ex:
-            results["errors"][index] = ex
+            trace = traceback.format_exc()
+            results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
 
     threads = []
     for index, repo in enumerate(repos):
@@ -465,7 +468,12 @@ def _get_cache_dir(main_repo, repo_yml):
         "/", "_"
     )
     path.parent.mkdir(exist_ok=True, parents=True)
-    if not path.exists():
+    is_broken = False
+
+    if path.exists() and not (path / '.git').exists():
+        shutil.rmtree(path)
+
+    if not path.exists() or is_broken:
         click.secho(
             f"Caching the repository {repo_yml.url} for quicker reuse",
             fg="yellow",
