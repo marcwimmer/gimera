@@ -1042,7 +1042,7 @@ def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
         except Exception as ex:
             fetch_exception = ex
             if get_url_type(url) == "git":
-                url_http = reformat_url(url)
+                url_http = reformat_url(url, 'http')
                 try:
                     set_url_and_fetch(url_http)
                 except Exception:
