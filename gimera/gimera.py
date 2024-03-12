@@ -195,6 +195,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="",
 )
+@click.option(
+    "-n",
+    "--no-fetch",
+    is_flag=True,
+    help="",
+)
 def apply(
     repos,
     update,
@@ -209,6 +215,7 @@ def apply(
     non_interactive,
     no_auto_commit,
     force,
+    no_fetch,
 ):
     if force:
         os.environ["GIMERA_FORCE"] = "1"
@@ -236,6 +243,7 @@ def apply(
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
         auto_commit=not no_auto_commit,
+        no_fetch=no_fetch,
     )
 
 
@@ -249,6 +257,7 @@ def _apply(
     no_patches=False,
     remove_invalid_branches=False,
     auto_commit=True,
+    no_fetch=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -264,6 +273,7 @@ def _apply(
         no_patches=no_patches,
         remove_invalid_branches=remove_invalid_branches,
         auto_commit=auto_commit,
+        no_fetch=no_fetch,
     )
 
 
@@ -294,6 +304,7 @@ def _internal_apply(
     parent_config=None,
     auto_commit=True,
     sub_path=None,
+    no_fetch=None,
     **options,
 ):
     common_vars = common_vars or {}
@@ -306,7 +317,7 @@ def _internal_apply(
     )
     repos = config.get_repos(repos)
     # update repos in parallel to be faster
-    _fetch_repos_in_parallel(main_repo, repos, update=update)
+    _fetch_repos_in_parallel(main_repo, repos, update=update, only_if_not_existent=not no_fetch)
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
             _turn_into_correct_repotype(
@@ -366,7 +377,7 @@ def _internal_apply(
                 )
 
 
-def _fetch_repos_in_parallel(main_repo, repos, update=None):
+def _fetch_repos_in_parallel(main_repo, repos, update=None, only_if_not_existent=None):
     results = {"errors": {}, "urls": set()}
 
     def _pull_repo(index, main_repo, repo_yml):
@@ -375,9 +386,10 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None):
                 return
             results["urls"].add(repo_yml.url)
             local_repo_dir = _get_cache_dir(main_repo, repo_yml)
-            with wait_git_lock(local_repo_dir):
-                repo = Repo(local_repo_dir)
-                _fetch_and_reset_branch(repo, repo_yml)
+            if not only_if_not_existent:
+                with wait_git_lock(local_repo_dir):
+                    repo = Repo(local_repo_dir)
+                    _fetch_and_reset_branch(repo, repo_yml)
 
         except Exception as ex:
             trace = traceback.format_exc()
