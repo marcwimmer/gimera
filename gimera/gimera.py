@@ -201,6 +201,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="",
 )
+@click.option(
+    "-C",
+    "--no-commit",
+    is_flag=True,
+    help="",
+)
 def apply(
     repos,
     update,
@@ -216,6 +222,7 @@ def apply(
     no_auto_commit,
     force,
     no_fetch,
+    no_commit,
 ):
     if force:
         os.environ["GIMERA_FORCE"] = "1"
@@ -244,6 +251,7 @@ def apply(
         remove_invalid_branches=remove_invalid_branches,
         auto_commit=not no_auto_commit,
         no_fetch=no_fetch,
+        no_commit=no_commit,
     )
 
 
@@ -258,6 +266,7 @@ def _apply(
     remove_invalid_branches=False,
     auto_commit=True,
     no_fetch=False,
+    no_commit=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -274,6 +283,7 @@ def _apply(
         remove_invalid_branches=remove_invalid_branches,
         auto_commit=auto_commit,
         no_fetch=no_fetch,
+        no_commit=no_commit,
     )
 
 
@@ -305,76 +315,79 @@ def _internal_apply(
     auto_commit=True,
     sub_path=None,
     no_fetch=None,
+    no_commit=None,
     **options,
 ):
+
     common_vars = common_vars or {}
     main_repo = _get_main_repo()
-    config = Config(
-        force_type=force_type,
-        recursive=recursive,
-        common_vars=common_vars,
-        parent_config=parent_config,
-    )
-    repos = config.get_repos(repos)
-    # update repos in parallel to be faster
-    _fetch_repos_in_parallel(main_repo, repos, update=update, minimal_fetch=no_fetch)
-    with main_repo.stay_at_commit(not auto_commit and not sub_path):
-        for repo in repos:
-            _turn_into_correct_repotype(
-                sub_path or main_repo.path, main_repo, repo, config
-            )
-            if repo.type == REPO_TYPE_SUB:
-                _make_sure_subrepo_is_checked_out(
-                    sub_path or main_repo.path, main_repo, repo
+    with main_repo.stay_at_commit(not parent_config and no_commit):
+        config = Config(
+            force_type=force_type,
+            recursive=recursive,
+            common_vars=common_vars,
+            parent_config=parent_config,
+        )
+        repos = config.get_repos(repos)
+        # update repos in parallel to be faster
+        _fetch_repos_in_parallel(main_repo, repos, update=update, minimal_fetch=no_fetch)
+        with main_repo.stay_at_commit(not auto_commit and not sub_path):
+            for repo in repos:
+                _turn_into_correct_repotype(
+                    sub_path or main_repo.path, main_repo, repo, config
                 )
-                _fetch_latest_commit_in_submodule(
-                    sub_path or main_repo.path, main_repo, repo, update=update
-                )
-            elif repo.type == REPO_TYPE_INT:
-                if not no_patches:
+                if repo.type == REPO_TYPE_SUB:
+                    _make_sure_subrepo_is_checked_out(
+                        sub_path or main_repo.path, main_repo, repo
+                    )
+                    _fetch_latest_commit_in_submodule(
+                        sub_path or main_repo.path, main_repo, repo, update=update
+                    )
+                elif repo.type == REPO_TYPE_INT:
+                    if not no_patches:
+                        try:
+                            make_patches(sub_path or main_repo.path, main_repo, repo)
+                        except Exception as ex:
+                            raise
+                            msg = f"Error making patches for: {repo.path}\n\n{ex}"
+                            _raise_error(msg)
+
                     try:
-                        make_patches(sub_path or main_repo.path, main_repo, repo)
+                        _update_integrated_module(
+                            sub_path or main_repo.path,
+                            main_repo,
+                            repo,
+                            update,
+                            parallel_safe,
+                            **options,
+                        )
                     except Exception as ex:
-                        raise
-                        msg = f"Error making patches for: {repo.path}\n\n{ex}"
+                        msg = (
+                            f"Error updating integrated submodules for: {repo.path}\n\n{ex}"
+                        )
                         _raise_error(msg)
 
-                try:
-                    _update_integrated_module(
-                        sub_path or main_repo.path,
+                    if not strict:
+                        # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
+                        # not submodules inside integrated modules
+                        force_type = REPO_TYPE_INT
+
+                if recursive:
+                    common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
+                    _apply_subgimera(
                         main_repo,
                         repo,
                         update,
-                        parallel_safe,
+                        force_type,
+                        parallel_safe=parallel_safe,
+                        strict=strict,
+                        no_patches=no_patches,
+                        common_vars=common_vars,
+                        parent_config=config,
+                        auto_commit=auto_commit,
+                        sub_path=sub_path,
                         **options,
                     )
-                except Exception as ex:
-                    msg = (
-                        f"Error updating integrated submodules for: {repo.path}\n\n{ex}"
-                    )
-                    _raise_error(msg)
-
-                if not strict:
-                    # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
-                    # not submodules inside integrated modules
-                    force_type = REPO_TYPE_INT
-
-            if recursive:
-                common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
-                _apply_subgimera(
-                    main_repo,
-                    repo,
-                    update,
-                    force_type,
-                    parallel_safe=parallel_safe,
-                    strict=strict,
-                    no_patches=no_patches,
-                    common_vars=common_vars,
-                    parent_config=config,
-                    auto_commit=auto_commit,
-                    sub_path=sub_path,
-                    **options,
-                )
 
 
 def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
