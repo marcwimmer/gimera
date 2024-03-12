@@ -20,6 +20,13 @@ class Repo(GitCommands):
     def __str__(self):
         return f"{self.path}"
 
+    def contains(self, commit):
+        try:
+            self.X("git", "branch", "--contains", commit)
+            return True
+        except:
+            return False
+
     @property
     def rel_path_to_root_repo(self):
         assert str(self.path).startswith("/")

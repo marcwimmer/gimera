@@ -317,7 +317,7 @@ def _internal_apply(
     )
     repos = config.get_repos(repos)
     # update repos in parallel to be faster
-    _fetch_repos_in_parallel(main_repo, repos, update=update, only_if_not_existent=not no_fetch)
+    _fetch_repos_in_parallel(main_repo, repos, update=update, minimal_fetch=no_fetch)
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
             _turn_into_correct_repotype(
@@ -377,7 +377,7 @@ def _internal_apply(
                 )
 
 
-def _fetch_repos_in_parallel(main_repo, repos, update=None, only_if_not_existent=None):
+def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
     results = {"errors": {}, "urls": set()}
 
     def _pull_repo(index, main_repo, repo_yml):
@@ -386,9 +386,16 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, only_if_not_existent
                 return
             results["urls"].add(repo_yml.url)
             local_repo_dir = _get_cache_dir(main_repo, repo_yml)
-            if not only_if_not_existent:
+            repo = Repo(local_repo_dir)
+            do_fetch = True
+            if minimal_fetch:
                 with wait_git_lock(local_repo_dir):
-                    repo = Repo(local_repo_dir)
+                    if repo_yml.sha:
+                        if repo.contains(repo_yml.sha):
+                            do_fetch = False
+
+            if do_fetch:
+                with wait_git_lock(local_repo_dir):
                     _fetch_and_reset_branch(repo, repo_yml)
 
         except Exception as ex:
