@@ -188,10 +188,11 @@ def try_rm_tree(path):
 
 
 @contextmanager
-def temppath():
+def temppath(mkdir=True):
     path = Path(tempfile.mktemp(suffix="."))
     try:
-        path.mkdir()
+        if mkdir:
+            path.mkdir()
         yield path
     finally:
         try_rm_tree(path)

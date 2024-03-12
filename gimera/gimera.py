@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import uuid
 import shutil
 import threading
 import traceback
@@ -33,6 +34,7 @@ from .patches import _technically_make_patch
 from .tools import is_forced
 from .tools import get_url_type
 from .tools import reformat_url
+from .tools import temppath
 
 
 @click.group()
@@ -396,7 +398,7 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
 
             if do_fetch:
                 with wait_git_lock(local_repo_dir):
-                    _fetch_and_reset_branch(repo, repo_yml)
+                    _fetch_branch(repo, repo_yml)
 
         except Exception as ex:
             trace = traceback.format_exc()
@@ -512,63 +514,43 @@ def _update_integrated_module(
     """
     Put contents of a git repository inside the main repository.
     """
-
-    # TODO eval parallelsafe
-
     # use a cache directory for pulling the repository and updating it
-    local_repo_dir = _get_cache_dir(main_repo, repo_yml)
-    with wait_git_lock(local_repo_dir):
-        if not os.access(local_repo_dir, os.W_OK):
-            _raise_error(f"No R/W rights on {local_repo_dir}")
-        repo = Repo(local_repo_dir)
-        # no_fetch - because everything was pulled in parallel step before
-        _fetch_and_reset_branch(repo, repo_yml, no_fetch=True, **options)
+    cache_dir = _get_cache_dir(main_repo, repo_yml)
+    if not os.access(cache_dir, os.W_OK):
+        _raise_error(f"No R/W rights on {cache_dir}")
+    repo = Repo(cache_dir)
 
-        parent_repo = main_repo
-        if (working_dir / ".git").exists():
-            parent_repo = Repo(working_dir)
+    parent_repo = main_repo
+    if (working_dir / ".git").exists():
+        parent_repo = Repo(working_dir)
 
-        if not update and repo_yml.sha:
-            branches = repo.get_all_branches()
-            if repo_yml.branch not in branches:
-                repo.pull(repo_yml=repo_yml)
-                repo_yml.sha = None
-            else:
-                subprocess.check_call(
-                    ["git", "config", "advice.detachedHead", "false"],
-                    cwd=local_repo_dir,
-                )
-                repo.checkout(repo_yml.sha, force=True)
+    dest_path = Path(working_dir) / repo_yml.path
+    dest_path.parent.mkdir(exist_ok=True, parents=True)
+    # BTW: delete-after cannot remove unused directories - cool to know; is
+    # just standarded out
+    if dest_path.exists():
+        rmtree(dest_path)
 
-        new_sha = repo.hex
-        with _apply_merges(repo, repo_yml, parallel_safe) as (repo, remote_refs):
-            dest_path = Path(working_dir) / repo_yml.path
-            dest_path.parent.mkdir(exist_ok=True, parents=True)
-            # BTW: delete-after cannot removed unused directories - cool to know; is
-            # just standarded out
-            if dest_path.exists():
-                rmtree(dest_path)
-            rsync(repo.path, dest_path, exclude=[".git"])
-            msg = [f"Merged: {repo_yml.url}"]
-            for remote, ref in remote_refs:
-                msg.append(f"Merged {remote.url}:{ref}")
-            parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
-
+    with wait_git_lock(cache_dir):
+        commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
+        with repo.worktree(commit) as worktree:
+            new_sha = worktree.hex
+            msgs = _apply_merges(worktree, repo_yml)
+            rsync(worktree.path, dest_path, exclude=[".git"])
+            parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msgs))
         del repo
 
-        # apply patches:
-        _apply_patches(
-            repo_yml,
-        )
-        parent_repo.commit_dir_if_dirty(
-            repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
-        )
-        repo_yml.sha = new_sha
+    # apply patches:
+    _apply_patches(repo_yml)
+    parent_repo.commit_dir_if_dirty(
+        repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
+    )
+    repo_yml.sha = new_sha
 
-        if repo_yml.edit_patchfile:
-            _apply_patchfile(
-                repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
-            )
+    if repo_yml.edit_patchfile:
+        _apply_patchfile(
+            repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
+        )
 
 
 @yieldlist
@@ -581,46 +563,28 @@ def _get_remotes(repo_yml):
         yield Remote(None, name, url)
 
 
-@contextmanager
-def _apply_merges(repo, repo_yml, parallel_safe):
+def _apply_merges(repo, repo_yml):
     if not repo_yml.merges:
-        yield repo, []
-        # https://stackoverflow.com/questions/6395063/yield-break-in-python
-        return iter([])
+        return
 
-    try:
-        if parallel_safe:
-            repo2 = tempfile.mktemp(suffix=".")
-            repo.X(
-                "git",
-                "clone",
-                "--branch",
-                str(repo_yml.branch),
-                "file://" + str(repo.path),
-                repo2,
-            )
-            repo = Repo(repo2)
+    configured_remotes = _get_remotes(repo_yml)
+    # as we clone into a temp directory to allow parallel actions
+    # we set the origin to the repo source
+    configured_remotes.append(Remote(repo, "origin", repo_yml.url))
+    for remote in configured_remotes:
+        if list(filter(lambda x: x.name == remote.name, repo.remotes)):
+            repo.set_remote_url(remote.name, remote.url)
+        repo.add_remote(remote, exist_ok=True)
 
-        configured_remotes = _get_remotes(repo_yml)
-        # as we clone into a temp directory to allow parallel actions
-        # we set the origin to the repo source
-        configured_remotes.append(Remote(repo, "origin", repo_yml.url))
-        for remote in configured_remotes:
-            if list(filter(lambda x: x.name == remote.name, repo.remotes)):
-                repo.set_remote_url(remote.name, remote.url)
-            repo.add_remote(remote, exist_ok=True)
-
-        remotes = []
-        for remote, ref in repo_yml.merges:
-            remote = [x for x in reversed(configured_remotes) if x.name == remote][0]
-            repo.pull(remote=remote, ref=ref)
-            remotes.append((remote, ref))
-
-        yield repo, remotes
-    finally:
-        if parallel_safe:
-            rmtree(repo.path)
-
+    remotes = []
+    msg = []
+    for remote, ref in repo_yml.merges:
+        msg.append(f"Merging {remote} {ref}")
+        click.secho(msg[-1])
+        remote = [x for x in reversed(configured_remotes) if x.name == remote][0]
+        repo.pull(remote=remote, ref=ref)
+        remotes.append((remote, ref))
+    return msg
 
 def _apply_patchfile(file, working_dir, error_ok=False):
     cwd = Path(working_dir)
@@ -1054,7 +1018,7 @@ def status():
         click.secho(f"Missing: {repo.path}", fg="red")
 
 
-def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
+def _fetch_branch(repo, repo_yml, no_fetch=False, **options):
     url = repo_yml.url
 
     def set_url_and_fetch(url):
@@ -1074,23 +1038,7 @@ def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
                 except Exception:
                     raise fetch_exception
 
-    branch = str(repo_yml.branch)
-    origin_branch = f"origin/{branch}"
-    try:
-        repo.X("git", "checkout", "-f", branch)
-    except subprocess.CalledProcessError:
-        if options.get("remove_invalid_branches"):
-            repo_yml.drop_dead()
-            click.secho(
-                f"Branch {branch} did not exist in {repo_yml.path}; it is removed.",
-                fg="yellow",
-            )
-        else:
-            click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg="red")
-        return
-    repo.X("git", "reset", "--hard", origin_branch)
-    repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
-    repo.X("git", "clean", "-xdff")
+
 
 
 @contextmanager

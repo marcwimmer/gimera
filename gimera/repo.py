@@ -1,3 +1,4 @@
+import uuid
 import subprocess
 import click
 import shutil
@@ -7,6 +8,7 @@ from .tools import yieldlist, X, safe_relative_to, _raise_error, rmtree
 from .consts import gitcmd as git
 from contextlib import contextmanager
 from .tools import is_forced
+from .tools import temppath
 
 
 class Repo(GitCommands):
@@ -385,6 +387,19 @@ class Repo(GitCommands):
         finally:
             if enabled:
                 self.X("git", "reset", "--soft", commit)
+
+    @contextmanager
+    def worktree(self, commit):
+        with temppath() as tmpfolder:
+            repo_folder = tmpfolder / str(uuid.uuid4())
+            repo_folder.parent.mkdir(exist_ok=True, parents=True)
+            try:
+                repo = Repo(repo_folder)
+                self.X("git", "worktree", "add", repo_folder, commit)
+                yield repo
+            finally:
+                repo.X("git", "worktree", "remove", repo_folder)
+                rmtree(tmpfolder)
 
 
 class Remote(object):
