@@ -398,7 +398,7 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
 
             if do_fetch:
                 with wait_git_lock(local_repo_dir):
-                    _fetch_branch(repo, repo_yml)
+                    _fetch_branch(repo, repo_yml, filter_remote="origin")
 
         except Exception as ex:
             if os.getenv("GIMERA_NON_THREADED") == "1":
@@ -1029,12 +1029,12 @@ def status():
         click.secho(f"Missing: {repo.path}", fg="red")
 
 
-def _fetch_branch(repo, repo_yml, no_fetch=False, **options):
+def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options):
     url = repo_yml.url
 
-    def set_url_and_fetch(url):
-        repo.set_remote_url("origin", url)
-        repo.X("git", "fetch", "origin")
+    def set_url_and_fetch(remote_name, url):
+        repo.set_remote_url(remote_name, url)
+        repo.X("git", "fetch", remote_name)
         bare = repo.is_bare
         with wait_git_lock(repo.path):
             if bare:
@@ -1048,22 +1048,39 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, **options):
                 remote_branch = remote_branch.strip()
                 branch_name = remote_branch.split("/")[-1]
                 branch_name = list(clean_branch_names([branch_name]))[0]
-                if not bare:
-                    repo.X(*(git + ["branch", "--track", remote_branch, branch_name]))
-                repo.X(*(git + ["fetch", "origin", f"{branch_name}:{branch_name}"]))
+                remote_branch = list(clean_branch_names([remote_branch]))[0]
+                # repo.X(*(git + ["branch", "--track", remote_branch, branch_name]))
+                if filter_remote and filter_remote != remote_name:
+                    continue
+                # repo.X(*(git + ["branch", "-u", remote_branch, branch_name]))
+
+                try:
+                    repo.X(
+                        *(git + ["fetch", remote_name, f"{branch_name}:{branch_name}"])
+                    )
+                except Exception:
+                    repo.X(*(git + ["branch", "-D", branch_name]))
+                    repo.X(
+                        *(git + ["fetch", remote_name, f"{branch_name}:{branch_name}"])
+                    )
 
     fetch_exception = None
     if not no_fetch:
-        try:
-            set_url_and_fetch(url)
-        except Exception as ex:
-            fetch_exception = ex
-            if get_url_type(url) == "git":
-                url_http = reformat_url(url, "http")
-                try:
-                    set_url_and_fetch(url_http)
-                except Exception:
-                    raise fetch_exception
+        for remote in repo.remotes:
+            try:
+                url = remote.url
+                set_url_and_fetch(remote.name, url)
+            except Exception as ex:
+                import pudb
+
+                pudb.set_trace()
+                fetch_exception = ex
+                if get_url_type(url) == "git":
+                    url_http = reformat_url(url, "http")
+                    try:
+                        set_url_and_fetch(remote.name, url_http)
+                    except Exception:
+                        raise fetch_exception
 
 
 @contextmanager
