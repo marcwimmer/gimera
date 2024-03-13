@@ -505,7 +505,7 @@ def _get_cache_dir(main_repo, repo_yml):
             fg="yellow",
         )
         with prepare_dir(path) as _path:
-            Repo(main_repo.path).X("git", "clone", url, _path)
+            Repo(main_repo.path).X("git", "clone", "--bare", url, _path)
     return path
 
 
@@ -538,7 +538,7 @@ def _update_integrated_module(
         rmtree(dest_path)
 
     with wait_git_lock(cache_dir):
-        commit = repo_yml.sha or f"origin/{repo_yml.branch}" if not update else f"origin/{repo_yml.branch}"
+        commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
         with repo.worktree(commit) as worktree:
             new_sha = worktree.hex
             msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
@@ -1034,6 +1034,14 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, **options):
     def set_url_and_fetch(url):
         repo.set_remote_url("origin", url)
         repo.X("git", "fetch", "origin")
+        with wait_git_lock(repo.path):
+            for remote_branch in repo.out(*(git + ["branch", "-r"])).splitlines():
+                if '->' in remote_branch: 
+                    continue
+                remote_branch = remote_branch.strip()
+                branch_name = remote_branch.split("/")[-1]
+                repo.X(*(git + ["branch", "--track", remote_branch, branch_name]))
+
 
     fetch_exception = None
     if not no_fetch:

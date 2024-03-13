@@ -157,6 +157,7 @@ def test_basicbehaviour(temppath):
     subprocess.check_call(git + ["push"], cwd=workspace)
     (workspace / repos["repos"][1]["patches"][0]).mkdir(exist_ok=True, parents=True)
     os.chdir(workspace)
+    os.environ["GIMERA_NON_THREADED"] = "1"
     gimera_apply([], None)
     subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
     assert not Repo(workspace).staged_files
