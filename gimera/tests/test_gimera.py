@@ -1139,6 +1139,7 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     assert not (workspace_main / "subby" / "repo2.txt").exists()
 
     os.chdir(workspace_main)
+    os.environ["GIMERA_NON_THREADED"] = "1"
     gimera_apply([], True)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert (workspace_main / "subby" / "repo2.txt").exists()

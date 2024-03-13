@@ -688,7 +688,7 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
             f"Directory {repo_yml.path} contains modified "
             "files. Please commit or purge before!"
         )
-    sha = repo_yml.sha
+    sha = repo_yml.sha if not update else None
 
     def _commit_submodule():
         _commit_submodule_inside_clean_but_not_linked_to_parent(repo, subrepo)
@@ -713,14 +713,15 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
                 f"SHA {sha} does not exist on branch "
                 f"{repo_yml.branch} at repo {repo_yml.path}"
             )
-        sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
-        if sha_of_branch == sha:
-            subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
-        else:
-            subrepo.X(*(git + ["checkout", "-f", sha]))
+        # sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
+        # if sha_of_branch == sha:
+        #     subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+        # else:
+        subrepo.X(*(git + ["checkout", "-f", sha]))
     else:
         try:
             subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+            subrepo.X(*(git + ["pull"]))
         except Exception:  # pylint: disable=broad-except
             _raise_error(f"Failed to checkout {repo_yml.branch} in {path}")
         else:
