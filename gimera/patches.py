@@ -28,7 +28,9 @@ def make_patches(working_dir, main_repo, repo_yml):
     if repo_yml.type != REPO_TYPE_INT:
         raise NotImplementedError(repo_yml.type)
 
-    with _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml) as (main_repo):
+    with _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml) as (
+        main_repo
+    ):
         with _prepare(main_repo, repo_yml) as (
             subrepo,
             subrepo_path,
@@ -101,7 +103,10 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml):
             with _temporarily_move_gimera(repo_yml, main_repo2.path):
                 _update_integrated_module(
                     main_repo2.path,
-                    main_repo2, repo_yml, update=False, parallel_safe=True
+                    main_repo2,
+                    repo_yml,
+                    update=False,
+                    parallel_safe=True,
                 )
                 main_repo2.simple_commit_all()
 
@@ -311,11 +316,11 @@ def _prepare(main_repo, repo_yml):
 def _clone_directory_and_add_patch_file(
     main_repo, repo_yml, branch, repo_url, patch_path, content
 ):
-    from .gimera import _fetch_and_reset_branch, _get_cache_dir
+    from .gimera import _fetch_branch, _get_cache_dir
 
     with temppath() as path:
         path = path / "repo"
-        subprocess.check_call(["git", "clone", repo_url, path])
+        subprocess.check_call(["git", "clone", "--branch", branch, repo_url, path])
         repo = Repo(path)
         repo.X("git", "checkout", branch)
         patch_path = path / patch_path
@@ -325,13 +330,16 @@ def _clone_directory_and_add_patch_file(
         repo.X("git", "add", patch_path.relative_to(path))
         repo.X("git", "commit", "-m", f"added patchfile: {patch_path}")
         repo.X("git", "push")
+        del repo
         # also make sure that local cache is updated, because
         # latest repo version is applied to project
         local_repo_dir = _get_cache_dir(main_repo, repo_yml)
         with wait_git_lock(local_repo_dir):
             repo = Repo(local_repo_dir)
-            _fetch_and_reset_branch(repo, repo_yml)
-        return repo.hex
+            _fetch_branch(repo, repo_yml)
+            with repo.worktree(branch) as repo:
+                repo.pull(repo_yml=repo_yml)
+                return repo.hex
 
 
 def _technically_make_patch(repo, path):
