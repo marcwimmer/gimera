@@ -403,9 +403,21 @@ class Repo(GitCommands):
                 self.X("git", "worktree", "add", repo_folder, commit)
                 yield repo
             finally:
-                repo.X("git", "worktree", "remove", repo_folder)
+                if not repo_folder.exists():
+                    repo_folder.mkdir()
+                    import pudb;pudb.set_trace()
+                repo.X("git", "worktree", "remove", "--force", repo_folder)
                 rmtree(tmpfolder)
 
+    def move_worktree_content(self, dest_path):
+        if dest_path.exists():
+            rmtree(dest_path)
+        # faster than rsync
+        shutil.move(self.path, dest_path)
+        gitdir = (dest_path / '.git')
+        if gitdir.exists():
+            self.path.mkdir()
+            shutil.move(gitdir, self.path / '.git')
 
 class Remote(object):
     def __init__(self, repo, name, url):

@@ -545,7 +545,7 @@ def _update_integrated_module(
             msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
                 worktree, repo_yml
             )
-            rsync(worktree.path, dest_path, exclude=[".git"])
+            worktree.move_worktree_content(dest_path)
             parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msgs))
         del repo
 
