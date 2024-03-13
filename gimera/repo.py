@@ -24,10 +24,15 @@ class Repo(GitCommands):
 
     def contains(self, commit):
         try:
-            self.X("git", "branch", "--contains", commit)
+            self.X(*(git + ["branch", "--contains", commit]))
             return True
         except:
             return False
+
+    @property
+    def is_bare(self):
+        answer = self.out(*(git + ["rev-parse", "--is-bare-repository"]))
+        return answer.strip() == 'true'
 
     @property
     def rel_path_to_root_repo(self):

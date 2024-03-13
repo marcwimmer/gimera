@@ -496,7 +496,8 @@ def _get_cache_dir(main_repo, repo_yml):
     )
     path.parent.mkdir(exist_ok=True, parents=True)
 
-    if path.exists() and not (path / ".git").exists():
+    must_exist = ["HEAD", "packed-refs", "refs", "objects", "config", "info"]
+    if path.exists() and any(not (path / x).exists() for x in must_exist):
         shutil.rmtree(path)
 
     if not path.exists():
@@ -1034,14 +1035,22 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, **options):
     def set_url_and_fetch(url):
         repo.set_remote_url("origin", url)
         repo.X("git", "fetch", "origin")
+        bare = repo.is_bare
         with wait_git_lock(repo.path):
-            for remote_branch in repo.out(*(git + ["branch", "-r"])).splitlines():
-                if '->' in remote_branch: 
+            if bare:
+                branches = repo.out(*(git + ["branch"])).splitlines()
+            else:
+                branches = repo.out(*(git + ["branch", "-r"])).splitlines()
+
+            for remote_branch in branches:
+                if "->" in remote_branch:
                     continue
                 remote_branch = remote_branch.strip()
                 branch_name = remote_branch.split("/")[-1]
-                repo.X(*(git + ["branch", "--track", remote_branch, branch_name]))
-
+                branch_name = list(clean_branch_names([branch_name]))[0]
+                if not bare:
+                    repo.X(*(git + ["branch", "--track", remote_branch, branch_name]))
+                repo.X(*(git + ["fetch", "origin", f"{branch_name}:{branch_name}"]))
 
     fetch_exception = None
     if not no_fetch:
