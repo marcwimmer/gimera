@@ -1022,6 +1022,7 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
         else:
             branches = repo.out(*(git + ["branch", "-r"])).splitlines()
 
+        todo_branches = []
         for remote_branch in branches:
             if "->" in remote_branch:
                 continue
@@ -1031,17 +1032,16 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
             remote_branch = list(clean_branch_names([remote_branch]))[0]
             if filter_remote and filter_remote != remote_name:
                 continue
+            todo_branches.append(f"{branch_name}:{branch_name}")
 
-            with wait_git_lock(repo.path):
-                try:
-                    repo.X(
-                        *(git + ["fetch", remote_name, f"{branch_name}:{branch_name}"])
-                    )
-                except Exception:
+        with wait_git_lock(repo.path):
+            try:
+                repo.X(*(git + ["fetch", remote_name] + todo_branches))
+            except Exception:
+                for branch_names in todo_branches:
+                    branch_name = branch_names.split(":")[0]
                     repo.X(*(git + ["branch", "-D", branch_name]))
-                    repo.X(
-                        *(git + ["fetch", remote_name, f"{branch_name}:{branch_name}"])
-                    )
+                    repo.X(*(git + ["fetch", remote_name, branch_names]))
 
     fetch_exception = None
     if not no_fetch:
