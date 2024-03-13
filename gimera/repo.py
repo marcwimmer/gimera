@@ -377,7 +377,7 @@ class Repo(GitCommands):
                 if next_path.exists():
                     root = next_path
                 else:
-                    _raise_error(f"Could not find submodule in .git for {part}")
+                    break
 
     @contextmanager
     def stay_at_commit(self, enabled):

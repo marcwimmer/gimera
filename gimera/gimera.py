@@ -401,19 +401,25 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
                     _fetch_branch(repo, repo_yml)
 
         except Exception as ex:
+            if os.getenv("GIMERA_NON_THREADED") == "1":
+                raise
             trace = traceback.format_exc()
             results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
 
-    threads = []
-    for index, repo in enumerate(repos):
-        t = threading.Thread(target=_pull_repo, args=(index, main_repo, repo))
-        t.daemon = True
-        threads.append(t)
-    [x.start() for x in threads]
-    [x.join() for x in threads]
+    if os.getenv("GIMERA_NON_THREADED") == "1":
+        for index, repo in enumerate(repos):
+            _pull_repo(index, main_repo, repo)
+    else:
+        threads = []
+        for index, repo in enumerate(repos):
+            t = threading.Thread(target=_pull_repo, args=(index, main_repo, repo))
+            t.daemon = True
+            threads.append(t)
+        [x.start() for x in threads]
+        [x.join() for x in threads]
 
-    if results["errors"]:
-        raise Exception(results["errors"])
+        if results["errors"]:
+            raise Exception(results["errors"])
 
 
 def _apply_subgimera(
@@ -490,7 +496,7 @@ def _get_cache_dir(main_repo, repo_yml):
     )
     path.parent.mkdir(exist_ok=True, parents=True)
 
-    if path.exists() and not (path / '.git').exists():
+    if path.exists() and not (path / ".git").exists():
         shutil.rmtree(path)
 
     if not path.exists():
@@ -532,10 +538,12 @@ def _update_integrated_module(
         rmtree(dest_path)
 
     with wait_git_lock(cache_dir):
-        commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
+        commit = repo_yml.sha or f"origin/{repo_yml.branch}" if not update else f"origin/{repo_yml.branch}"
         with repo.worktree(commit) as worktree:
             new_sha = worktree.hex
-            msgs = _apply_merges(worktree, repo_yml)
+            msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
+                worktree, repo_yml
+            )
             rsync(worktree.path, dest_path, exclude=[".git"])
             parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msgs))
         del repo
@@ -565,7 +573,7 @@ def _get_remotes(repo_yml):
 
 def _apply_merges(repo, repo_yml):
     if not repo_yml.merges:
-        return
+        return []
 
     configured_remotes = _get_remotes(repo_yml)
     # as we clone into a temp directory to allow parallel actions
@@ -585,6 +593,7 @@ def _apply_merges(repo, repo_yml):
         repo.pull(remote=remote, ref=ref)
         remotes.append((remote, ref))
     return msg
+
 
 def _apply_patchfile(file, working_dir, error_ok=False):
     cwd = Path(working_dir)
@@ -1032,13 +1041,11 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, **options):
         except Exception as ex:
             fetch_exception = ex
             if get_url_type(url) == "git":
-                url_http = reformat_url(url, 'http')
+                url_http = reformat_url(url, "http")
                 try:
                     set_url_and_fetch(url_http)
                 except Exception:
                     raise fetch_exception
-
-
 
 
 @contextmanager

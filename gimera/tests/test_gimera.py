@@ -736,7 +736,6 @@ def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(tem
     os.chdir(workspace_main / 'sub1')
     switch_to(Path('gimera.yml'), 'submodule')
     try:
-        import pudb;pudb.set_trace()
         gimera_apply([], None)
     except:
         pass
@@ -1916,6 +1915,7 @@ def test_commit(temppath):
     os.environ["GIMERA_FORCE"] = "1"
     os.unlink(workspace / "sub1" / "file2.txt")
     subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
+    os.environ["GIMERA_NON_THREADED"] = "1"
     gimera_apply([], update=True)
     assert (workspace / 'sub1' / 'file2.txt').exists(), "sub1/file2.txt should now exist"
 
