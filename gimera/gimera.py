@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import uuid
 import shutil
 import threading
 import traceback
@@ -33,6 +34,7 @@ from .patches import _technically_make_patch
 from .tools import is_forced
 from .tools import get_url_type
 from .tools import reformat_url
+from .tools import temppath
 
 
 @click.group()
@@ -139,15 +141,6 @@ def _get_available_patchfiles(ctx, param, incomplete):
     help="Overrides setting in gimera.yml and sets 'submodule' for all.",
 )
 @click.option(
-    "-p",
-    "--parallel-safe",
-    is_flag=True,
-    help=(
-        "In multi environments using the same cache directory this avoids "
-        "race conditions."
-    ),
-)
-@click.option(
     "-s",
     "--strict",
     is_flag=True,
@@ -206,7 +199,6 @@ def apply(
     update,
     all_integrated,
     all_submodule,
-    parallel_safe,
     strict,
     recursive,
     no_patches,
@@ -237,7 +229,6 @@ def apply(
         repos,
         update,
         force_type=ttype,
-        parallel_safe=parallel_safe,
         strict=strict,
         recursive=recursive,
         no_patches=no_patches,
@@ -251,7 +242,6 @@ def _apply(
     repos,
     update,
     force_type=False,
-    parallel_safe=False,
     strict=False,
     recursive=False,
     no_patches=False,
@@ -267,7 +257,6 @@ def _apply(
         repos,
         update,
         force_type,
-        parallel_safe=parallel_safe,
         strict=strict,
         recursive=recursive,
         no_patches=no_patches,
@@ -296,7 +285,6 @@ def _internal_apply(
     repos,
     update,
     force_type,
-    parallel_safe=False,
     strict=False,
     recursive=False,
     no_patches=False,
@@ -345,7 +333,6 @@ def _internal_apply(
                         main_repo,
                         repo,
                         update,
-                        parallel_safe,
                         **options,
                     )
                 except Exception as ex:
@@ -366,7 +353,6 @@ def _internal_apply(
                     repo,
                     update,
                     force_type,
-                    parallel_safe=parallel_safe,
                     strict=strict,
                     no_patches=no_patches,
                     common_vars=common_vars,
@@ -385,33 +371,39 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
             if repo_yml.url in results["urls"]:
                 return
             results["urls"].add(repo_yml.url)
-            local_repo_dir = _get_cache_dir(main_repo, repo_yml)
-            repo = Repo(local_repo_dir)
+            cache_dir = _get_cache_dir(main_repo, repo_yml)
+            repo = Repo(cache_dir)
             do_fetch = True
             if minimal_fetch:
-                with wait_git_lock(local_repo_dir):
+                with wait_git_lock(cache_dir):
                     if repo_yml.sha:
                         if repo.contains(repo_yml.sha):
                             do_fetch = False
 
             if do_fetch:
-                with wait_git_lock(local_repo_dir):
-                    _fetch_and_reset_branch(repo, repo_yml)
+                with wait_git_lock(cache_dir):
+                    _fetch_branch(repo, repo_yml, filter_remote="origin")
 
         except Exception as ex:
+            if os.getenv("GIMERA_NON_THREADED") == "1":
+                raise
             trace = traceback.format_exc()
             results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
 
-    threads = []
-    for index, repo in enumerate(repos):
-        t = threading.Thread(target=_pull_repo, args=(index, main_repo, repo))
-        t.daemon = True
-        threads.append(t)
-    [x.start() for x in threads]
-    [x.join() for x in threads]
+    if os.getenv("GIMERA_NON_THREADED") == "1":
+        for index, repo in enumerate(repos):
+            _pull_repo(index, main_repo, repo)
+    else:
+        threads = []
+        for index, repo in enumerate(repos):
+            t = threading.Thread(target=_pull_repo, args=(index, main_repo, repo))
+            t.daemon = True
+            threads.append(t)
+        [x.start() for x in threads]
+        [x.join() for x in threads]
 
-    if results["errors"]:
-        raise Exception(results["errors"])
+        if results["errors"]:
+            raise Exception(results["errors"])
 
 
 def _apply_subgimera(
@@ -419,7 +411,6 @@ def _apply_subgimera(
     repo,
     update,
     force_type,
-    parallel_safe,
     strict,
     no_patches,
     parent_config,
@@ -438,7 +429,6 @@ def _apply_subgimera(
             [],
             update,
             force_type=force_type,
-            parallel_safe=parallel_safe,
             strict=strict,
             recursive=True,
             no_patches=no_patches,
@@ -488,7 +478,8 @@ def _get_cache_dir(main_repo, repo_yml):
     )
     path.parent.mkdir(exist_ok=True, parents=True)
 
-    if path.exists() and not (path / '.git').exists():
+    must_exist = ["HEAD", "packed-refs", "refs", "objects", "config", "info"]
+    if path.exists() and any(not (path / x).exists() for x in must_exist):
         shutil.rmtree(path)
 
     if not path.exists():
@@ -497,7 +488,7 @@ def _get_cache_dir(main_repo, repo_yml):
             fg="yellow",
         )
         with prepare_dir(path) as _path:
-            Repo(main_repo.path).X("git", "clone", url, _path)
+            Repo(main_repo.path).X("git", "clone", "--bare", url, _path)
     return path
 
 
@@ -506,69 +497,50 @@ def _update_integrated_module(
     main_repo,
     repo_yml,
     update,
-    parallel_safe,
     **options,
 ):
     """
     Put contents of a git repository inside the main repository.
     """
-
-    # TODO eval parallelsafe
-
     # use a cache directory for pulling the repository and updating it
-    local_repo_dir = _get_cache_dir(main_repo, repo_yml)
-    with wait_git_lock(local_repo_dir):
-        if not os.access(local_repo_dir, os.W_OK):
-            _raise_error(f"No R/W rights on {local_repo_dir}")
-        repo = Repo(local_repo_dir)
-        # no_fetch - because everything was pulled in parallel step before
-        _fetch_and_reset_branch(repo, repo_yml, no_fetch=True, **options)
+    cache_dir = _get_cache_dir(main_repo, repo_yml)
+    if not os.access(cache_dir, os.W_OK):
+        _raise_error(f"No R/W rights on {cache_dir}")
+    repo = Repo(cache_dir)
 
-        parent_repo = main_repo
-        if (working_dir / ".git").exists():
-            parent_repo = Repo(working_dir)
+    parent_repo = main_repo
+    if (working_dir / ".git").exists():
+        parent_repo = Repo(working_dir)
 
-        if not update and repo_yml.sha:
-            branches = repo.get_all_branches()
-            if repo_yml.branch not in branches:
-                repo.pull(repo_yml=repo_yml)
-                repo_yml.sha = None
-            else:
-                subprocess.check_call(
-                    ["git", "config", "advice.detachedHead", "false"],
-                    cwd=local_repo_dir,
-                )
-                repo.checkout(repo_yml.sha, force=True)
+    dest_path = Path(working_dir) / repo_yml.path
+    dest_path.parent.mkdir(exist_ok=True, parents=True)
+    # BTW: delete-after cannot remove unused directories - cool to know; is
+    # just standarded out
+    if dest_path.exists():
+        rmtree(dest_path)
 
-        new_sha = repo.hex
-        with _apply_merges(repo, repo_yml, parallel_safe) as (repo, remote_refs):
-            dest_path = Path(working_dir) / repo_yml.path
-            dest_path.parent.mkdir(exist_ok=True, parents=True)
-            # BTW: delete-after cannot removed unused directories - cool to know; is
-            # just standarded out
-            if dest_path.exists():
-                rmtree(dest_path)
-            rsync(repo.path, dest_path, exclude=[".git"])
-            msg = [f"Merged: {repo_yml.url}"]
-            for remote, ref in remote_refs:
-                msg.append(f"Merged {remote.url}:{ref}")
-            parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msg))
-
+    with wait_git_lock(cache_dir):
+        commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
+        with repo.worktree(commit) as worktree:
+            new_sha = worktree.hex
+            msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
+                worktree, repo_yml
+            )
+            worktree.move_worktree_content(dest_path)
+            parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msgs))
         del repo
 
-        # apply patches:
-        _apply_patches(
-            repo_yml,
-        )
-        parent_repo.commit_dir_if_dirty(
-            repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
-        )
-        repo_yml.sha = new_sha
+    # apply patches:
+    _apply_patches(repo_yml)
+    parent_repo.commit_dir_if_dirty(
+        repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
+    )
+    repo_yml.sha = new_sha
 
-        if repo_yml.edit_patchfile:
-            _apply_patchfile(
-                repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
-            )
+    if repo_yml.edit_patchfile:
+        _apply_patchfile(
+            repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
+        )
 
 
 @yieldlist
@@ -581,45 +553,28 @@ def _get_remotes(repo_yml):
         yield Remote(None, name, url)
 
 
-@contextmanager
-def _apply_merges(repo, repo_yml, parallel_safe):
+def _apply_merges(repo, repo_yml):
     if not repo_yml.merges:
-        yield repo, []
-        # https://stackoverflow.com/questions/6395063/yield-break-in-python
-        return iter([])
+        return []
 
-    try:
-        if parallel_safe:
-            repo2 = tempfile.mktemp(suffix=".")
-            repo.X(
-                "git",
-                "clone",
-                "--branch",
-                str(repo_yml.branch),
-                "file://" + str(repo.path),
-                repo2,
-            )
-            repo = Repo(repo2)
+    configured_remotes = _get_remotes(repo_yml)
+    # as we clone into a temp directory to allow parallel actions
+    # we set the origin to the repo source
+    configured_remotes.append(Remote(repo, "origin", repo_yml.url))
+    for remote in configured_remotes:
+        if list(filter(lambda x: x.name == remote.name, repo.remotes)):
+            repo.set_remote_url(remote.name, remote.url)
+        repo.add_remote(remote, exist_ok=True)
 
-        configured_remotes = _get_remotes(repo_yml)
-        # as we clone into a temp directory to allow parallel actions
-        # we set the origin to the repo source
-        configured_remotes.append(Remote(repo, "origin", repo_yml.url))
-        for remote in configured_remotes:
-            if list(filter(lambda x: x.name == remote.name, repo.remotes)):
-                repo.set_remote_url(remote.name, remote.url)
-            repo.add_remote(remote, exist_ok=True)
-
-        remotes = []
-        for remote, ref in repo_yml.merges:
-            remote = [x for x in reversed(configured_remotes) if x.name == remote][0]
-            repo.pull(remote=remote, ref=ref)
-            remotes.append((remote, ref))
-
-        yield repo, remotes
-    finally:
-        if parallel_safe:
-            rmtree(repo.path)
+    remotes = []
+    msg = []
+    for remote, ref in repo_yml.merges:
+        msg.append(f"Merging {remote} {ref}")
+        click.secho(msg[-1])
+        remote = [x for x in reversed(configured_remotes) if x.name == remote][0]
+        repo.pull(remote=remote, ref=ref)
+        remotes.append((remote, ref))
+    return msg
 
 
 def _apply_patchfile(file, working_dir, error_ok=False):
@@ -715,7 +670,7 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
             f"Directory {repo_yml.path} contains modified "
             "files. Please commit or purge before!"
         )
-    sha = repo_yml.sha
+    sha = repo_yml.sha if not update else None
 
     def _commit_submodule():
         _commit_submodule_inside_clean_but_not_linked_to_parent(repo, subrepo)
@@ -740,14 +695,15 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
                 f"SHA {sha} does not exist on branch "
                 f"{repo_yml.branch} at repo {repo_yml.path}"
             )
-        sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
-        if sha_of_branch == sha:
-            subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
-        else:
-            subrepo.X(*(git + ["checkout", "-f", sha]))
+        # sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
+        # if sha_of_branch == sha:
+        #     subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+        # else:
+        subrepo.X(*(git + ["checkout", "-f", sha]))
     else:
         try:
             subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+            subrepo.X(*(git + ["pull"]))
         except Exception:  # pylint: disable=broad-except
             _raise_error(f"Failed to checkout {repo_yml.branch} in {path}")
         else:
@@ -1054,43 +1010,56 @@ def status():
         click.secho(f"Missing: {repo.path}", fg="red")
 
 
-def _fetch_and_reset_branch(repo, repo_yml, no_fetch=False, **options):
+def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options):
     url = repo_yml.url
 
-    def set_url_and_fetch(url):
-        repo.set_remote_url("origin", url)
-        repo.X("git", "fetch", "origin")
+    def set_url_and_fetch(remote_name, url):
+        repo.set_remote_url(remote_name, url)
+        repo.X("git", "fetch", remote_name)
+        bare = repo.is_bare
+        if bare:
+            branches = repo.out(*(git + ["branch"])).splitlines()
+        else:
+            branches = repo.out(*(git + ["branch", "-r"])).splitlines()
+
+        for remote_branch in branches:
+            if "->" in remote_branch:
+                continue
+            remote_branch = remote_branch.strip()
+            branch_name = remote_branch.split("/")[-1]
+            branch_name = list(clean_branch_names([branch_name]))[0]
+            remote_branch = list(clean_branch_names([remote_branch]))[0]
+            if filter_remote and filter_remote != remote_name:
+                continue
+
+            with wait_git_lock(repo.path):
+                try:
+                    repo.X(
+                        *(git + ["fetch", remote_name, f"{branch_name}:{branch_name}"])
+                    )
+                except Exception:
+                    repo.X(*(git + ["branch", "-D", branch_name]))
+                    repo.X(
+                        *(git + ["fetch", remote_name, f"{branch_name}:{branch_name}"])
+                    )
 
     fetch_exception = None
     if not no_fetch:
-        try:
-            set_url_and_fetch(url)
-        except Exception as ex:
-            fetch_exception = ex
-            if get_url_type(url) == "git":
-                url_http = reformat_url(url, 'http')
-                try:
-                    set_url_and_fetch(url_http)
-                except Exception:
-                    raise fetch_exception
+        for remote in repo.remotes:
+            try:
+                url = remote.url
+                set_url_and_fetch(remote.name, url)
+            except Exception as ex:
+                import pudb
 
-    branch = str(repo_yml.branch)
-    origin_branch = f"origin/{branch}"
-    try:
-        repo.X("git", "checkout", "-f", branch)
-    except subprocess.CalledProcessError:
-        if options.get("remove_invalid_branches"):
-            repo_yml.drop_dead()
-            click.secho(
-                f"Branch {branch} did not exist in {repo_yml.path}; it is removed.",
-                fg="yellow",
-            )
-        else:
-            click.secho(f"Branch {branch} does not exist in {repo_yml.path}", fg="red")
-        return
-    repo.X("git", "reset", "--hard", origin_branch)
-    repo.X("git", "branch", f"--set-upstream-to={origin_branch}", branch)
-    repo.X("git", "clean", "-xdff")
+                pudb.set_trace()
+                fetch_exception = ex
+                if get_url_type(url) == "git":
+                    url_http = reformat_url(url, "http")
+                    try:
+                        set_url_and_fetch(remote.name, url_http)
+                    except Exception:
+                        raise fetch_exception
 
 
 @contextmanager

@@ -29,10 +29,12 @@ def gimera_apply(*args, **kwargs):
 
     return _apply(*args, **kwargs)
 
+
 def gimera_commit(*args, **kwargs):
     from ..gimera import _commit
 
     return _commit(*args, **kwargs)
+
 
 @pytest.fixture(autouse=True)
 def python():
@@ -157,6 +159,7 @@ def test_basicbehaviour(temppath):
     subprocess.check_call(git + ["push"], cwd=workspace)
     (workspace / repos["repos"][1]["patches"][0]).mkdir(exist_ok=True, parents=True)
     os.chdir(workspace)
+    os.environ["GIMERA_NON_THREADED"] = "1"
     gimera_apply([], None)
     subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
     assert not Repo(workspace).staged_files
@@ -730,13 +733,12 @@ def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(tem
     os.chdir(workspace_main)
     gimera_apply([], None, recursive=True)
 
-    dirty_file = (workspace_main / 'sub1' / 'subsub' / 'file1.txt')
+    dirty_file = workspace_main / "sub1" / "subsub" / "file1.txt"
     original_content = dirty_file.read_text()
     dirty_file.write_text("changed it")
-    os.chdir(workspace_main / 'sub1')
-    switch_to(Path('gimera.yml'), 'submodule')
+    os.chdir(workspace_main / "sub1")
+    switch_to(Path("gimera.yml"), "submodule")
     try:
-        import pudb;pudb.set_trace()
         gimera_apply([], None)
     except:
         pass
@@ -746,14 +748,15 @@ def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(tem
     dirty_file.write_text(original_content)
     gimera_apply([], None)
     dirty_file.write_text("dirty")
-    os.chdir(workspace_main / 'sub1')
-    switch_to(Path('gimera.yml'), 'integrated')
+    os.chdir(workspace_main / "sub1")
+    switch_to(Path("gimera.yml"), "integrated")
     try:
         gimera_apply([], None)
     except:
         pass
     else:
         raise Exception("Error for diff losts expected.")
+
 
 def test_switch_submodule_to_other_url(temppath):
     """
@@ -1140,6 +1143,7 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     assert not (workspace_main / "subby" / "repo2.txt").exists()
 
     os.chdir(workspace_main)
+    os.environ["GIMERA_NON_THREADED"] = "1"
     gimera_apply([], True)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert (workspace_main / "subby" / "repo2.txt").exists()
@@ -1860,6 +1864,7 @@ def test_patch_ignored_path(temppath):
     assert (workspace / "sub1/file3.txt") not in dirty_files
     assert (workspace / "sub1/file2.txt") not in dirty_files
 
+
 def test_commit(temppath):
     """
     * if odoo path is ignored, it is cool to make a patch for it, too
@@ -1912,25 +1917,29 @@ def test_commit(temppath):
 
     (workspace / "sub1" / "file2.txt").write_text("a new file!")
 
-    gimera_commit('sub1', 'branch1', 'i committed', False)
+    gimera_commit("sub1", "branch1", "i committed", False)
     os.environ["GIMERA_FORCE"] = "1"
     os.unlink(workspace / "sub1" / "file2.txt")
     subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
+    os.environ["GIMERA_NON_THREADED"] = "1"
     gimera_apply([], update=True)
-    assert (workspace / 'sub1' / 'file2.txt').exists(), "sub1/file2.txt should now exist"
+    assert (
+        workspace / "sub1" / "file2.txt"
+    ).exists(), "sub1/file2.txt should now exist"
 
     # failed patch handling
-    file1 = (workspace / "sub1" / "file1.txt")
+    file1 = workspace / "sub1" / "file1.txt"
     file1.write_text("main\na change!")
-    gimera_commit('sub1', 'branch1', 'i committed', False)
+    gimera_commit("sub1", "branch1", "i committed", False)
     subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
     gimera_apply([], update=True)
-    assert 'a change!' in (workspace / 'sub1' / 'file1.txt').read_text()
+    assert "a change!" in (workspace / "sub1" / "file1.txt").read_text()
+
 
 def test_reformat_url():
     from ..tools import get_url_type, reformat_url
+
     url = "git@github.com:marcwimmer/gimera.git"
-    assert get_url_type(url) == 'git'
+    assert get_url_type(url) == "git"
 
-    assert reformat_url(url, 'http') == "https://github.com/marcwimmer/gimera.git"
-
+    assert reformat_url(url, "http") == "https://github.com/marcwimmer/gimera.git"

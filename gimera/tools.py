@@ -188,10 +188,11 @@ def try_rm_tree(path):
 
 
 @contextmanager
-def temppath():
+def temppath(mkdir=True):
     path = Path(tempfile.mktemp(suffix="."))
     try:
-        path.mkdir()
+        if mkdir:
+            path.mkdir()
         yield path
     finally:
         try_rm_tree(path)
@@ -226,6 +227,7 @@ def get_url_type(url):
         return "git"
     if url.startswith("/"):
         return "file"
+    import pudb;pudb.set_trace()
     raise NotImplementedError(url)
 
 

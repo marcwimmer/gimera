@@ -1,3 +1,4 @@
+import uuid
 import subprocess
 import click
 import shutil
@@ -7,6 +8,7 @@ from .tools import yieldlist, X, safe_relative_to, _raise_error, rmtree
 from .consts import gitcmd as git
 from contextlib import contextmanager
 from .tools import is_forced
+from .tools import temppath
 
 
 class Repo(GitCommands):
@@ -22,10 +24,15 @@ class Repo(GitCommands):
 
     def contains(self, commit):
         try:
-            self.X("git", "branch", "--contains", commit)
+            self.X(*(git + ["branch", "--contains", commit]))
             return True
         except:
             return False
+
+    @property
+    def is_bare(self):
+        answer = self.out(*(git + ["rev-parse", "--is-bare-repository"]))
+        return answer.strip() == 'true'
 
     @property
     def rel_path_to_root_repo(self):
@@ -375,7 +382,7 @@ class Repo(GitCommands):
                 if next_path.exists():
                     root = next_path
                 else:
-                    _raise_error(f"Could not find submodule in .git for {part}")
+                    break
 
     @contextmanager
     def stay_at_commit(self, enabled):
@@ -386,6 +393,31 @@ class Repo(GitCommands):
             if enabled:
                 self.X("git", "reset", "--soft", commit)
 
+    @contextmanager
+    def worktree(self, commit):
+        with temppath() as tmpfolder:
+            repo_folder = tmpfolder / str(uuid.uuid4())
+            repo_folder.parent.mkdir(exist_ok=True, parents=True)
+            try:
+                repo = Repo(repo_folder)
+                self.X("git", "worktree", "add", repo_folder, commit)
+                yield repo
+            finally:
+                if not repo_folder.exists():
+                    repo_folder.mkdir()
+                    import pudb;pudb.set_trace()
+                repo.X("git", "worktree", "remove", "--force", repo_folder)
+                rmtree(tmpfolder)
+
+    def move_worktree_content(self, dest_path):
+        if dest_path.exists():
+            rmtree(dest_path)
+        # faster than rsync
+        shutil.move(self.path, dest_path)
+        gitdir = (dest_path / '.git')
+        if gitdir.exists():
+            self.path.mkdir()
+            shutil.move(gitdir, self.path / '.git')
 
 class Remote(object):
     def __init__(self, repo, name, url):
