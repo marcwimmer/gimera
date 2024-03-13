@@ -334,8 +334,8 @@ def _clone_directory_and_add_patch_file(
         # also make sure that local cache is updated, because
         # latest repo version is applied to project
         cache_dir = _get_cache_dir(main_repo, repo_yml)
-        with wait_git_lock(local_repo_dir):
-            repo = Repo(local_repo_dir)
+        with wait_git_lock(cache_dir):
+            repo = Repo(cache_dir)
             _fetch_branch(repo, repo_yml, filter_remote='origin')
             with repo.worktree(branch) as repo:
                 repo.pull(repo_yml=repo_yml)

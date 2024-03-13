@@ -387,17 +387,17 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
             if repo_yml.url in results["urls"]:
                 return
             results["urls"].add(repo_yml.url)
-            local_repo_dir = _get_cache_dir(main_repo, repo_yml)
-            repo = Repo(local_repo_dir)
+            cache_dir = _get_cache_dir(main_repo, repo_yml)
+            repo = Repo(cache_dir)
             do_fetch = True
             if minimal_fetch:
-                with wait_git_lock(local_repo_dir):
+                with wait_git_lock(cache_dir):
                     if repo_yml.sha:
                         if repo.contains(repo_yml.sha):
                             do_fetch = False
 
             if do_fetch:
-                with wait_git_lock(local_repo_dir):
+                with wait_git_lock(cache_dir):
                     _fetch_branch(repo, repo_yml, filter_remote="origin")
 
         except Exception as ex:
@@ -1036,24 +1036,22 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
         repo.set_remote_url(remote_name, url)
         repo.X("git", "fetch", remote_name)
         bare = repo.is_bare
-        with wait_git_lock(repo.path):
-            if bare:
-                branches = repo.out(*(git + ["branch"])).splitlines()
-            else:
-                branches = repo.out(*(git + ["branch", "-r"])).splitlines()
+        if bare:
+            branches = repo.out(*(git + ["branch"])).splitlines()
+        else:
+            branches = repo.out(*(git + ["branch", "-r"])).splitlines()
 
-            for remote_branch in branches:
-                if "->" in remote_branch:
-                    continue
-                remote_branch = remote_branch.strip()
-                branch_name = remote_branch.split("/")[-1]
-                branch_name = list(clean_branch_names([branch_name]))[0]
-                remote_branch = list(clean_branch_names([remote_branch]))[0]
-                # repo.X(*(git + ["branch", "--track", remote_branch, branch_name]))
-                if filter_remote and filter_remote != remote_name:
-                    continue
-                # repo.X(*(git + ["branch", "-u", remote_branch, branch_name]))
+        for remote_branch in branches:
+            if "->" in remote_branch:
+                continue
+            remote_branch = remote_branch.strip()
+            branch_name = remote_branch.split("/")[-1]
+            branch_name = list(clean_branch_names([branch_name]))[0]
+            remote_branch = list(clean_branch_names([remote_branch]))[0]
+            if filter_remote and filter_remote != remote_name:
+                continue
 
+            with wait_git_lock(repo.path):
                 try:
                     repo.X(
                         *(git + ["fetch", remote_name, f"{branch_name}:{branch_name}"])
