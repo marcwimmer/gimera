@@ -35,6 +35,7 @@ from .tools import is_forced
 from .tools import get_url_type
 from .tools import reformat_url
 from .tools import temppath
+from .tools import verbose
 
 
 @click.group()
@@ -57,6 +58,9 @@ def _expand_repos(repos):
                     yield str(candi.path)
 
     res = list(set(unique()))
+    exact_match = [x for x in res if x in repos]
+    if len(exact_match) == 1:
+        return exact_match
     return res
 
 
@@ -194,6 +198,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="",
 )
+@click.option(
+    "-v",
+    "--verbose",
+    is_flag=True,
+    help="",
+)
 def apply(
     repos,
     update,
@@ -208,7 +218,10 @@ def apply(
     no_auto_commit,
     force,
     no_fetch,
+    verbose,
 ):
+    if verbose:
+        os.environ["GIMERA_VERBOSE"] = "1"
     if force:
         os.environ["GIMERA_FORCE"] = "1"
     if non_interactive:
@@ -308,6 +321,7 @@ def _internal_apply(
     _fetch_repos_in_parallel(main_repo, repos, update=update, minimal_fetch=no_fetch)
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
+            verbose(f"applying {repo.path}")
             _turn_into_correct_repotype(
                 sub_path or main_repo.path, main_repo, repo, config
             )
@@ -365,11 +379,13 @@ def _internal_apply(
 
 def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
     results = {"errors": {}, "urls": set()}
+    threaded = os.getenv("GIMERA_NON_THREADED") == "1" or len(repos) == 1
 
     def _pull_repo(index, main_repo, repo_yml):
         try:
             if repo_yml.url in results["urls"]:
                 return
+            verbose(f"Fetching {repo_yml.url}")
             results["urls"].add(repo_yml.url)
             cache_dir = _get_cache_dir(main_repo, repo_yml)
             repo = Repo(cache_dir)
@@ -385,12 +401,12 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
                     _fetch_branch(repo, repo_yml, filter_remote="origin")
 
         except Exception as ex:
-            if os.getenv("GIMERA_NON_THREADED") == "1":
+            if not threaded:
                 raise
             trace = traceback.format_exc()
             results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
 
-    if os.getenv("GIMERA_NON_THREADED") == "1":
+    if not threaded:
         for index, repo in enumerate(repos):
             _pull_repo(index, main_repo, repo)
     else:
@@ -1015,7 +1031,7 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
 
     def set_url_and_fetch(remote_name, url):
         repo.set_remote_url(remote_name, url)
-        repo.X("git", "fetch", remote_name)
+        repo.X("git", "fetch", "-q", remote_name)
         bare = repo.is_bare
         if bare:
             branches = repo.out(*(git + ["branch"])).splitlines()
@@ -1036,12 +1052,18 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
 
         with wait_git_lock(repo.path):
             try:
-                repo.X(*(git + ["fetch", remote_name] + todo_branches))
-            except Exception:
-                for branch_names in todo_branches:
-                    branch_name = branch_names.split(":")[0]
-                    repo.X(*(git + ["branch", "-D", branch_name]))
-                    repo.X(*(git + ["fetch", remote_name, branch_names]))
+                # ret = subprocess.run(git + ["fetch", "--dry-run", remote_name] + todo_branches, cwd=repo.path, capture_output=True, text=True)
+                res = repo.out(*(git + ["fetch", "--dry-run", remote_name] + todo_branches))
+            except subprocess.CalledProcessError as ex:
+                rejected = list(filter(lambda line: "! [rejected]" in line, ex.stderr.splitlines()))
+                rejects = []
+                for rejected_branch in rejected:
+                    #  ! [rejected]                  staging.saas-16.3 -> staging.saas-16.3  (non-fast-forward)
+                    rejected_branch = rejected_branch.split("->")[1].split("(")[0].strip()
+                    rejects.append(rejected_branch)
+                    click.secho(f"Update of branch {rejected_branch} was rejected. It is deleted locally to be fetch again.")
+                    repo.X(*(git + ["branch", "-D", rejected_branch]))
+            repo.X(*(git + ["fetch", remote_name] + todo_branches))
 
     fetch_exception = None
     if not no_fetch:
@@ -1050,9 +1072,6 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
                 url = remote.url
                 set_url_and_fetch(remote.name, url)
             except Exception as ex:
-                import pudb
-
-                pudb.set_trace()
                 fetch_exception = ex
                 if get_url_type(url) == "git":
                     url_http = reformat_url(url, "http")

@@ -25,14 +25,21 @@ def yieldlist(method):
 
 
 def X(*params, output=False, cwd=None, allow_error=False):
+    """
+    Catching output error and stderr
+    try:
+        stdout = X(output=True, .....)
+    except subprocess.CalledProcessError as ex:
+        stderr = ex.stderr
+    """
     params = list(filter(lambda x: x is not None, list(params)))
     if output:
-        try:
-            return subprocess.check_output(params, encoding="utf-8", cwd=cwd).rstrip()
-        except subprocess.CalledProcessError:
+        ret = subprocess.run(params, encoding="utf-8", cwd=cwd, capture_output=True, text=True)
+        if ret.returncode:
             if allow_error:
                 return ""
-            raise
+            raise subprocess.CalledProcessError(returncode=ret.returncode, cmd=params, output=ret.stdout, stderr=ret.stderr)
+        return ret.stdout.rstrip()
     try:
         return subprocess.check_call(params, cwd=cwd)
     except subprocess.CalledProcessError:
@@ -227,7 +234,6 @@ def get_url_type(url):
         return "git"
     if url.startswith("/"):
         return "file"
-    import pudb;pudb.set_trace()
     raise NotImplementedError(url)
 
 
@@ -245,3 +251,8 @@ def reformat_url(url, ttype):
         return url
     else:
         raise NotImplementedError(f"{url} + {ttype}")
+
+def verbose(txt):
+    if not os.getenv("GIMERA_VERBOSE") == "1":
+        return
+    click.secho(txt, fg="yellow")

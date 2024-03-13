@@ -265,22 +265,22 @@ class Repo(GitCommands):
         )
 
     @property
-    @yieldlist
     def remotes(self):
         result = {}
         for line in self.out("git", "remote", "-v").splitlines():
             name, url = line.strip().split("\t")
             url = url.split("(")[0].rstrip()
-            v = result.setdefault(name, url)
-            if str(v) != str(url):
+            repo = Remote(self, name, url)
+            v = result.setdefault(name, repo)
+            if str(v.url) != str(url):
                 raise NotImplementedError(
                     (
                         "Different urls for push and fetch for remote {name}\n"
                         f"{url} != {v}"
                     )
                 )
-            yield Remote(self, name, url)
-        return result
+            result[name] = repo
+        return result.values()
 
     @yieldlist
     def filterout_submodules(self, filelist):
@@ -403,9 +403,6 @@ class Repo(GitCommands):
                 self.X("git", "worktree", "add", repo_folder, commit)
                 yield repo
             finally:
-                if not repo_folder.exists():
-                    repo_folder.mkdir()
-                    import pudb;pudb.set_trace()
                 repo.X("git", "worktree", "remove", "--force", repo_folder)
                 rmtree(tmpfolder)
 
