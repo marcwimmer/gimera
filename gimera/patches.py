@@ -47,6 +47,8 @@ def make_patches(working_dir, main_repo, repo_yml):
                 patch_content = _technically_make_patch(main_repo, subdir_path)
 
                 if not repo_yml.all_patch_dirs(rel_or_abs="relative"):
+                    if os.getenv("GIMERA_FORCE") == "1":
+                        return
                     _raise_error(
                         "Please define at least one directory, "
                         f"where patches are stored for {repo_yml.path}"

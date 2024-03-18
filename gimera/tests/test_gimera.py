@@ -490,8 +490,7 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
 
 
 def test_switch_submodule_to_integrated_and_sub_with_gitignores(temppath):
-    """
-    Took long time to understand it:
+    """ Took long time to understand it:
     if there are gitignores and a submodule is moved to an integrated module
     then files of that subrepo may become gitignored files of main repo and
     removal of that directory fails.
@@ -1943,3 +1942,88 @@ def test_reformat_url():
     assert get_url_type(url) == "git"
 
     assert reformat_url(url, "http") == "https://github.com/marcwimmer/gimera.git"
+
+
+def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(temppath):
+    workspace = temppath / "workspace_switch_submodule_gitignore"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos_sub = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    repos_int = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function")
+        (repopath / "dont_look_at_me").write_text("i am ugly")
+        Repo(repopath).simple_commit_all()
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    (workspace_main / "main.txt").write_text("main repo")
+    (workspace_main / ".gitignore").write_text("dont_look_at_me\n")
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+    repo.X(*(git + ["push"]))
+
+    os.chdir(workspace_main)
+
+    gitignore = workspace_main / '.gitignore'
+    gitignore.write_text("sub1")
+    gimera_apply([], None)
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    try:
+        repo.get_submodule("sub1")
+    except ValueError:
+        raise Exception("Should be found")
+    assert not repo.all_dirty_files
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    try:
+        repo.get_submodule("sub1")
+    except ValueError:
+        pass
+    else:
+        raise Exception("Should not be found")
+    assert not repo.all_dirty_files
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    repo.simple_commit_all()
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+    try:
+        repo.get_submodule("sub1")
+    except ValueError:
+        raise Exception("Should be found")
+    assert not repo.all_dirty_files
