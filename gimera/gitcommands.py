@@ -26,12 +26,14 @@ class GitCommands(object):
             here = here.parent
         raise Exception("Config dir not found")
 
-    def X(self, *params, allow_error=False):
+    def X(self, *params, allow_error=False, env=None):
         with wait_git_lock(self.path):
-            return X(*params, output=False, cwd=self.path, allow_error=allow_error)
+            return X(
+                *params, output=False, cwd=self.path, allow_error=allow_error, env=env
+            )
 
-    def out(self, *params, allow_error=False):
-        return X(*params, output=True, cwd=self.path, allow_error=allow_error)
+    def out(self, *params, allow_error=False, env=None):
+        return X(*params, output=True, cwd=self.path, allow_error=allow_error, env=env)
 
     def _parse_git_status(self):
         for line in X(
@@ -135,7 +137,7 @@ class GitCommands(object):
 
     def simple_commit_all(self, msg="."):
         self.X("git", "add", ".")
-        self.X("git", "commit", "--allow-empty","-am", msg)
+        self.X("git", "commit", "--allow-empty", "-am", msg)
 
     @property
     def hex(self):

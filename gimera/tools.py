@@ -24,7 +24,7 @@ def yieldlist(method):
     return wrapper
 
 
-def X(*params, output=False, cwd=None, allow_error=False):
+def X(*params, output=False, cwd=None, allow_error=False, env=None):
     """
     Catching output error and stderr
     try:
@@ -34,14 +34,26 @@ def X(*params, output=False, cwd=None, allow_error=False):
     """
     params = list(filter(lambda x: x is not None, list(params)))
     if output:
-        ret = subprocess.run(params, encoding="utf-8", cwd=cwd, capture_output=True, text=True)
+        ret = subprocess.run(
+            params,
+            encoding="utf-8",
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            env=env or {},
+        )
         if ret.returncode:
             if allow_error:
                 return ""
-            raise subprocess.CalledProcessError(returncode=ret.returncode, cmd=params, output=ret.stdout, stderr=ret.stderr)
+            raise subprocess.CalledProcessError(
+                returncode=ret.returncode,
+                cmd=params,
+                output=ret.stdout,
+                stderr=ret.stderr,
+            )
         return ret.stdout.rstrip()
     try:
-        return subprocess.check_call(params, cwd=cwd)
+        return subprocess.check_call(params, cwd=cwd, env=env)
     except subprocess.CalledProcessError:
         if allow_error:
             return None
@@ -100,9 +112,7 @@ def file_age(path):
         mtime = datetime.fromtimestamp(os.stat(path).st_mtime)
     except:
         return 0
-    return (
-        datetime.now() - mtime
-    ).total_seconds()
+    return (datetime.now() - mtime).total_seconds()
 
 
 @contextmanager
@@ -251,6 +261,7 @@ def reformat_url(url, ttype):
         return url
     else:
         raise NotImplementedError(f"{url} + {ttype}")
+
 
 def verbose(txt):
     if not os.getenv("GIMERA_VERBOSE") == "1":

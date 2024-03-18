@@ -24,15 +24,23 @@ class Repo(GitCommands):
 
     def contains(self, commit):
         try:
-            self.X(*(git + ["branch", "--contains", commit]))
+            self.X(
+                *(git + ["branch", "--contains", commit]),
+                env={
+                    "PAGER": "",
+                    "GIT_PAGER": "",
+                },
+            )
             return True
-        except:
+        except Exception as ex:
+            print(ex)
+            import pudb;pudb.set_trace()
             return False
 
     @property
     def is_bare(self):
         answer = self.out(*(git + ["rev-parse", "--is-bare-repository"]))
-        return answer.strip() == 'true'
+        return answer.strip() == "true"
 
     @property
     def rel_path_to_root_repo(self):
@@ -120,7 +128,7 @@ class Repo(GitCommands):
         if fullpath.exists():
             self.X("git", "add", "-A", path)
         if self.lsfiles(fullpath.relative_to(self.path)):
-            self.X("git", "add", "-A", path)
+            self.X("git", "add", "-f", "-A", path)
         if (self.path / ".gitmodules") in self.all_dirty_files:
             self.X("git", "add", "-A", ".gitmodules")
 
@@ -411,10 +419,11 @@ class Repo(GitCommands):
             rmtree(dest_path)
         # faster than rsync
         shutil.move(self.path, dest_path)
-        gitdir = (dest_path / '.git')
+        gitdir = dest_path / ".git"
         if gitdir.exists():
             self.path.mkdir()
-            shutil.move(gitdir, self.path / '.git')
+            shutil.move(gitdir, self.path / ".git")
+
 
 class Remote(object):
     def __init__(self, repo, name, url):
