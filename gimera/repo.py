@@ -34,7 +34,6 @@ class Repo(GitCommands):
             return True
         except Exception as ex:
             print(ex)
-            import pudb;pudb.set_trace()
             return False
 
     @property

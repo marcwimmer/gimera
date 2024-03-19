@@ -1032,9 +1032,6 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
 
     def set_url_and_fetch(remote_name, url):
         repo.set_remote_url(remote_name, url)
-        import pudb
-
-        pudb.set_trace()
         repo.X("git", "fetch", "-q", remote_name, env={"GIT_TERMINAL_PROMPT": "0"})
         bare = repo.is_bare
         if bare:
