@@ -226,6 +226,7 @@ def apply(
         os.environ["GIMERA_FORCE"] = "1"
     if non_interactive:
         os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+        os.environ['GIT_TERMINAL_PROMPT'] = '0'
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
@@ -1031,7 +1032,8 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
 
     def set_url_and_fetch(remote_name, url):
         repo.set_remote_url(remote_name, url)
-        repo.X("git", "fetch", "-q", remote_name)
+        import pudb;pudb.set_trace()
+        repo.X("git", "fetch", "-q", remote_name, env={"GIT_TERMINAL_PROMPT": "0"})
         bare = repo.is_bare
         if bare:
             branches = repo.out(*(git + ["branch"])).splitlines()
@@ -1073,12 +1075,16 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
                 set_url_and_fetch(remote.name, url)
             except Exception as ex:
                 fetch_exception = ex
-                if get_url_type(url) == "git":
-                    url_http = reformat_url(url, "http")
-                    try:
-                        set_url_and_fetch(remote.name, url_http)
-                    except Exception:
-                        raise fetch_exception
+                for combination in [
+                    ("git", "http"),
+                    ("http", "git"),
+                ]:
+                    if get_url_type(url) == combination[0]:
+                        url_http = reformat_url(url, combination[1])
+                        try:
+                            set_url_and_fetch(remote.name, url_http)
+                        except Exception:
+                            raise fetch_exception
 
 
 @contextmanager
