@@ -238,7 +238,7 @@ def rsync(dir1, dir2, exclude=None, delete_after=True):
 
 
 def get_url_type(url):
-    if url.startswith("https"):
+    if url.startswith("http"):
         return "http"
     if url.startswith("git@"):
         return "git"
@@ -258,6 +258,11 @@ def reformat_url(url, ttype):
             # colon in password possible
             url = "/".join(url.split(":", 1))
         url = "https://" + url
+        return url
+    elif ttype == "git" and current == "http":
+        url = url.split("://", 1)[1]
+        url = f"git@{url}"
+        url = ":".join(url.split("/", 1))
         return url
     else:
         raise NotImplementedError(f"{url} + {ttype}")
