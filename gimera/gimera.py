@@ -226,7 +226,7 @@ def apply(
         os.environ["GIMERA_FORCE"] = "1"
     if non_interactive:
         os.environ["GIMERA_NON_INTERACTIVE"] = "1"
-        os.environ['GIT_TERMINAL_PROMPT'] = '0'
+        os.environ["GIT_TERMINAL_PROMPT"] = "0"
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
@@ -1032,7 +1032,9 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
 
     def set_url_and_fetch(remote_name, url):
         repo.set_remote_url(remote_name, url)
-        import pudb;pudb.set_trace()
+        import pudb
+
+        pudb.set_trace()
         repo.X("git", "fetch", "-q", remote_name, env={"GIT_TERMINAL_PROMPT": "0"})
         bare = repo.is_bare
         if bare:
@@ -1055,15 +1057,23 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
         with wait_git_lock(repo.path):
             try:
                 # ret = subprocess.run(git + ["fetch", "--dry-run", remote_name] + todo_branches, cwd=repo.path, capture_output=True, text=True)
-                res = repo.out(*(git + ["fetch", "--dry-run", remote_name] + todo_branches))
+                res = repo.out(
+                    *(git + ["fetch", "--dry-run", remote_name] + todo_branches)
+                )
             except subprocess.CalledProcessError as ex:
-                rejected = list(filter(lambda line: "! [rejected]" in line, ex.stderr.splitlines()))
+                rejected = list(
+                    filter(lambda line: "! [rejected]" in line, ex.stderr.splitlines())
+                )
                 rejects = []
                 for rejected_branch in rejected:
                     #  ! [rejected]                  staging.saas-16.3 -> staging.saas-16.3  (non-fast-forward)
-                    rejected_branch = rejected_branch.split("->")[1].split("(")[0].strip()
+                    rejected_branch = (
+                        rejected_branch.split("->")[1].split("(")[0].strip()
+                    )
                     rejects.append(rejected_branch)
-                    click.secho(f"Update of branch {rejected_branch} was rejected. It is deleted locally to be fetch again.")
+                    click.secho(
+                        f"Update of branch {rejected_branch} was rejected. It is deleted locally to be fetch again."
+                    )
                     repo.X(*(git + ["branch", "-D", rejected_branch]))
             repo.X(*(git + ["fetch", remote_name] + todo_branches))
 
