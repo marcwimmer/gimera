@@ -201,6 +201,11 @@ How it works:
   * patch file is applied
   * if something conflicts, then it is reported and you have to decide what to do
 
+## Some environment variables
+
+  * GIMERA_NON_THREADED=1 - non threaded fetch
+  * GIMERA_IGNORE_FETCH_ERRORS=1 - ignore any fetch error at fetch
+
 ## Contributors
   * Marc Wimmer (marc@zebroo.de)
   * Michael Tietz (mtietz@mt-software.de)

@@ -402,10 +402,14 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
                     _fetch_branch(repo, repo_yml, filter_remote="origin")
 
         except Exception as ex:
-            if not threaded:
-                raise
-            trace = traceback.format_exc()
-            results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
+            if os.getenv("GIMERA_IGNORE_FETCH_ERRORS") == "1":
+                click.secho("Following error is ignored because GIMERA_IGNORE_FETCH_ERRORS is set:")
+                click.secho(str(ex), fg='red')
+            else:
+                if not threaded:
+                    raise
+                trace = traceback.format_exc()
+                results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
 
     if not threaded:
         for index, repo in enumerate(repos):
