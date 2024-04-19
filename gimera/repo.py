@@ -256,7 +256,6 @@ class Repo(GitCommands):
         This was too weak:
         self.X("git", "pull", "--no-edit", remote and remote.name or None, ref)
 
-
         "params remote": remote object
 
         """
