@@ -322,6 +322,7 @@ def _internal_apply(
     _fetch_repos_in_parallel(main_repo, repos, update=update, minimal_fetch=no_fetch)
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
+
             verbose(f"applying {repo.path}")
             _turn_into_correct_repotype(
                 sub_path or main_repo.path, main_repo, repo, config
@@ -335,12 +336,7 @@ def _internal_apply(
                 )
             elif repo.type == REPO_TYPE_INT:
                 if not no_patches:
-                    try:
-                        make_patches(sub_path or main_repo.path, main_repo, repo)
-                    except Exception as ex:
-                        raise
-                        msg = f"Error making patches for: {repo.path}\n\n{ex}"
-                        _raise_error(msg)
+                    make_patches(sub_path or main_repo.path, main_repo, repo)
 
                 try:
                     _update_integrated_module(
@@ -380,7 +376,7 @@ def _internal_apply(
 
 def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
     results = {"errors": {}, "urls": set()}
-    threaded = os.getenv("GIMERA_NON_THREADED") == "1" or len(repos) == 1
+    threaded = os.getenv("GIMERA_NON_THREADED") == "1" or len(repos) > 1
 
     def _pull_repo(index, main_repo, repo_yml):
         try:
@@ -403,8 +399,10 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
 
         except Exception as ex:
             if os.getenv("GIMERA_IGNORE_FETCH_ERRORS") == "1":
-                click.secho("Following error is ignored because GIMERA_IGNORE_FETCH_ERRORS is set:")
-                click.secho(str(ex), fg='red')
+                click.secho(
+                    "Following error is ignored because GIMERA_IGNORE_FETCH_ERRORS is set:"
+                )
+                click.secho(str(ex), fg="red")
             else:
                 if not threaded:
                     raise
@@ -687,10 +685,11 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
         repo = Repo(working_dir)
     subrepo = repo.get_submodule(repo_yml.path)
     if subrepo.dirty:
-        _raise_error(
-            f"Directory {repo_yml.path} contains modified "
-            "files. Please commit or purge before!"
-        )
+        if os.getenv("GIMERA_FORCE") != "1":
+            _raise_error(
+                f"Directory {repo_yml.path} contains modified "
+                "files. Please commit or purge before!"
+            )
     sha = repo_yml.sha if not update else None
 
     def _commit_submodule():
