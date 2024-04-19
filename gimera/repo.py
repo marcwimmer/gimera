@@ -238,8 +238,15 @@ class Repo(GitCommands):
             if not no_set_url:
                 self.set_remote_url(remote.name, remote.url)
         else:
-            self.X("git", "remote", "add", remote.name, remote.url)
-        self.X("git", "fetch", remote.name)
+            self.X(
+                "git",
+                "remote",
+                "add",
+                remote.name,
+                remote.url,
+                env={"GIT_TERMINAL_PROMPT": "0"},
+            )
+        self.X("git", "fetch", remote.name, env={"GIT_TERMINAL_PROMPT": "0"})
 
     def pull(self, remote=None, ref=None, repo_yml=None):
         """
