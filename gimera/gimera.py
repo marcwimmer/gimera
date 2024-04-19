@@ -376,7 +376,10 @@ def _internal_apply(
 
 def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
     results = {"errors": {}, "urls": set()}
-    threaded = os.getenv("GIMERA_NON_THREADED") != "1" or len(repos) > 1
+    if os.getenv("GIMERA_NON_THREADED", "0") == "1":
+        threaded = False
+    else:
+        threaded = len(repos) > 1
 
     def _pull_repo(index, main_repo, repo_yml):
         try:

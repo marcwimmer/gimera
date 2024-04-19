@@ -33,6 +33,8 @@ def X(*params, output=False, cwd=None, allow_error=False, env=None):
         stderr = ex.stderr
     """
     params = list(filter(lambda x: x is not None, list(params)))
+    env2 = {k: v for k, v in os.environ.items()}
+    env2.update(env or {})
     if output:
         ret = subprocess.run(
             params,
@@ -40,7 +42,7 @@ def X(*params, output=False, cwd=None, allow_error=False, env=None):
             cwd=cwd,
             capture_output=True,
             text=True,
-            env=env or {},
+            env=env2,
         )
         if ret.returncode:
             if allow_error:
@@ -53,7 +55,7 @@ def X(*params, output=False, cwd=None, allow_error=False, env=None):
             )
         return ret.stdout.rstrip()
     try:
-        return subprocess.check_call(params, cwd=cwd, env=env)
+        return subprocess.check_call(params, cwd=cwd, env=env2)
     except subprocess.CalledProcessError:
         if allow_error:
             return None

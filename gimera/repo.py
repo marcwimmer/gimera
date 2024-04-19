@@ -218,7 +218,8 @@ class Repo(GitCommands):
 
     def set_remote_url(self, name, url):
         remote = Remote(self, name, url)
-        self.add_remote(remote, exist_ok=True, no_set_url=True)
+        # do not fetch; could point to https form which requires authentication
+        self.add_remote(remote, exist_ok=True, no_set_url=True, fetch=False)
         self.X("git", "remote", "set-url", name, url, env={"GIT_TERMINAL_PROMPT": "0"})
 
     def remove_remote(self, remote):
@@ -230,7 +231,7 @@ class Repo(GitCommands):
             env={"GIT_TERMINAL_PROMPT": "0"},
         )
 
-    def add_remote(self, remote, exist_ok=False, no_set_url=False):
+    def add_remote(self, remote, exist_ok=False, no_set_url=False, fetch=True):
         output = self.out(
             "git", "remote", env={"GIT_TERMINAL_PROMPT": "0"}
         ).splitlines()
@@ -246,7 +247,8 @@ class Repo(GitCommands):
                 remote.url,
                 env={"GIT_TERMINAL_PROMPT": "0"},
             )
-        self.X("git", "fetch", remote.name, env={"GIT_TERMINAL_PROMPT": "0"})
+        if fetch:
+            self.X("git", "fetch", remote.name, env={"GIT_TERMINAL_PROMPT": "0"})
 
     def pull(self, remote=None, ref=None, repo_yml=None):
         """
