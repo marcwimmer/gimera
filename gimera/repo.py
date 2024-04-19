@@ -219,13 +219,21 @@ class Repo(GitCommands):
     def set_remote_url(self, name, url):
         remote = Remote(self, name, url)
         self.add_remote(remote, exist_ok=True, no_set_url=True)
-        self.X("git", "remote", "set-url", name, url)
+        self.X("git", "remote", "set-url", name, url, env={"GIT_TERMINAL_PROMPT": "0"})
 
     def remove_remote(self, remote):
-        self.X("git", "remote", "rm", remote and remote.name or None)
+        self.X(
+            "git",
+            "remote",
+            "rm",
+            remote and remote.name or None,
+            env={"GIT_TERMINAL_PROMPT": "0"},
+        )
 
     def add_remote(self, remote, exist_ok=False, no_set_url=False):
-        output = self.out("git", "remote").splitlines()
+        output = self.out(
+            "git", "remote", env={"GIT_TERMINAL_PROMPT": "0"}
+        ).splitlines()
         if [x for x in output if x.strip() == remote.name]:
             if not no_set_url:
                 self.set_remote_url(remote.name, remote.url)
