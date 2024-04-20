@@ -204,6 +204,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="",
 )
+@click.option(
+    "-SHA",
+    "--no-sha-update",
+    is_flag=True,
+    help="If set, then in gimera.yml the shas are not updated.",
+)
 def apply(
     repos,
     update,
@@ -219,9 +225,12 @@ def apply(
     force,
     no_fetch,
     verbose,
+    no_sha_update,
 ):
     if verbose:
         os.environ["GIMERA_VERBOSE"] = "1"
+    if no_sha_update:
+        os.environ["GIMERA_NO_SHA_UPDATE"] = "1"
     if force:
         os.environ["GIMERA_FORCE"] = "1"
     if non_interactive:

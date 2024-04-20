@@ -103,11 +103,14 @@ class Config(object):
         if main_repo.staged_files:
             _raise_error("There mustnt be any staged files when updating gimera.yml")
 
+        import pudb;pudb.set_trace()
         config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
         param_repo = repo
         for repo in config["repos"]:
             if Path(repo["path"]) == param_repo.path:
                 for k, v in value.items():
+                    if k == 'sha':
+                        v = str(v)
                     repo[k] = v
                 break
         else:
@@ -221,10 +224,8 @@ class Config(object):
 
         @sha.setter
         def sha(self, value):
-            changed = False
-            changed = self._sha != value
             self._sha = value
-            if changed:
+            if os.getenv("GIMERA_NO_SHA_UPDATE") != "1":
                 self.config._store(self, {"sha": value})
 
         def as_dict(self):

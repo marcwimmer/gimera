@@ -100,6 +100,11 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml):
             for patchdir in repo_yml.patches:
                 dest_path = main_repo2.path / patchdir
                 dest_path.mkdir(exist_ok=True, parents=True)
+                patch_path = main_repo.path / patchdir 
+                if not patch_path.exists():
+                    if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
+                        confirm(f"Path {patch_path} does not exist. Create?")
+                        patch_path.mkdir(parents=True, exist_ok=True)
                 rsync(main_repo.path / patchdir, dest_path)
             main_repo2.simple_commit_all()
             with _temporarily_move_gimera(repo_yml, main_repo2.path):
