@@ -39,6 +39,8 @@ repos:
 
       # default True
       enabled: True
+      # if true, then on gimera apply -u the SHA is not updated
+      stick: False
 
 
     # instead of submodule put the content directly in the repository;
@@ -206,8 +208,10 @@ How it works:
   * GIMERA_NON_THREADED=1 - non threaded fetch
   * GIMERA_IGNORE_FETCH_ERRORS=1 - ignore any fetch error at fetch
 
-## Contributors
+## Authors:
   * Marc Wimmer (marc@zebroo.de)
+
+## Contributors
   * Michael Tietz (mtietz@mt-software.de)
   * Walter Saltzmann
 

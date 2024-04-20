@@ -103,7 +103,6 @@ class Config(object):
         if main_repo.staged_files:
             _raise_error("There mustnt be any staged files when updating gimera.yml")
 
-        import pudb;pudb.set_trace()
         config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
         param_repo = repo
         for repo in config["repos"]:
@@ -117,7 +116,8 @@ class Config(object):
             config["repos"].append(value)
         for k, v in value.items():
             try:
-                setattr(param_repo, k, v)
+                if getattr(param_repo, k) != v:
+                    setattr(param_repo, k, v)
             except AttributeError as ex:
                 raise Exception(f"Cannot set attribute {k}") from ex
         self.config_file.write_text(yaml.dump(config, default_flow_style=False))
@@ -153,6 +153,7 @@ class Config(object):
             self.config = config
             self._sha = config_section.get("sha", None)
             self.enabled = config_section.get("enabled", True)
+            self.stick = config_section.get("stick", False)
             self.path = Path(config_section["path"])
             self.branch = self.eval(str(config_section["branch"]))
             self.merges = config_section.get("merges", [])
@@ -225,7 +226,7 @@ class Config(object):
         @sha.setter
         def sha(self, value):
             self._sha = value
-            if os.getenv("GIMERA_NO_SHA_UPDATE") != "1":
+            if not self.stick and os.getenv("GIMERA_NO_SHA_UPDATE") != "1":
                 self.config._store(self, {"sha": value})
 
         def as_dict(self):
