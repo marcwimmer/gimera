@@ -382,6 +382,7 @@ def _internal_apply(
                     **options,
                 )
 
+threadLimiter = threading.BoundedSemaphore(4)
 
 def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
     results = {"errors": {}, "urls": set()}
@@ -391,6 +392,7 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
         threaded = len(repos) > 1
 
     def _pull_repo(index, main_repo, repo_yml):
+        threadLimiter.acquire()
         try:
             if repo_yml.url in results["urls"]:
                 return
@@ -420,11 +422,15 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
                     raise
                 trace = traceback.format_exc()
                 results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
+        finally:
+            threadLimiter.release()
 
     if not threaded:
         for index, repo in enumerate(repos):
             _pull_repo(index, main_repo, repo)
     else:
+
+
         threads = []
         for index, repo in enumerate(repos):
             t = threading.Thread(target=_pull_repo, args=(index, main_repo, repo))
