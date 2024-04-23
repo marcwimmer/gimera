@@ -40,7 +40,7 @@ repos:
       # default True
       enabled: True
       # if true, then on gimera apply -u the SHA is not updated
-      stick: False
+      freeze_sha: False
 
 
     # instead of submodule put the content directly in the repository;

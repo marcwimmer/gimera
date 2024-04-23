@@ -108,7 +108,7 @@ class Config(object):
         for repo in config["repos"]:
             if Path(repo["path"]) == param_repo.path:
                 for k, v in value.items():
-                    if k == 'sha':
+                    if k == "sha":
                         v = str(v)
                     repo[k] = v
                 break
@@ -132,7 +132,7 @@ class Config(object):
     def get_repos(self, names):
         if not names:
             return self.repos
-        if isinstance(names, (Path,str)) :
+        if isinstance(names, (Path, str)):
             names = [names]
         names = list(_strip_paths(names))
         res = []
@@ -153,7 +153,7 @@ class Config(object):
             self.config = config
             self._sha = config_section.get("sha", None)
             self.enabled = config_section.get("enabled", True)
-            self.stick = config_section.get("stick", False)
+            self.freeze_sha = config_section.get("freeze_sha", False)
             self.path = Path(config_section["path"])
             self.branch = self.eval(str(config_section["branch"]))
             self.merges = config_section.get("merges", [])
@@ -226,7 +226,7 @@ class Config(object):
         @sha.setter
         def sha(self, value):
             self._sha = value
-            if not self.stick and os.getenv("GIMERA_NO_SHA_UPDATE") != "1":
+            if not self.freeze_sha and os.getenv("GIMERA_NO_SHA_UPDATE") != "1":
                 self.config._store(self, {"sha": value})
 
         def as_dict(self):
@@ -278,7 +278,9 @@ class Config(object):
                 return dir
 
             if isinstance(self.patches, str):
-                raise ValueError(f"Patches must be a list. But is {self.patches} for {self.url}")
+                raise ValueError(
+                    f"Patches must be a list. But is {self.patches} for {self.url}"
+                )
             res = list(map(transform_outbound_patchdirs, self.patches))
 
             def transform_internal_patchdir(dir):
