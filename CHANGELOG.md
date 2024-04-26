@@ -1,3 +1,7 @@
+# 0.7.53
+  * fetch more stable: sometimes all branches cannot be fetched, then just trying the one needed
+  * using rsync progress2 information update
+
 # 0.7.34
   * gimera apply addons_tools/ works and fetches all repositories from that parent url
     gimera apply addons_tools/* did not work out of the box; zsh complains about expanding

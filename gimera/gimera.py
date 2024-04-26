@@ -382,7 +382,9 @@ def _internal_apply(
                     **options,
                 )
 
+
 threadLimiter = threading.BoundedSemaphore(4)
+
 
 def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
     results = {"errors": {}, "urls": set()}
@@ -429,7 +431,6 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
         for index, repo in enumerate(repos):
             _pull_repo(index, main_repo, repo)
     else:
-
 
         threads = []
         for index, repo in enumerate(repos):
@@ -1093,7 +1094,15 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
                         f"Update of branch {rejected_branch} was rejected. It is deleted locally to be fetch again."
                     )
                     repo.X(*(git + ["branch", "-D", rejected_branch]))
-            repo.X(*(git + ["fetch", remote_name] + todo_branches))
+            try:
+                repo.X(*(git + ["fetch", remote_name] + todo_branches))
+            except:
+                branch = repo_yml.branch
+                click.secho(
+                    f"Could not fetch all branches, but trying to just fetch the needed branch.",
+                    fg="yellow",
+                )
+                repo.X(*(git + ["fetch", remote_name, branch]))
 
     fetch_exception = None
     if not no_fetch:
