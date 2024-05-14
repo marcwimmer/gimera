@@ -1146,7 +1146,7 @@ def _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
     "--preview",
     is_flag=True,
 )
-@click.argument("branch", required=True)
+@click.argument("branch", required=False)
 def commit(repo, branch, message, preview):
     return _commit(repo, branch, message, preview)
 
@@ -1163,6 +1163,15 @@ def _commit(repo, branch, message, preview):
         path2 = path2 / "repo"
         gitrepo = Repo(path2)
         main_repo.X("git", "clone", repo.url, path2)
+
+        if not branch:
+            res = click.confirm(
+                f"\n\n\nCommitting to branch {repo.branch} - continue?", default=True
+            )
+            if not res:
+                sys.exit(-1)
+            branch = repo.branch
+
         gitrepo.X("git", "checkout", "-f", branch)
         src_path = main_repo.path / repo.path
         patch_content = _technically_make_patch(main_repo, src_path)
