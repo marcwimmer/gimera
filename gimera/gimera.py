@@ -36,6 +36,7 @@ from .tools import get_url_type
 from .tools import reformat_url
 from .tools import temppath
 from .tools import verbose
+from .tools import try_rm_tree
 
 
 @click.group()
@@ -64,7 +65,7 @@ def _expand_repos(repos):
     return res
 
 
-@cli.command(name="clean", help="Removes all dirty")
+@cli.command(name="clean", help="Removes all git-dirty items")
 def clean():
     Cmd = GitCommands()
     if not Cmd.dirty:
@@ -1073,6 +1074,9 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
                 continue
             todo_branches.append(f"{branch_name}:{branch_name}")
 
+        if not [x for x in todo_branches if x == repo_yml.branch + ":"]:
+            todo_branches.append(f"{repo_yml.branch}:{repo_yml.branch}")
+
         with wait_git_lock(repo.path):
             try:
                 # ret = subprocess.run(git + ["fetch", "--dry-run", remote_name] + todo_branches, cwd=repo.path, capture_output=True, text=True)
@@ -1190,3 +1194,11 @@ def _commit(repo, branch, message, preview):
                 return
         gitrepo.X("git", "commit", "-m", message)
         gitrepo.X("git", "push")
+
+@cli.command(help="Removes all dirty")
+def purge():
+    config = Config()
+    repos = config.get_repos(None)
+    for repo in repos:
+        click.secho(f"Deleting: {repo.path}")
+        try_rm_tree(repo.path)
