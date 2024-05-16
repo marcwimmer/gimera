@@ -423,7 +423,7 @@ class Repo(GitCommands):
             repo_folder.parent.mkdir(exist_ok=True, parents=True)
             try:
                 repo = Repo(repo_folder)
-                self.X("git", "worktree", "add", repo_folder, commit)
+                self.X("git", "worktree", "add", "--force", repo_folder, commit)
                 yield repo
             finally:
                 repo.X("git", "worktree", "remove", "--force", repo_folder)
