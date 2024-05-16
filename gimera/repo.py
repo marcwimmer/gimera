@@ -425,6 +425,9 @@ class Repo(GitCommands):
                 repo = Repo(repo_folder)
                 self.X("git", "worktree", "add", "--force", repo_folder, commit)
                 yield repo
+            except Exception:
+                click.secho(f"Error occurred at repo {self.path}", fg="red")
+                raise
             finally:
                 repo.X("git", "worktree", "remove", "--force", repo_folder)
                 rmtree(tmpfolder)
