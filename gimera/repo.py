@@ -22,6 +22,16 @@ class Repo(GitCommands):
     def __str__(self):
         return f"{self.path}"
 
+    def contains_branch(self, branch):
+        try:
+            self.X(
+                *(git + ["rev-parse", "--verify", branch]),
+                output=True,
+            )
+            return True
+        except Exception as ex:
+            return False
+
     def contains(self, commit):
         try:
             self.X(
@@ -33,7 +43,6 @@ class Repo(GitCommands):
             )
             return True
         except Exception as ex:
-            print(ex)
             return False
 
     @property

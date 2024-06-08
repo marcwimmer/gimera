@@ -329,7 +329,9 @@ def _internal_apply(
     )
     repos = config.get_repos(repos)
     # update repos in parallel to be faster
-    _fetch_repos_in_parallel(main_repo, repos, update=update, minimal_fetch=no_fetch)
+    _fetch_repos_in_parallel(
+        main_repo, repos, update=update, minimal_fetch=no_fetch, no_fetch=no_fetch
+    )
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
 
@@ -387,7 +389,9 @@ def _internal_apply(
 threadLimiter = threading.BoundedSemaphore(4)
 
 
-def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
+def _fetch_repos_in_parallel(
+    main_repo, repos, update=None, minimal_fetch=None, no_fetch=None
+):
     results = {"errors": {}, "urls": set()}
     if os.getenv("GIMERA_NON_THREADED", "0") == "1":
         threaded = False
@@ -409,10 +413,15 @@ def _fetch_repos_in_parallel(main_repo, repos, update=None, minimal_fetch=None):
                     if repo_yml.sha:
                         if repo.contains(repo_yml.sha):
                             do_fetch = False
+                    else:
+                        if repo.contains_branch(repo_yml.branch):
+                            do_fetch = False
 
             if do_fetch:
                 with wait_git_lock(cache_dir):
-                    _fetch_branch(repo, repo_yml, filter_remote="origin")
+                    _fetch_branch(
+                        repo, repo_yml, filter_remote="origin", no_fetch=False
+                    )
 
         except Exception as ex:
             if os.getenv("GIMERA_IGNORE_FETCH_ERRORS") == "1":
@@ -1100,7 +1109,7 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
                     repo.X(*(git + ["branch", "-D", rejected_branch]))
             try:
                 repo.X(*(git + ["fetch", remote_name] + todo_branches))
-            except:
+            except Exception:
                 branch = repo_yml.branch
                 click.secho(
                     f"Could not fetch all branches, but trying to just fetch the needed branch.",
@@ -1194,6 +1203,7 @@ def _commit(repo, branch, message, preview):
                 return
         gitrepo.X("git", "commit", "-m", message)
         gitrepo.X("git", "push")
+
 
 @cli.command(help="Removes all dirty")
 def purge():

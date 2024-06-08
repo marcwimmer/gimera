@@ -26,10 +26,12 @@ class GitCommands(object):
             here = here.parent
         raise Exception("Config dir not found")
 
-    def X(self, *params, allow_error=False, env=None):
+    def X(self, *params, allow_error=False, env=None, output=None):
+        if output is None:
+            output = False
         with wait_git_lock(self.path):
             return X(
-                *params, output=False, cwd=self.path, allow_error=allow_error, env=env
+                *params, output=output, cwd=self.path, allow_error=allow_error, env=env
             )
 
     def out(self, *params, allow_error=False, env=None):
