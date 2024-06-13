@@ -73,6 +73,7 @@ class Config(object):
         return config_file
 
     def load_config(self):
+        self._repos = []
         self.config_file = self._get_config_file()
 
         self.yaml_config = yaml.load(

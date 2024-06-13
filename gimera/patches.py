@@ -1,4 +1,5 @@
 import os
+from inquirer import errors
 import shutil
 import sys
 import subprocess
@@ -49,10 +50,13 @@ def make_patches(working_dir, main_repo, repo_yml):
                 if not repo_yml.all_patch_dirs(rel_or_abs="relative"):
                     if os.getenv("GIMERA_FORCE") == "1":
                         return
-                    _raise_error(
-                        "Please define at least one directory, "
-                        f"where patches are stored for {repo_yml.path}"
-                    )
+                    if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
+                        repo_yml = _ask_user_to_create_path_directory(repo_yml)
+                    if not repo_yml.all_patch_dirs:
+                        _raise_error(
+                            "Please define at least one directory, "
+                            f"where patches are stored for {repo_yml.path}"
+                        )
 
                 with _prepare_patchdir(repo_yml) as (patch_dir, patch_filename):
                     _write_patch_content(
@@ -64,6 +68,30 @@ def make_patches(working_dir, main_repo, repo_yml):
                         patch_filename,
                         patch_content,
                     )
+
+def _ask_user_to_create_path_directory(repo_yml):
+    def validation(answers, current):
+        if current and current.startswith("/"):
+            raise errors.ValidationError('', reason='Please provide relative paths only.')
+        return True
+
+    questions = [
+        inquirer.Text(
+            "path",
+            validate=validation,
+            message=(
+                f"Please define a patch directory for {repo_yml.path} "
+                " - relative path please starting from root."
+            ),
+        )
+    ]
+    answers = inquirer.prompt(questions, theme=inquirer_theme)
+    path = answers['path']
+
+    repo_yml.config._store(repo_yml, {"patches": [path]})
+    repo_yml.config.load_config()
+    repo_yml = [x for x in repo_yml.config.repos if x.path == repo_yml.path][0]
+    return repo_yml
 
 
 @contextmanager
