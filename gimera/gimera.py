@@ -18,9 +18,8 @@ import subprocess
 from pathlib import Path
 from .repo import Repo, Remote
 from .gitcommands import GitCommands
-from .tools import _raise_error, safe_relative_to, is_empty_dir, _strip_paths
+from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .tools import yieldlist
-from .tools import rsync
 from .consts import gitcmd as git
 from .tools import prepare_dir
 from .tools import wait_git_lock
@@ -34,9 +33,9 @@ from .patches import _technically_make_patch
 from .tools import is_forced
 from .tools import get_url_type
 from .tools import reformat_url
-from .tools import temppath
 from .tools import verbose
 from .tools import try_rm_tree
+from .tools import remember_cwd
 
 
 @click.group()
@@ -536,7 +535,10 @@ def _get_cache_dir(main_repo, repo_yml):
             fg="yellow",
         )
         with prepare_dir(path) as _path:
-            Repo(main_repo.path).X("git", "clone", "--bare", url, _path)
+            with remember_cwd(
+                "/tmp"
+            ):  # called from other situations where path may not exist anymore
+                Repo(main_repo.path).X("git", "clone", "--bare", url, _path)
     return path
 
 
@@ -1059,70 +1061,62 @@ def status():
         click.secho(f"Missing: {repo.path}", fg="red")
 
 
+def _has_repo_latest_commit(repo, branch):
+    out = repo.out(*(git + ["ls-remote", "origin", branch]))
+    sha = out.splitlines()[0].strip().split()[0].strip()
+    current = repo.out(*(git + ["rev-parse", branch])).splitlines()[0].strip()
+    return sha == current
+
+
+def _set_url_and_fetch(
+    repo, repo_yml, remote_name, url, filter_remote=None, trycount=0
+):
+    repo.set_remote_url(remote_name, url)
+    branch = repo_yml.branch
+    todo_branches = [f"{branch}:{branch}"]
+    success = False
+
+    with wait_git_lock(repo.path):
+        tempname = branch + "-" + str(uuid.uuid4())
+        try:
+            repo.out(*(git + ["fetch", remote_name] + todo_branches))
+            success = True
+        except subprocess.CalledProcessError:
+            pass
+
+    if success:
+        if not _has_repo_latest_commit(repo, repo_yml.branch):
+            success = False
+
+    if not success:
+        if trycount == 0:
+            try_rm_tree(repo.path)
+            _get_cache_dir(repo, repo_yml)
+            _set_url_and_fetch(
+                repo,
+                repo_yml,
+                remote_name,
+                url,
+                filter_remote=filter_remote,
+                trycount=trycount + 1,
+            )
+        else:
+            _raise_error(
+                f"Even after rebuilding cache dir it was not possible to clone {repo_yml.path}"
+            )
+
+
 def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options):
     url = repo_yml.url
-
-    def set_url_and_fetch(remote_name, url):
-        repo.set_remote_url(remote_name, url)
-        repo.X("git", "fetch", "-q", remote_name, env={"GIT_TERMINAL_PROMPT": "0"})
-        bare = repo.is_bare
-        if bare:
-            branches = repo.out(*(git + ["branch"])).splitlines()
-        else:
-            branches = repo.out(*(git + ["branch", "-r"])).splitlines()
-
-        todo_branches = []
-        for remote_branch in branches:
-            if "->" in remote_branch:
-                continue
-            remote_branch = remote_branch.strip()
-            branch_name = remote_branch.split("/")[-1]
-            branch_name = list(clean_branch_names([branch_name]))[0]
-            remote_branch = list(clean_branch_names([remote_branch]))[0]
-            if filter_remote and filter_remote != remote_name:
-                continue
-            todo_branches.append(f"{branch_name}:{branch_name}")
-
-        if not [x for x in todo_branches if x == repo_yml.branch + ":"]:
-            todo_branches.append(f"{repo_yml.branch}:{repo_yml.branch}")
-
-        with wait_git_lock(repo.path):
-            try:
-                # ret = subprocess.run(git + ["fetch", "--dry-run", remote_name] + todo_branches, cwd=repo.path, capture_output=True, text=True)
-                res = repo.out(
-                    *(git + ["fetch", "--dry-run", remote_name] + todo_branches)
-                )
-            except subprocess.CalledProcessError as ex:
-                rejected = list(
-                    filter(lambda line: "! [rejected]" in line, ex.stderr.splitlines())
-                )
-                rejects = []
-                for rejected_branch in rejected:
-                    #  ! [rejected]                  staging.saas-16.3 -> staging.saas-16.3  (non-fast-forward)
-                    rejected_branch = (
-                        rejected_branch.split("->")[1].split("(")[0].strip()
-                    )
-                    rejects.append(rejected_branch)
-                    click.secho(
-                        f"Update of branch {rejected_branch} was rejected. It is deleted locally to be fetch again."
-                    )
-                    repo.X(*(git + ["branch", "-D", rejected_branch]))
-            try:
-                repo.X(*(git + ["fetch", remote_name] + todo_branches))
-            except Exception:
-                branch = repo_yml.branch
-                click.secho(
-                    f"Could not fetch all branches, but trying to just fetch the needed branch.",
-                    fg="yellow",
-                )
-                repo.X(*(git + ["fetch", remote_name, branch]))
 
     fetch_exception = None
     if not no_fetch:
         for remote in repo.remotes:
             try:
                 url = remote.url
-                set_url_and_fetch(remote.name, url)
+                _set_url_and_fetch(
+                    repo, repo_yml, remote.name, url, filter_remote=filter_remote
+                )
             except Exception as ex:
                 fetch_exception = ex
                 for combination in [
@@ -1132,7 +1126,13 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
                     if get_url_type(url) == combination[0]:
                         url_http = reformat_url(url, combination[1])
                         try:
-                            set_url_and_fetch(remote.name, url_http)
+                            _set_url_and_fetch(
+                                repo,
+                                repo_yml,
+                                remote.name,
+                                url_http,
+                                filter_remote=filter_remote,
+                            )
                         except Exception:
                             raise fetch_exception
 

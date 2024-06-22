@@ -30,9 +30,15 @@ class GitCommands(object):
         if output is None:
             output = False
         with wait_git_lock(self.path):
-            return X(
-                *params, output=output, cwd=self.path, allow_error=allow_error, env=env
-            )
+            kwparams = {
+                "output": output,
+                "allow_error": allow_error,
+                "env": env,
+            }
+            if self.path.exists():
+                # case not existing at recreating cache dir e.g.
+                kwparams["cwd"] = self.path
+            return X(*params, **kwparams)
 
     def out(self, *params, allow_error=False, env=None):
         return X(*params, output=True, cwd=self.path, allow_error=allow_error, env=env)
