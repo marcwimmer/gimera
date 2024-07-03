@@ -168,6 +168,7 @@ def _get_available_patchfiles(ctx, param, incomplete):
     "-m",
     "--missing",
     is_flag=True,
+    help="Only updates paths, that dont exist yet in filesystem",
 )
 @click.option(
     "--remove-invalid-branches",
