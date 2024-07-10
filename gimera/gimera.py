@@ -121,7 +121,7 @@ def _get_available_patchfiles(ctx, param, incomplete):
     else:
         filtered_patchfiles = patchfiles
     filtered_patchfiles = list(sorted(filtered_patchfiles))
-    return sorted(map(str, filtered_patchfiles))
+    return sorted(list(set(map(str, filtered_patchfiles))))
 
 
 @cli.command(name="apply", help="Applies configuration from gimera.yml")

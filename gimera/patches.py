@@ -388,35 +388,23 @@ def _technically_make_patch(repo, path):
 
 
 def _apply_patches(repo_yml):
+    relevant_patch_files = set()
     for patchdir in repo_yml.all_patch_dirs(rel_or_abs="absolute") or []:
         # with patchdir.path as dir:
         if not patchdir._path.exists():
             patchdir._path.mkdir(parents=True)
-        relevant_patch_files = []
         for file in sorted(patchdir._path.rglob("*.patch")):
             if repo_yml.ignore_patchfile(file):
                 continue
-            relevant_patch_files.append(file)
+            element = (patchdir, file)
+            if not [x for x in relevant_patch_files if x[1] == file]:
+                relevant_patch_files.add(element)
+        del patchdir
 
-        problems = []
-        for file in relevant_patch_files:
-            click.secho((f"Checking patch {file}"), fg="blue")
-            # Git apply fails silently if applied within local repos
-            if not _apply_patchfile(
-                file, patchdir.apply_from_here_dir, error_ok=False, just_check=True
-            ):
-                problems.append(file)
-
-        if problems:
-            click.secho("Error at following patchfiles", fg="red")
-            for file in problems:
-                click.secho(f"{file}", fg="red")
-            sys.exit(-1)
-
-        for file in relevant_patch_files:
-            click.secho((f"Applying patch {file}"), fg="blue")
-            # Git apply fails silently if applied within local repos
-            _apply_patchfile(file, patchdir.apply_from_here_dir, error_ok=False)
+    for (patchdir, file) in sorted(relevant_patch_files, key=lambda x: x[1].name):
+        click.secho((f"Applying patch {file}"), fg="blue")
+        # Git apply fails silently if applied within local repos
+        _apply_patchfile(file, patchdir.apply_from_here_dir, error_ok=False)
 
 
 def _apply_patchfile(file, working_dir, error_ok=False, just_check=False):
