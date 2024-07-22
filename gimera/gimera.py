@@ -694,7 +694,11 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
     ]:
         return
 
-    main_repo.X("git", "add", subrepo.path)
+    try:
+        main_repo.X("git", "add", subrepo.path)
+    except:
+        if os.getenv("GIMERA_FORCE") == "1":
+            return
     sha = subrepo.hex
     main_repo.X(
         "git",

@@ -1,3 +1,6 @@
+# 0.7.61
+  * [IMP] stronger force mode at ignored paths and turning submodule to integrated
+
 # 0.7.53
   * fetch more stable: sometimes all branches cannot be fetched, then just trying the one needed
   * using rsync progress2 information update
