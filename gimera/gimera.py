@@ -493,8 +493,10 @@ def _apply_subgimera(
         if dirty_files:
             main_repo.please_no_staged_files()
             for f in dirty_files:
-                main_repo.X("git", "add", f)
-            main_repo.X("git", "commit", "-m", f"gimera: updated sub path {repo.path}")
+                main_repo.X(*(git + ["add", f]))
+            main_repo.X(
+                *(git + ["commit", "-m", f"gimera: updated sub path {repo.path}"])
+            )
         # commit submodule updates or changed dirs
     os.chdir(pwd)
 
@@ -539,7 +541,11 @@ def _get_cache_dir(main_repo, repo_yml):
             with remember_cwd(
                 "/tmp"
             ):  # called from other situations where path may not exist anymore
-                Repo(main_repo.path).X("git", "clone", "--bare", url, _path)
+                Repo(main_repo.path).X(*(git + ["clone", "--bare", url, _path]))
+    if repo_yml.sha:
+        if not Repo(path).contain_commit(repo_yml.sha):
+            # make a fetch quickly; sha is missing
+            Repo(path).X(*(git + ["fetch", "--all"]))
     return path
 
 
@@ -695,19 +701,23 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
         return
 
     try:
-        main_repo.X("git", "add", subrepo.path)
+        main_repo.X(*(git + ["add", subrepo.path]))
     except:
         if os.getenv("GIMERA_FORCE") == "1":
             return
     sha = subrepo.hex
     main_repo.X(
-        "git",
-        "commit",
-        "-m",
-        (
-            f"gimera: updated submodule at {subrepo.path.relative_to(main_repo.path)} "
-            f"to latest version {sha}"
-        ),
+        *(
+            git
+            + [
+                "commit",
+                "-m",
+                (
+                    f"gimera: updated submodule at {subrepo.path.relative_to(main_repo.path)} "
+                    f"to latest version {sha}"
+                ),
+            ]
+        )
     )
 
 
@@ -734,28 +744,23 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
             _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, repo)
 
     if sha:
-        try:
-            branches = list(
-                clean_branch_names(
-                    subrepo.out("git", "branch", "--contains", sha).splitlines()
-                )
-            )
-        except Exception:  # pylint: disable=broad-except
+        if not subrepo.contain_commit(sha):
+            with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+                subrepo.X(*(git + ["fetch", "--all"]))
+
+        if not subrepo.contain_commit(sha):
             _raise_error(
                 f"SHA {sha} does not seem to belong to a "
                 f"branch at module {repo_yml.path}"
             )
 
-        if not [x for x in branches if repo_yml.branch == x]:
-            _raise_error(
-                f"SHA {sha} does not exist on branch "
-                f"{repo_yml.branch} at repo {repo_yml.path}"
-            )
-        # sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
-        # if sha_of_branch == sha:
-        #     subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
-        # else:
-        subrepo.X(*(git + ["checkout", "-f", sha]))
+        subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+        subrepo.out("git", "reset", "--hard", f"origin/{repo_yml.branch}").strip()
+        sha_of_branch = subrepo.out("git", "rev-parse", repo_yml.branch).strip()
+        if sha_of_branch == sha:
+            subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
+        else:
+            subrepo.X(*(git + ["checkout", "-f", sha]))
     else:
         try:
             subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
@@ -814,7 +819,7 @@ def __add_submodule(working_dir, repo, config, all_config):
                     )
 
             if repo.lsfiles(relpath):
-                repo.X("git", "rm", "-f", "-r", relpath)
+                repo.X(*(git + ["rm", "-f", "-r", relpath]))
             if (repo.path / relpath).exists():
                 rmtree(repo.path / relpath)
 
@@ -828,10 +833,17 @@ def __add_submodule(working_dir, repo, config, all_config):
             ]:
                 if relpath.exists():
                     # in case of deletion it does not exist
-                    repo.X("git", "add", relpath)
+                    repo.X(*(git + ["add", relpath]))
             if repo.staged_files:
                 repo.X(
-                    "git", "commit", "-m", f"removed path {relpath} to insert submodule"
+                    *(
+                        git
+                        + [
+                            "commit",
+                            "-m",
+                            f"removed path {relpath} to insert submodule",
+                        ]
+                    )
                 )
 
             # make sure does not exist; some leftovers sometimes
@@ -849,7 +861,7 @@ def __add_submodule(working_dir, repo, config, all_config):
     repo._fix_to_remove_subdirectories(all_config)
     if (repo.path / relpath).exists():
         # helped in a in the wild repo, where a submodule was hidden below
-        repo.X("git", "rm", "-rf", relpath)
+        repo.X(*(git + ["rm", "-rf", relpath]))
         rmtree(repo.path / relpath)
 
     cache_dir = _get_cache_dir(repo, config)
@@ -858,7 +870,7 @@ def __add_submodule(working_dir, repo, config, all_config):
     repo.X(*(git + ["add", ".gitmodules"]))
     click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
     if repo.staged_files:
-        repo.X("git", "commit", "-m", f"gimera added submodule: {relpath}")
+        repo.X(*(git + ["commit", "-m", f"gimera added submodule: {relpath}"]))
 
 
 def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
@@ -1180,7 +1192,7 @@ def _commit(repo, branch, message, preview):
     with prepare_dir(path2) as path2:
         path2 = path2 / "repo"
         gitrepo = Repo(path2)
-        main_repo.X("git", "clone", repo.url, path2)
+        main_repo.X(*(git + ["clone", repo.url, path2]))
 
         if not branch:
             res = click.confirm(
@@ -1190,7 +1202,7 @@ def _commit(repo, branch, message, preview):
                 sys.exit(-1)
             branch = repo.branch
 
-        gitrepo.X("git", "checkout", "-f", branch)
+        gitrepo.X(*(git + ["checkout", "-f", branch]))
         src_path = main_repo.path / repo.path
         patch_content = _technically_make_patch(main_repo, src_path)
 
@@ -1200,14 +1212,14 @@ def _commit(repo, branch, message, preview):
         _apply_patchfile(patchfile, gitrepo.path, error_ok=False)
 
         patchfile.unlink()
-        gitrepo.X("git", "add", ".")
+        gitrepo.X(*(git + ["add", "."]))
         if preview:
-            gitrepo.X("git", "diff")
+            gitrepo.X(*(git + ["diff"]))
             doit = inquirer.confirm("Commit this?", default=True)
             if not doit:
                 return
-        gitrepo.X("git", "commit", "-m", message)
-        gitrepo.X("git", "push")
+        gitrepo.X(*(git + ["commit", "-m", message]))
+        gitrepo.X(*(git + ["push"]))
 
 
 @cli.command(help="Removes all dirty")

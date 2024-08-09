@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from .tools import safe_relative_to, yieldlist, X, wait_git_lock
+from .consts import gitcmd as git
 
 
 class GitCommands(object):
@@ -45,10 +46,14 @@ class GitCommands(object):
 
     def _parse_git_status(self):
         for line in X(
-            "git",
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
+            *(
+                git
+                + [
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                ]
+            ),
             cwd=self.path,
             output=True,
         ).splitlines():
@@ -105,7 +110,7 @@ class GitCommands(object):
     def is_submodule(self, path):
         path = self._combine(path)
         for line in X(
-            "git", "submodule", "status", output=True, cwd=self.path
+            *(git + ["submodule", "status"]), output=True, cwd=self.path
         ).splitlines():
             line = line.strip()
             _, _path, _ = line.split(" ", 2)
@@ -121,14 +126,14 @@ class GitCommands(object):
         return path
 
     def output_status(self):
-        self.X("git", "status")
+        self.X(*(git + ["status"]))
 
     def get_all_branches(self):
         res = list(
             map(
                 lambda x: x.strip(),
                 self.out(
-                    "git", "for-each-ref", "--format=%(refname:short)", "refs/heads"
+                    *(git + ["for-each-ref", "--format=%(refname:short)", "refs/heads"])
                 ).splitlines(),
             )
         )
@@ -144,12 +149,12 @@ class GitCommands(object):
         return bool(files)
 
     def simple_commit_all(self, msg="."):
-        self.X("git", "add", ".")
-        self.X("git", "commit", "--allow-empty", "-am", msg)
+        self.X(*(git + ["add", "."]))
+        self.X(*(git + ["commit", "--allow-empty", "-am", msg]))
 
     @property
     def hex(self):
-        return self.out("git", "log", "-n", "1", "--pretty=%H")
+        return self.out(*(git + ["log", "-n", "1", "--pretty=%H"]))
 
     def checkout(self, ref, force=False):
-        self.X("git", "checkout", "-f" if force else None, ref)
+        self.X(*(git + ["checkout", "-f" if force else None, ref]))

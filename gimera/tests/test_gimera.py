@@ -490,7 +490,7 @@ def test_switch_submodule_to_integrated_and_sub(temppath):
 
 
 def test_switch_submodule_to_integrated_and_sub_with_gitignores(temppath):
-    """ Took long time to understand it:
+    """Took long time to understand it:
     if there are gitignores and a submodule is moved to an integrated module
     then files of that subrepo may become gitignored files of main repo and
     removal of that directory fails.
@@ -1486,7 +1486,7 @@ def test_common_patchfiles_in_subgimera(temppath):
             encoding="utf8",
             cwd=repopath,
         )
-        repo.X("git", "reset", "--hard", "HEAD~1")
+        repo.X(*(git + ["reset", "--hard", "HEAD~1"]))
         assert not file1.exists()
         dir = repopath / "patches" / "15.0" / "superpatches"
         dir.mkdir(parents=True)
@@ -1935,7 +1935,7 @@ def test_commit(temppath):
     assert "a change!" in (workspace / "sub1" / "file1.txt").read_text()
 
 
-def test_reformat_url():
+def test_reformat_url(temppath):
     from ..tools import get_url_type, reformat_url
 
     url = "git@github.com:marcwimmer/gimera.git"
@@ -1992,7 +1992,7 @@ def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(tempp
 
     os.chdir(workspace_main)
 
-    gitignore = workspace_main / '.gitignore'
+    gitignore = workspace_main / ".gitignore"
     gitignore.write_text("sub1")
     gimera_apply([], None)
 
@@ -2027,3 +2027,60 @@ def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(tempp
     except ValueError:
         raise Exception("Should be found")
     assert not repo.all_dirty_files
+
+
+def test_git_submodule_point_to_branch_if_last_commit_matches_tip_point_of_branch(
+    temppath,
+):
+    workspace = temppath / "workspace_switch_submodule_gitignore"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos_sub = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "main",
+                "path": "sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function")
+        Repo(repopath).simple_commit_all()
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    (workspace_main / "main.txt").write_text("main repo")
+    (workspace_main / ".gitignore").write_text("dont_look_at_me\n")
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+    repo.X(*(git + ["push"]))
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    # now update the submodule and remember commit sha
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function2")
+        reposub = Repo(repopath)
+        reposub.simple_commit_all()
+        commit = reposub.get_commit()
+        branch = reposub.get_branch()
+        assert branch == "main"
+
+    repos_sub["repos"][0]["sha"] = commit
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    os.chdir(workspace_main)
+    gimera_apply([], {})
+
+    submodule = repo.get_submodule("sub1")
+    assert submodule.get_commit() == commit
+    assert submodule.get_branch() == branch, "Should now be on the branch, not a sha"

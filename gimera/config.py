@@ -5,6 +5,7 @@ import yaml
 import os
 from contextlib import contextmanager
 from .repo import Repo, Remote
+from .consts import gitcmd as git
 from .tools import (
     _raise_error,
     safe_relative_to,
@@ -126,9 +127,9 @@ class Config(object):
         if self.config_file.resolve() in [
             x.resolve() for x in main_repo.all_dirty_files
         ]:
-            main_repo.X("git", "add", self.config_file)
+            main_repo.X(*(git + ["add", self.config_file]))
         if main_repo.staged_files:
-            main_repo.X("git", "commit", "-m", "auto update gimera.yml")
+            main_repo.X(*(git + ["commit", "-m", "auto update gimera.yml"]))
 
     def get_repos(self, names):
         if not names:
