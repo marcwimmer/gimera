@@ -345,10 +345,10 @@ def _internal_apply(
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
 
-            if migrate_changes:
-                import pudb
+            # if migrate_changes:
+            #     import pudb
 
-                pudb.set_trace()
+            #     pudb.set_trace()
 
             verbose(f"applying {repo.path}")
             _turn_into_correct_repotype(

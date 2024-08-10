@@ -26,3 +26,12 @@ def test_git_status(temppath):
     repo = Repo(workspace_main)
     assert not repo.staged_files
     assert repo.untracked_files
+
+def test_reformat_url(temppath):
+    from ..tools import get_url_type, reformat_url
+
+    url = "git@github.com:marcwimmer/gimera.git"
+    assert get_url_type(url) == "git"
+
+    assert reformat_url(url, "http") == "https://github.com/marcwimmer/gimera.git"
+
