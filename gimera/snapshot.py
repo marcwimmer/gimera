@@ -22,7 +22,6 @@ def snapshot_recursive(root_dir, start_path):
         Repo(repo),
         parent_path=parent,
         filter_paths=[start_path],
-        cache_dir_rel_path=Path("."),
     )
 
 
@@ -38,15 +37,19 @@ def snapshot_restore(root_dir, start_path):
         subprocess.check_call((git + ["apply", patchfile]), cwd=repo_dir)
 
 
-def _snapshot_dir(root_dir, repo, parent_path, filter_paths, cache_dir_rel_path):
+def _snapshot_dir(root_dir, repo, parent_path, filter_paths):
     subprocess.check_call((git + ["add", "."]), cwd=repo.path)
     patch_file_content = subprocess.check_output(
         (git + ["diff", "--cached", "--relative"]), cwd=repo.path
     )
     subprocess.check_call((git + ["stash", "--include-untracked"]), cwd=repo.path)
 
-    cache_file = _get_patch_filepath(root_dir, repo.path)
-    cache_file.write_bytes(patch_file_content)
+    if patch_file_content:
+        cache_file = _get_patch_filepath(root_dir, repo.path)
+        cache_file.write_bytes(patch_file_content)
+
+    for submodule in repo.get_submodules():
+        _snapshot_dir(root_dir, submodule, repo.path, None)
 
 
 def _snapshot_restore(repo):
