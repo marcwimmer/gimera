@@ -224,6 +224,11 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="Keeps changes to repo",
 )
+@click.option(
+    "--raise-exception",
+    is_flag=True,
+    help="Raises exception instead of exit of program",
+)
 def apply(
     repos,
     update,
@@ -241,6 +246,7 @@ def apply(
     verbose,
     no_sha_update,
     migrate_changes,
+    raise_exception,
 ):
     if verbose:
         os.environ["GIMERA_VERBOSE"] = "1"
@@ -275,6 +281,7 @@ def apply(
             auto_commit=not no_auto_commit,
             no_fetch=no_fetch,
             migrate_changes=migrate_changes,
+            raise_exception=raise_exception,
         )
     except Exception as ex:
         from . import snapshot
@@ -295,11 +302,14 @@ def _apply(
     auto_commit=True,
     no_fetch=False,
     migrate_changes=False,
+    raise_exception=False,
 ):
     """
     :param repos: user input parameter from commandline
     :param update: bool - flag from command line
     """
+    if raise_exception:
+        os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     _internal_apply(
         repos,
         update,

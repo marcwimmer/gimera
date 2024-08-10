@@ -8,7 +8,6 @@ from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
 from .tools import gimera_apply
-from .fixtures import set_env_vars
 
 
 def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
@@ -73,7 +72,7 @@ def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
 
     os.chdir(workspace_main)
     try:
-        gimera_apply([], None)
+        gimera_apply([], None, raise_exception=True)
     except Exception:
         pass
     else:
@@ -87,7 +86,7 @@ def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
     dirty_file.write_text("dirty content")
     try:
-        gimera_apply([], None)
+        gimera_apply([], None, raise_exception=True)
     except Exception:
         pass
     else:
@@ -101,7 +100,10 @@ def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(tem
     A gimera sub has changes and is submodule.
     Changes shall not be lost when switching to integrated modus.
     """
-    workspace = temppath / "test_switch_submodule_to_integrated_dont_loose_changes"
+    workspace = (
+        temppath
+        / "test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos"
+    )
     workspace.mkdir()
     workspace_main = workspace / "main_working"
 
@@ -170,7 +172,7 @@ def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(tem
     os.chdir(workspace_main / "sub1")
     switch_to(Path("gimera.yml"), "submodule")
     try:
-        gimera_apply([], None)
+        gimera_apply([], None, raise_exception=True)
     except Exception:
         pass
     else:
