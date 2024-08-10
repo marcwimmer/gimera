@@ -1,3 +1,4 @@
+import uuid
 import pytest
 import os
 import sys
@@ -17,11 +18,10 @@ def python():
 
 @pytest.fixture(autouse=True)
 def temppath():
-    path = Path(tempfile.mktemp(suffix=""))
-    path = Path("/tmp/gimeratest")
+    path = Path(f"/tmp/gimeratest/{uuid.uuid4()}")
     if path.exists():
         shutil.rmtree(path)
-    path.mkdir(exist_ok=True)
+    path.mkdir(exist_ok=True, parents=True)
     try:
         yield path
     finally:
