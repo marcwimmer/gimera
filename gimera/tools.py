@@ -297,3 +297,29 @@ def _make_sure_hidden_gimera_dir(root_dir):
             content.append(".gimera")
             path.write_text(content)
     return root_dir / '.gimera'
+
+@yieldlist
+def _get_remotes(repo_yml):
+    from .repo import Remote
+    config = repo_yml.remotes
+    if not config:
+        return
+
+    for name, url in dict(config).items():
+        yield Remote(None, name, url)
+
+
+def _get_main_repo():
+    from .repo import Repo
+    path = Path(os.getcwd())
+    while True:
+        # if (path / ".git").exists() and (path / ".git").is_dir():
+        if (path / ".git").exists():
+            break
+        path = path.parent
+        if len(path.parts) == 1:
+            path = Path(os.getcwd())
+            break
+
+    return Repo(path)
+

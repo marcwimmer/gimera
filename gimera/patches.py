@@ -473,3 +473,55 @@ def _apply_patchfile(file, working_dir, error_ok=False, just_check=False):
         return False
     else:
         return True
+
+def _apply_patchfile(file, working_dir, error_ok=False):
+    cwd = Path(working_dir)
+    # must be check_output due to input keyword
+    # Explaining -R option:
+    #   at testing a patchfile is created ; although not comitting
+    #   git detects, that the file was removed and same patch tries to be applied
+    #   Very intelligent but we force defined state over such smart behaviours.
+    """
+    /tmp/gimeratest/workspace/integrated/sub1/patches/15.0/superpatches/my.patch
+    =============================================================================================
+    patching file file1.txt
+    Reversed (or previously applied) patch detected!  Assume -R? [n]
+    Apply anyway? [n]
+    Skipping patch.
+    1 out of 1 hunk ignored -- saving rejects to file file1.txt.rej
+    """
+    file = Path(file)
+    try:
+        subprocess.check_output(
+            ["patch", "-p1", "--no-backup-if-mismatch", "--force", "-i", str(file)],
+            cwd=cwd,
+            encoding="utf-8",
+        )
+        click.secho(
+            (f"Applied patch {file}"),
+            fg="blue",
+        )
+    except subprocess.CalledProcessError as ex:
+        click.secho(
+            ("\n\nFailed to apply the following patch file:\n\n"),
+            fg="yellow",
+        )
+        click.secho(
+            (
+                f"{file}\n"
+                "============================================================================================="
+            ),
+            fg="red",
+            bold=True,
+        )
+        click.secho((f"{ex.stdout or ''}\n" f"{ex.stderr or ''}\n"), fg="yellow")
+
+        click.secho(file.read_text(), fg="cyan")
+        if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
+            f"Patchfile failed ''{file}'' - continue with next file?",
+            default=True,
+        ):
+            if not error_ok:
+                _raise_error(f"Error applying patch: {file}")
+    except Exception as ex:  # pylint: disable=broad-except
+        _raise_error(str(ex))
