@@ -275,3 +275,25 @@ def verbose(txt):
     if not os.getenv("GIMERA_VERBOSE") == "1":
         return
     click.secho(txt, fg="yellow")
+
+
+def get_nearest_repo(end, start):
+    start = Path(start)
+    p = start
+    while p != Path(end):
+        git = p / '.git'
+        if git.exists():
+            return git.parent
+        p = p.parent
+    return end
+
+def _make_sure_hidden_gimera_dir(root_dir):
+    path = Path(root_dir) / '.gitignore'
+    if not path.exists():
+        path.write_text(".gimera\n")
+    else:
+        content = path.read_text().splitlines()
+        if not [x for x in content if x == '.gimera']:
+            content.append(".gimera")
+            path.write_text(content)
+    return root_dir / '.gimera'

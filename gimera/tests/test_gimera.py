@@ -579,91 +579,6 @@ def test_switch_submodule_to_integrated_and_sub_with_gitignores(temppath):
     assert not repo.all_dirty_files
 
 
-def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
-    """
-    A gimera sub has changes and is submodule.
-    Changes shall not be lost when switching to integrated modus.
-    """
-    workspace = temppath / "test_switch_submodule_to_integrated_dont_loose_changes"
-    workspace.mkdir()
-    workspace_main = workspace / "main_working"
-
-    repo_main = _make_remote_repo(temppath / "mainrepo")
-    repo_sub = _make_remote_repo(temppath / "sub1")
-
-    repos_sub = {
-        "repos": [
-            {
-                "url": f"file://{repo_sub}",
-                "branch": "branch1",
-                "path": "sub1",
-                "patches": [],
-                "type": "submodule",
-            },
-        ]
-    }
-    repos_int = {
-        "repos": [
-            {
-                "url": f"file://{repo_sub}",
-                "branch": "branch1",
-                "path": "sub1",
-                "patches": [],
-                "type": "integrated",
-            },
-        ]
-    }
-    with clone_and_commit(repo_sub, "main") as repopath:
-        (repopath / "repo_sub.txt").write_text("This is a new function")
-        (repopath / "dont_look_at_me").write_text("i am ugly")
-        Repo(repopath).simple_commit_all()
-
-    subprocess.check_output(
-        git + ["clone", "file://" + str(repo_main), workspace_main],
-        cwd=workspace.parent,
-    )
-    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
-    (workspace_main / "main.txt").write_text("main repo")
-    repo = Repo(workspace_main)
-    repo.simple_commit_all()
-    repo.X(*(git + ["push"]))
-
-    os.chdir(workspace_main)
-    gimera_apply([], None)
-
-    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
-    repo.simple_commit_all()
-
-    # make it dirty
-    dirty_file = workspace_main / "sub1" / "file1.txt"
-    original_content = dirty_file.read_text()
-    dirty_file.write_text("i changed the file")
-
-    os.chdir(workspace_main)
-    try:
-        gimera_apply([], None)
-    except:
-        pass
-    else:
-        raise Exception("Should warn about changed content.")
-
-    # switch back
-    dirty_file.write_text(original_content)
-    gimera_apply([], None)
-
-    # now change in the integrated mode the file and try to switch to submodule
-    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
-    dirty_file.write_text("dirty content")
-    try:
-        gimera_apply([], None)
-    except:
-        pass
-    else:
-        raise Exception("Should warn about changed content.")
-    dirty_file.write_text(original_content)
-    gimera_apply([], None)
-
-
 def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(temppath):
     """
     A gimera sub has changes and is submodule.
@@ -2084,3 +1999,228 @@ def test_git_submodule_point_to_branch_if_last_commit_matches_tip_point_of_branc
     submodule = repo.get_submodule("sub1")
     assert submodule.get_commit() == commit
     assert submodule.get_branch() == branch, "Should now be on the branch, not a sha"
+
+
+def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
+    """
+    A gimera sub has changes and is submodule.
+    Changes shall not be lost when switching to integrated modus.
+    """
+    workspace = temppath / "test_switch_submodule_to_integrated_dont_loose_changes"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos_sub = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    repos_int = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function")
+        (repopath / "dont_look_at_me").write_text("i am ugly")
+        Repo(repopath).simple_commit_all()
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    (workspace_main / "main.txt").write_text("main repo")
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+    repo.X(*(git + ["push"]))
+
+    os.chdir(workspace_main)
+    gimera_apply([], None)
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    repo.simple_commit_all()
+
+    # make it dirty
+    dirty_file = workspace_main / "sub1" / "file1.txt"
+    original_content = dirty_file.read_text()
+    dirty_file.write_text("i changed the file")
+
+    os.chdir(workspace_main)
+    try:
+        gimera_apply([], None)
+    except Exception as ex:
+        import pudb
+
+        pudb.set_trace()
+        pass
+    else:
+        raise Exception("Should warn about changed content.")
+
+    # switch back
+    dirty_file.write_text(original_content)
+    gimera_apply([], None)
+
+    # now change in the integrated mode the file and try to switch to submodule
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    dirty_file.write_text("dirty content")
+    try:
+        gimera_apply([], None)
+    except Exception as ex:
+        import pudb
+
+        pudb.set_trace()
+        pass
+    else:
+        raise Exception("Should warn about changed content.")
+    dirty_file.write_text(original_content)
+    gimera_apply([], None)
+
+def test_snapshot_and_restore(temppath):
+    from ..snapshot import snapshot_recursive
+    from ..snapshot import snapshot_restore
+    workspace = temppath / "test_snapshot_and_restore"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos_yaml = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "a/b/sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function")
+        (repopath / "dont_look_at_me").write_text("i am ugly")
+        Repo(repopath).simple_commit_all()
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_yaml))
+    (workspace_main / "main.txt").write_text("main repo")
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+    repo.X(*(git + ["push"]))
+    os.chdir(workspace_main)
+    gimera_apply([], {})
+
+    # make it dirty
+    dirty_file = workspace_main / repos_yaml['repos'][0]['path'] / "file1.txt"
+    original_content = dirty_file.read_text()
+    dirty_file.write_text("i changed the file")
+
+    os.chdir(workspace_main)
+    snapshot_path = workspace_main / repos_yaml['repos'][0]['path']
+    snapshot_recursive(workspace_main, snapshot_path)
+
+    # restore 
+    snapshot_restore(workspace_main, snapshot_path)
+
+
+def test_switch_submodule_to_integrated_migrate_changes(temppath):
+    """
+    A gimera sub has changes and is submodule.
+    Changes shall not be lost when switching to integrated modus.
+    """
+    workspace = temppath / "test_switch_submodule_to_integrated_dont_loose_changes"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    repos_sub = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "submodule",
+            },
+        ]
+    }
+    repos_int = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    with clone_and_commit(repo_sub, "main") as repopath:
+        (repopath / "repo_sub.txt").write_text("This is a new function")
+        (repopath / "dont_look_at_me").write_text("i am ugly")
+        Repo(repopath).simple_commit_all()
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    (workspace_main / "main.txt").write_text("main repo")
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+    repo.X(*(git + ["push"]))
+
+    os.chdir(workspace_main)
+    gimera_apply([], {})
+    import pudb;pudb.set_trace()
+
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    repo.simple_commit_all()
+
+    # make it dirty
+    dirty_file = workspace_main / "sub1" / "file1.txt"
+    original_content = dirty_file.read_text()
+    dirty_file.write_text("i changed the file")
+
+    os.chdir(workspace_main)
+    import pudb;pudb.set_trace()
+    gimera_apply([], update=True, migrate_changes=True)
+
+    # check if still dirty
+    assert 'i changed the file' in dirty_file.read_text()
+
+    # switch back
+    dirty_file.write_text(original_content)
+    gimera_apply([], update=True, migrate_changes=True)
+    assert 'i changed the file' in dirty_file.read_text()
+
+    raise NotImplementedError("Test update of integrated module")
+    raise NotImplementedError("Test update of submodule module")
+
+    # now change in the integrated mode the file and try to switch to submodule
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
+    dirty_file.write_text("dirty content")
+    gimera_apply([], migrate_changes=True)
+    dirty_file.write_text(original_content)
+    gimera_apply([], None)

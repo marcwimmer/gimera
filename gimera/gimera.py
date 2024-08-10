@@ -211,6 +211,12 @@ def _get_available_patchfiles(ctx, param, incomplete):
     is_flag=True,
     help="If set, then in gimera.yml the shas are not updated.",
 )
+@click.option(
+    "-M",
+    "--migrate-changes",
+    is_flag=True,
+    help="Keeps changes to repo",
+)
 def apply(
     repos,
     update,
@@ -227,6 +233,7 @@ def apply(
     no_fetch,
     verbose,
     no_sha_update,
+    migrate_changes,
 ):
     if verbose:
         os.environ["GIMERA_VERBOSE"] = "1"
@@ -249,17 +256,24 @@ def apply(
         config = Config()
         repos = list(map(lambda x: str(x.path), _get_missing_repos(config)))
 
-    return _apply(
-        repos,
-        update,
-        force_type=ttype,
-        strict=strict,
-        recursive=recursive,
-        no_patches=no_patches,
-        remove_invalid_branches=remove_invalid_branches,
-        auto_commit=not no_auto_commit,
-        no_fetch=no_fetch,
-    )
+    try:
+        res = _apply(
+            repos,
+            update,
+            force_type=ttype,
+            strict=strict,
+            recursive=recursive,
+            no_patches=no_patches,
+            remove_invalid_branches=remove_invalid_branches,
+            auto_commit=not no_auto_commit,
+            no_fetch=no_fetch,
+            migrate_changes=migrate_changes,
+        )
+    except Exception as ex:
+        from . import snapshot
+        snapshot.cleanup()
+
+    return res
 
 
 def _apply(
@@ -272,6 +286,7 @@ def _apply(
     remove_invalid_branches=False,
     auto_commit=True,
     no_fetch=False,
+    migrate_changes=False,
 ):
     """
     :param repos: user input parameter from commandline
@@ -287,6 +302,7 @@ def _apply(
         remove_invalid_branches=remove_invalid_branches,
         auto_commit=auto_commit,
         no_fetch=no_fetch,
+        migrate_changes=migrate_changes,    
     )
 
 
@@ -317,6 +333,7 @@ def _internal_apply(
     auto_commit=True,
     sub_path=None,
     no_fetch=None,
+    migrate_changes=None,
     **options,
 ):
     common_vars = common_vars or {}
@@ -334,6 +351,9 @@ def _internal_apply(
     )
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
+
+            if migrate_changes:
+                import pudb;pudb.set_trace()
 
             verbose(f"applying {repo.path}")
             _turn_into_correct_repotype(
@@ -382,6 +402,7 @@ def _internal_apply(
                     parent_config=config,
                     auto_commit=auto_commit,
                     sub_path=sub_path,
+                    migrate_changes=migrate_changes,
                     **options,
                 )
 
