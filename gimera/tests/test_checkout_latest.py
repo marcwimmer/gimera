@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+from .fixtures import * # required for all
 import uuid
 import yaml
 from contextlib import contextmanager

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+from .fixtures import * # required for all
 import itertools
 import uuid
 import yaml

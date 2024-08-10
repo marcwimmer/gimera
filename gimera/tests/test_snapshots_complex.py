@@ -1,3 +1,4 @@
+from .fixtures import * # required for all
 import shutil
 import os
 import yaml

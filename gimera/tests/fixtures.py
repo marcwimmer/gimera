@@ -7,6 +7,13 @@ import tempfile
 from pathlib import Path
 
 
+@pytest.fixture(autouse=True)
+def set_env_vars():
+    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+    os.environ["GIMERA_FORCE"] = "0"
+    os.environ["GIMERA_NON_INTERACTIVE"] = "0"
+    os.environ["GIMERA_NON_THREADED"] = "0"
+
 
 @pytest.fixture(autouse=True)
 def python():

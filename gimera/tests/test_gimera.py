@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+from .fixtures import *  # required for all
+import time
 import uuid
 import yaml
 from contextlib import contextmanager
@@ -865,11 +866,6 @@ def test_2_submodules(temppath):
     submodule_repo2 = main_repo.get_submodule("repo2")
     assert submodule_repo1
     assert submodule_repo2
-
-
-# test change something in submodule and check if gets lost if not pushed
-
-
 
 
 def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(temppath):

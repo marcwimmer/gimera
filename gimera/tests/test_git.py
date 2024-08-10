@@ -1,3 +1,4 @@
+from .fixtures import * # required for all
 import os
 import subprocess
 from ..consts import gitcmd as git

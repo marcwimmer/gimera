@@ -1,3 +1,4 @@
+from .fixtures import * # required for all
 import os
 import yaml
 from pathlib import Path
@@ -9,6 +10,7 @@ from .tools import _make_remote_repo
 from .tools import clone_and_commit
 from .tools import gimera_apply
 
+# test change something in submodule and check if gets lost if not pushed
 
 def test_switch_submodule_to_integrated_dont_loose_changes(temppath):
     """
