@@ -58,10 +58,10 @@ def _fetch_repos_in_parallel(
                 )
                 click.secho(str(ex), fg="red")
             else:
-                if not threaded:
-                    raise
                 trace = traceback.format_exc()
                 results["errors"][main_repo.path] = f"{ex}\n\n{trace}"
+                if not threaded:
+                    raise
         finally:
             threadLimiter.release()
 

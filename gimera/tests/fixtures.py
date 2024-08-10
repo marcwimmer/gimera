@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 import pytest
 import os
 import sys
@@ -12,7 +13,10 @@ def set_env_vars():
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     os.environ["GIMERA_FORCE"] = "0"
     os.environ["GIMERA_NON_INTERACTIVE"] = "0"
-    os.environ["GIMERA_NON_THREADED"] = "0"
+    # otherwise test2 submodules fails; repos are fetched in threads;
+    # just happens at tests; perhaps because of pytest - not in real world 
+    # (test in console)
+    os.environ["GIMERA_NON_THREADED"] = "1"
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +26,8 @@ def python():
 
 @pytest.fixture(autouse=True)
 def temppath():
-    path = Path(f"/tmp/gimeratest/{uuid.uuid4()}")
+    dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    path = Path(f"/tmp/gimeratest/{dt}{str(uuid.uuid4())[:5]}")
     if path.exists():
         shutil.rmtree(path)
     path.mkdir(exist_ok=True, parents=True)
