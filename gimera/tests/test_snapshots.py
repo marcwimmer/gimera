@@ -12,6 +12,7 @@ from .tools import gimera_apply
 def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_submodule(
     temppath,
 ):
+    repo_sub = _make_remote_repo(temppath / "sub1")
     repos_yaml = {
         "repos": [
             {
@@ -23,14 +24,15 @@ def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_submodule(
             },
         ]
     }
-    _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
-        temppath, repos_yaml
+    _test_snapshot_and_restore_simple_add_delete_modify_direct(
+        temppath, repo_sub, repos_yaml
     )
 
 
 def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_integrated(
     temppath,
 ):
+    repo_sub = _make_remote_repo(temppath / "sub1")
     repos_yaml = {
         "repos": [
             {
@@ -42,13 +44,13 @@ def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_integrated
             },
         ]
     }
-    _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
-        temppath, repos_yaml
+    _test_snapshot_and_restore_simple_add_delete_modify_direct(
+        temppath, repo_sub, repos_yaml
     )
 
 
-def _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
-    temppath, repos_yaml
+def _test_snapshot_and_restore_simple_add_delete_modify_direct(
+    temppath, repo_sub, repos_yaml
 ):
     from ..snapshot import snapshot_recursive
     from ..snapshot import snapshot_restore
@@ -58,7 +60,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
     workspace_main = workspace / "main_working"
 
     repo_main = _make_remote_repo(temppath / "mainrepo")
-    repo_sub = _make_remote_repo(temppath / "sub1")
 
     with clone_and_commit(repo_sub, "branch1") as repopath:
         (repopath / "repo_sub.txt").write_text("This is a new function")
@@ -91,6 +92,12 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
     os.chdir(workspace_main)
     snapshot_path = workspace_main / repos_yaml["repos"][0]["path"]
     snapshot_recursive(workspace_main, snapshot_path)
+
+    # reapply
+    os.chdir(workspace_main)
+    gimera_apply([], {})
+
+    assert dirty_file.read_text() == original_content
 
     # restore
     snapshot_restore(workspace_main, snapshot_path)
