@@ -2,9 +2,10 @@ import os
 import subprocess
 from ..consts import gitcmd as git
 from ..repo import Repo
-from . tools import _make_remote_repo
-from . tools import clone_and_commit
+from .tools import _make_remote_repo
+from .tools import clone_and_commit
 from . import temppath
+
 
 def test_git_status(temppath):
     """

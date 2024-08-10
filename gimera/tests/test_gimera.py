@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import time
 import itertools
 import uuid
 import yaml
@@ -7,15 +6,12 @@ from contextlib import contextmanager
 from ..repo import Repo
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 import shutil
 import click
-import sys
 import inspect
 import os
 from pathlib import Path
-import pytest
 from .tools import gimera_apply
 from . import temppath
 from .tools import _make_remote_repo

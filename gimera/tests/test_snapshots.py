@@ -8,17 +8,10 @@ from .tools import _make_remote_repo
 from .tools import clone_and_commit
 from .tools import gimera_apply
 
-def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_submodule(temppath):
-    from ..snapshot import snapshot_recursive
-    from ..snapshot import snapshot_restore
 
-    workspace = temppath / "test_snapshot_and_restore"
-    workspace.mkdir()
-    workspace_main = workspace / "main_working"
-
-    repo_main = _make_remote_repo(temppath / "mainrepo")
-    repo_sub = _make_remote_repo(temppath / "sub1")
-
+def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_submodule(
+    temppath,
+):
     repos_yaml = {
         "repos": [
             {
@@ -30,6 +23,43 @@ def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_submodule(
             },
         ]
     }
+    _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
+        temppath, repos_yaml
+    )
+
+
+def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_integrated(
+    temppath,
+):
+    repos_yaml = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "a/b/sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+    _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
+        temppath, repos_yaml
+    )
+
+
+def _test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo(
+    temppath, repos_yaml
+):
+    from ..snapshot import snapshot_recursive
+    from ..snapshot import snapshot_restore
+
+    workspace = temppath / "test_snapshot_and_restore"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
     with clone_and_commit(repo_sub, "branch1") as repopath:
         (repopath / "repo_sub.txt").write_text("This is a new function")
         (repopath / "dont_look_at_me").write_text("i am ugly")
