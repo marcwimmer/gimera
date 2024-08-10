@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-import uuid
-import shutil
-import threading
-import traceback
-import time
 import tempfile
 import re
 from contextlib import contextmanager
@@ -11,17 +6,13 @@ import os
 from datetime import datetime
 import inquirer
 import click
-import json
-import yaml
 import sys
-import subprocess
 from pathlib import Path
 from .repo import Repo, Remote
 from .gitcommands import GitCommands
 from .fetch import _fetch_repos_in_parallel
 from .tools import _get_main_repo
-from .tools import _raise_error, safe_relative_to, is_empty_dir
-from .tools import yieldlist
+from .tools import _raise_error, safe_relative_to
 from .consts import gitcmd as git
 from .tools import prepare_dir
 from .tools import wait_git_lock
@@ -33,11 +24,8 @@ from .patches import _apply_patches
 from .patches import _apply_patchfile
 from .patches import _technically_make_patch
 from .tools import is_forced
-from .tools import get_url_type
-from .tools import reformat_url
 from .tools import verbose
 from .tools import try_rm_tree
-from .tools import remember_cwd
 from .tools import _get_remotes
 from .patches import _apply_patchfile
 from .cachedir import _get_cache_dir
@@ -270,7 +258,7 @@ def apply(
         repos = list(map(lambda x: str(x.path), _get_missing_repos(config)))
 
     try:
-        res = _apply(
+        _apply(
             repos,
             update,
             force_type=ttype,
@@ -287,9 +275,6 @@ def apply(
         from . import snapshot
 
         snapshot.cleanup()
-
-    return res
-
 
 def _apply(
     repos,

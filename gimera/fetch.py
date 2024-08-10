@@ -86,31 +86,35 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
     url = repo_yml.url
 
     fetch_exception = None
-    if not no_fetch:
-        for remote in repo.remotes:
-            try:
-                url = remote.url
-                _set_url_and_fetch(
-                    repo, repo_yml, remote.name, url, filter_remote=filter_remote
-                )
-            except Exception as ex:
-                fetch_exception = ex
-                for combination in [
-                    ("git", "http"),
-                    ("http", "git"),
-                ]:
-                    if get_url_type(url) == combination[0]:
-                        url_http = reformat_url(url, combination[1])
-                        try:
-                            _set_url_and_fetch(
-                                repo,
-                                repo_yml,
-                                remote.name,
-                                url_http,
-                                filter_remote=filter_remote,
-                            )
-                        except Exception:
-                            raise fetch_exception
+    if no_fetch:
+        return
+    for remote in repo.remotes:
+        try:
+            url = remote.url
+            _set_url_and_fetch(
+                repo, repo_yml, remote.name, url, filter_remote=filter_remote
+            )
+        except Exception as ex:
+            fetch_exception = ex
+            for combination in [
+                ("git", "http"),
+                ("http", "git"),
+            ]:
+                if get_url_type(url) == combination[0]:
+                    url_http = reformat_url(url, combination[1])
+                    try:
+                        _set_url_and_fetch(
+                            repo,
+                            repo_yml,
+                            remote.name,
+                            url_http,
+                            filter_remote=filter_remote,
+                        )
+                        break
+                    except Exception:
+                        raise fetch_exception
+            else:
+                raise fetch_exception
 
 def _set_url_and_fetch(
     repo, repo_yml, remote_name, url, filter_remote=None, trycount=0

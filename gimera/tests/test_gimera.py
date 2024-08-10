@@ -11,6 +11,7 @@ import inspect
 import os
 from pathlib import Path
 from .tools import gimera_apply
+from ..tools import rsync
 from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
@@ -856,7 +857,6 @@ def test_2_submodules(temppath):
 
     os.chdir(workspace_main)
     gimera_apply([], update=None, recursive=True)
-
     assert (workspace_main / "repo1" / "repo1.txt").exists()
     assert (workspace_main / "repo1" / "subrepo1" / "subrepo1.txt").exists()
     assert (workspace_main / "repo2" / "repo2.txt").exists()
