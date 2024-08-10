@@ -41,6 +41,7 @@ def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo(temppath)
         shutil.rmtree(temppath / "sub1.1.1")
         shutil.rmtree(temppath / "sub1.1")
         shutil.rmtree(temppath / "sub1")
+        shutil.rmtree(temppath / "mainrepo")
         shutil.rmtree(temppath / "test_snapshot_and_restore")
 
 
