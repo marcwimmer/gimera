@@ -10,75 +10,41 @@ from .tools import clone_and_commit
 from .tools import gimera_apply
 
 
-def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodule(
-    temppath,
-):
-    repo_sub111 = _make_remote_repo(temppath / "sub1.1.1")
-    repo_sub11 = _make_remote_repo(temppath / "sub1.1")
-    repo_sub1 = _make_remote_repo(temppath / "sub1")
-    with clone_and_commit(repo_sub111, "branch1") as repopath:
-        (repopath / "repo_sub.txt").write_text("This is a new function")
-        (repopath / "dont_look_at_me").write_text("i am ugly")
-        Repo(repopath).simple_commit_all()
-
-    with clone_and_commit(repo_sub11, "branch1") as repopath:
-        (repopath / "repo_sub.txt").write_text("This is a new function")
-        (repopath / "dont_look_at_me").write_text("i am ugly")
-        (repopath / "gimera.yml").write_text(
-            yaml.dump(
-                {
-                    "repos": [
-                        {
-                            "url": f"file://{repo_sub111}",
-                            "branch": "branch1",
-                            "path": "a111/b111/sub1.1.1",
-                            "patches": [],
-                            "type": "submodule",
-                        }
-                    ]
-                }
-            )
-        )
-        Repo(repopath).simple_commit_all()
-
-    with clone_and_commit(repo_sub1, "branch1") as repopath:
-        (repopath / "repo_sub.txt").write_text("This is a new function")
-        (repopath / "dont_look_at_me").write_text("i am ugly")
-        (repopath / "gimera.yml").write_text(
-            yaml.dump(
-                {
-                    "repos": [
-                        {
-                            "url": f"file://{repo_sub11}",
-                            "branch": "branch1",
-                            "path": "a11/b11/sub1.1",
-                            "patches": [],
-                            "type": "submodule",
-                        }
-                    ]
-                }
-            )
-        )
-        Repo(repopath).simple_commit_all()
-
-    repos_yaml = {
-        "repos": [
-            {
-                "url": f"file://{repo_sub1}",
-                "branch": "branch1",
-                "path": "a1/b1/sub1",
-                "patches": [],
-                "type": "submodule",
-            },
+def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo(temppath):
+    for I, combo in enumerate(
+        [
+            ("S", "S", "S"),
+            ("S", "S", "I"),
+            ("S", "I", "S"),
+            ("I", "S", "S"),
+            ("S", "I", "I"),
+            ("I", "S", "I"),
+            ("I", "I", "S"),
+            ("I", "I", "I"),
         ]
-    }
-    _test_snapshot_and_restore_simple_add_delete_modify_direct(
-        temppath, repo_sub1, repo_sub11, repo_sub111, repos_yaml
-    )
+    ):
+
+        def _e(x):
+            assert x in ("S", "I")
+            return "submodule" if x == "S" else "integrated"
+
+        type1 = _e(combo[0])
+        type11 = _e(combo[0])
+        type111 = _e(combo[0])
+
+        _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodule(
+            temppath,
+            type1,
+            type11,
+            type111,
+        )
+        shutil.rmtree(temppath / "sub1.1.1")
+        shutil.rmtree(temppath / "sub1.1")
+        shutil.rmtree(temppath / "sub1")
 
 
-def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_integrated(
-    temppath,
+def _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodule(
+    temppath, type1, type11, type111
 ):
     repo_sub111 = _make_remote_repo(temppath / "sub1.1.1")
     repo_sub11 = _make_remote_repo(temppath / "sub1.1")
@@ -100,7 +66,7 @@ def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_integrated
                             "branch": "branch1",
                             "path": "a111/b111/sub1.1.1",
                             "patches": [],
-                            "type": "integrated",
+                            "type": type111,
                         }
                     ]
                 }
@@ -120,7 +86,7 @@ def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_integrated
                             "branch": "branch1",
                             "path": "a11/b11/sub1.1",
                             "patches": [],
-                            "type": "integrated",
+                            "type": type11,
                         }
                     ]
                 }
@@ -135,7 +101,7 @@ def test_snapshot_and_restore_simple_add_delete_modify_direct_subrepo_integrated
                 "branch": "branch1",
                 "path": "a1/b1/sub1",
                 "patches": [],
-                "type": "integrated",
+                "type": type1,
             },
         ]
     }
