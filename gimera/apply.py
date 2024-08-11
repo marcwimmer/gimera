@@ -99,7 +99,7 @@ def _internal_apply(
         for repo in repos:
 
             if migrate_changes:
-                snapshot_recursive(main_repo.path, repo.path)
+                snapshot_recursive(main_repo.path, main_repo.path / repo.path)
 
             verbose(f"applying {repo.path}")
             _turn_into_correct_repotype(
@@ -152,7 +152,7 @@ def _internal_apply(
                     **options,
                 )
             if migrate_changes:
-                snapshot_restore(main_repo.path, repo.path)
+                snapshot_restore(main_repo.path, main_repo.path / repo.path)
 
 
 

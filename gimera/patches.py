@@ -117,7 +117,7 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml):
     If directory is ignored then move to temporary path.
     Apply changes from local dir to get the diffs.
     """
-    from .gimera import _get_cache_dir
+    from .cachedir import _get_cache_dir
     from .integrated import _update_integrated_module
 
     if (

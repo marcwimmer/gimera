@@ -313,7 +313,8 @@ def _get_main_repo():
     from .repo import Repo
     path = Path(os.getcwd())
     while True:
-        # if (path / ".git").exists() and (path / ".git").is_dir():
+        #  TODO think about that
+        #if (path / ".git").exists() and (path / ".git").is_dir():
         if (path / ".git").exists():
             break
         path = path.parent

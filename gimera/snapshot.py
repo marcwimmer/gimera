@@ -1,4 +1,5 @@
 import subprocess
+import click
 from pathlib import Path
 from .consts import gitcmd as git
 from .repo import Repo
@@ -83,3 +84,11 @@ def _get_patch_filepath(root_dir, file_relpath):
     to_cleanup.append(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
+
+def list_snapshots(root_dir):
+    res = []
+    for dir in (root_dir / '.gimera' / 'snapshots').glob("*"):
+        if not dir.is_dir():
+            continue
+        res.append(dir)
+    return res

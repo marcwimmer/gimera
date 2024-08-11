@@ -10,33 +10,15 @@ import sys
 from pathlib import Path
 from .repo import Repo, Remote
 from .gitcommands import GitCommands
-from .fetch import _fetch_repos_in_parallel
-from .tools import _get_main_repo
-from .tools import _raise_error, safe_relative_to
-from .consts import gitcmd as git
-from .tools import prepare_dir
-from .tools import wait_git_lock
-from .tools import rmtree
+from .tools import _raise_error
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 from .config import Config
-from .patches import make_patches
-from .patches import _apply_patches
-from .patches import _apply_patchfile
-from .patches import _technically_make_patch
 from .patches import _get_available_patchfiles
-from .tools import is_forced
-from .tools import verbose
 from .tools import try_rm_tree
-from .tools import _get_remotes
-from .patches import _apply_patchfile
-from .cachedir import _get_cache_dir
-from .submodule import _make_sure_subrepo_is_checked_out
-from .submodule import _fetch_latest_commit_in_submodule
-from .snapshot import snapshot_recursive, snapshot_restore
 from .tools import _get_missing_repos
-from .apply import _internal_apply
 from .apply import _apply
 from .commit import _commit
+from .patches import _edit_patch
 
 
 @click.group()
@@ -63,7 +45,6 @@ def _expand_repos(repos):
     if len(exact_match) == 1:
         return exact_match
     return res
-
 
 @cli.command(name="clean", help="Removes all git-dirty items")
 def clean():
@@ -394,3 +375,18 @@ def purge():
     for repo in repos:
         click.secho(f"Deleting: {repo.path}")
         try_rm_tree(repo.path)
+
+@cli.command()
+def list_snapshots():
+    from .snapshot import list_snapshots
+    for snap in list_snapshots():
+        click.secho(snap, fg='green')
+
+@cli.command()
+@click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
+def snapshot():
+    pass
+
+@cli.command()
+def snaprestore():
+    pass
