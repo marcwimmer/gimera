@@ -245,7 +245,7 @@ def get_url_type(url):
         return "http"
     if url.startswith("git@"):
         return "git"
-    if url.startswith("/"):
+    if url.startswith("/") or url.startswith("file://"):
         return "file"
     raise NotImplementedError(url)
 

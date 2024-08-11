@@ -20,12 +20,14 @@ def gimera_commit(*args, **kwargs):
 
 
 @contextmanager
-def clone_and_commit(repopath, branch):
+def clone_and_commit(repopath, branch, checkout_options=None):
     path = Path(tempfile.mktemp(suffix="."))
     if path.exists():
         shutil.rmtree(path)
     subprocess.check_call(git + ["clone", repopath, path], cwd=repopath)
-    subprocess.check_call(git + ["checkout", branch], cwd=path)
+    subprocess.check_call(
+        git + ["checkout"] + (checkout_options or []) + [branch], cwd=path
+    )
     try:
         yield path
         subprocess.check_call(
