@@ -15,7 +15,6 @@ def test_switch_submodule_to_integrated_migrate_changes(temppath):
     A gimera sub has changes and is submodule.
     Changes shall not be lost when switching to integrated modus.
     """
-    return
     workspace = temppath / "test_switch_submodule_to_integrated_migrate_changes"
     workspace.mkdir()
     workspace_main = workspace / "main_working"

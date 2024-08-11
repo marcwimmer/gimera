@@ -133,7 +133,7 @@ def test_basicbehaviour(temppath):
         0
     ].relative_to(workspace)
     os.chdir(workspace)
-    from ..gimera import _edit_patch as edit_patch
+    from ..patches import _edit_patch as edit_patch
 
     edit_patch([patchfile])
     dirty_files = Repo(workspace).all_dirty_files

@@ -24,6 +24,7 @@ from .tools import (
 import inquirer
 from pathlib import Path
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
+from .config import Config
 
 
 def make_patches(working_dir, main_repo, repo_yml):
@@ -117,7 +118,7 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml):
     Apply changes from local dir to get the diffs.
     """
     from .gimera import _get_cache_dir
-    from .gimera import _update_integrated_module
+    from .integrated import _update_integrated_module
 
     if (
         main_repo.check_ignore(repo_yml.path)
@@ -525,3 +526,83 @@ def _apply_patchfile(file, working_dir, error_ok=False):
                 _raise_error(f"Error applying patch: {file}")
     except Exception as ex:  # pylint: disable=broad-except
         _raise_error(str(ex))
+
+def _get_repo_to_patchfiles(patchfiles):
+    for patchfile in patchfiles:
+        patchfile = Path(patchfile)
+        if patchfile.exists() and str(patchfile).startswith("/"):
+            patchfile = str(patchfile.relative_to(Path(os.getcwd())))
+        patchfile = _get_available_patchfiles(None, None, str(patchfile))
+        if not patchfile:
+            _raise_error(f"Not found: {patchfile}")
+        if len(patchfile) > 1:
+            _raise_error(f"Too many patchfiles found: {patchfile}")
+
+        cwd = Path(os.getcwd())
+        patchfile = cwd / patchfile[0]
+        config = Config(force_type=False)
+
+        def _get_repo_of_patchfile():
+            for repo in config.repos:
+                if not repo.enabled:
+                    continue
+                patch_dirs = repo.all_patch_dirs(rel_or_abs="absolute")
+                if not patch_dirs:
+                    continue
+                for patchdir in patch_dirs:
+                    path = patchdir._path
+                    for file in path.glob("*.patch"):
+                        if file == patchfile:
+                            return repo
+
+        repo = _get_repo_of_patchfile()
+        if not repo:
+            _raise_error(f"Repo not found for {patchfile}")
+
+        if repo.type != REPO_TYPE_INT:
+            _raise_error(f"Repo {repo.path} is not integrated")
+        yield (repo, patchfile)
+
+def _edit_patch(patchfiles):
+    from .apply import _internal_apply
+    patchfiles = list(sorted(set(patchfiles)))
+    for patchfile in list(_get_repo_to_patchfiles(patchfiles)):
+        repo, patchfile = patchfile
+        if repo.edit_patchfile:
+            _raise_error(f"Already WIP for patchfile: {repo.edit_patchfile}")
+        try:
+            repo.edit_patchfile = str(patchfile.relative_to(repo.fullpath))
+        except ValueError:
+            repo.edit_patchfile = patchfile.relative_to(repo.config.config_file.parent)
+        repo.config._store(
+            repo,
+            {
+                "edit_patchfile": str(repo.edit_patchfile),
+            },
+        )
+        break
+    _internal_apply(str(repo.path), update=False, force_type=None)
+
+
+def _get_available_patchfiles(ctx, param, incomplete):
+    config = Config(force_type=False, recursive=True)
+    cwd = Path(os.getcwd())
+    patchfiles = []
+    filtered_patchfiles = []
+    for repo in config.repos:
+        if not repo.enabled:
+            continue
+        for patchdir in repo.all_patch_dirs(rel_or_abs="absolute"):
+            if not patchdir._path.exists():
+                continue
+            for file in patchdir._path.glob("*.patch"):
+                patchfiles.append(file.relative_to(cwd))
+    if incomplete:
+        for file in patchfiles:
+            if incomplete in str(file):
+                filtered_patchfiles.append(file)
+    else:
+        filtered_patchfiles = patchfiles
+    filtered_patchfiles = list(sorted(filtered_patchfiles))
+    return sorted(list(set(map(str, filtered_patchfiles))))
+

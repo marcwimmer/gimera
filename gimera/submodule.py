@@ -6,6 +6,8 @@ from .repo import Repo
 from contextlib import contextmanager
 from .cachedir import _get_cache_dir
 from .consts import REPO_TYPE_SUB
+import click
+from .tools import rmtree
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
@@ -138,3 +140,82 @@ def _has_repo_latest_commit(repo, branch):
     current = repo.out(*(git + ["rev-parse", branch])).splitlines()[0].strip()
     return sha == current
 
+
+def __add_submodule(working_dir, repo, config, all_config):
+    if config.type != REPO_TYPE_SUB:
+        return
+    path = working_dir / config.path
+    relpath = path.relative_to(repo.path)
+    if path.exists():
+        # if it is already a submodule, dont touch
+        try:
+            submodule = repo.get_submodule(relpath)
+        except ValueError:
+            repo.output_status()
+            repo.please_no_staged_files()
+            # remove current path
+
+            dirty_files = [
+                x
+                for x in repo.all_dirty_files
+                if safe_relative_to(x, repo.path / relpath)
+            ]
+            if dirty_files:
+                if not is_forced():
+                    _raise_error(
+                        f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
+                    )
+
+            if repo.lsfiles(relpath):
+                repo.X(*(git + ["rm", "-f", "-r", relpath]))
+            if (repo.path / relpath).exists():
+                rmtree(repo.path / relpath)
+
+            repo.clear_empty_subpaths(config)
+            repo.output_status()
+            if not [
+                # x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)
+                x
+                for x in repo.all_dirty_files
+                if safe_relative_to(x, repo.path / relpath)
+            ]:
+                if relpath.exists():
+                    # in case of deletion it does not exist
+                    repo.X(*(git + ["add", relpath]))
+            if repo.staged_files:
+                repo.X(
+                    *(
+                        git
+                        + [
+                            "commit",
+                            "-m",
+                            f"removed path {relpath} to insert submodule",
+                        ]
+                    )
+                )
+
+            # make sure does not exist; some leftovers sometimes
+            repo.force_remove_submodule(relpath)
+
+        else:
+            # if submodule points to another url, also remove
+            if submodule.get_url(noerror=True) != config.url:
+                repo.force_remove_submodule(submodule.path.relative_to(repo.path))
+            else:
+                return
+    else:
+        repo.force_remove_submodule(relpath)
+
+    repo._fix_to_remove_subdirectories(all_config)
+    if (repo.path / relpath).exists():
+        # helped in a in the wild repo, where a submodule was hidden below
+        repo.X(*(git + ["rm", "-rf", relpath]))
+        rmtree(repo.path / relpath)
+
+    cache_dir = _get_cache_dir(repo, config)
+    repo.submodule_add(config.branch, f"file://{cache_dir}", relpath)
+    repo.X(*(git + ["submodule", "set-url", relpath, config.url]))
+    repo.X(*(git + ["add", ".gitmodules"]))
+    click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
+    if repo.staged_files:
+        repo.X(*(git + ["commit", "-m", f"gimera added submodule: {relpath}"]))

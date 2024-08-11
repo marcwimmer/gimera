@@ -323,3 +323,10 @@ def _get_main_repo():
 
     return Repo(path)
 
+
+def _get_missing_repos(config):
+    for repo in config.repos:
+        if not repo.enabled:
+            continue
+        if not repo.path.exists():
+            yield repo
