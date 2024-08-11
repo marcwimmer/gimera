@@ -34,6 +34,7 @@ from .snapshot import snapshot_recursive, snapshot_restore
 from .submodule import _fetch_latest_commit_in_submodule
 from .submodule import __add_submodule
 
+
 def _apply(
     repos,
     update,
@@ -53,6 +54,8 @@ def _apply(
     """
     if raise_exception:
         os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+    if migrate_changes:
+        no_patches=True
     _internal_apply(
         repos,
         update,
@@ -95,10 +98,12 @@ def _internal_apply(
     _fetch_repos_in_parallel(
         main_repo, repos, update=update, minimal_fetch=no_fetch, no_fetch=no_fetch
     )
+    # does not work in sub repos, because at apply at this point in time
+    # the files are not committed and still dirty
+    effective_migrate_changes = migrate_changes and not sub_path
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         for repo in repos:
-
-            if migrate_changes:
+            if effective_migrate_changes:
                 snapshot_recursive(main_repo.path, main_repo.path / repo.path)
 
             verbose(f"applying {repo.path}")
@@ -151,9 +156,10 @@ def _internal_apply(
                     migrate_changes=migrate_changes,
                     **options,
                 )
-            if migrate_changes:
-                snapshot_restore(main_repo.path, main_repo.path / repo.path)
-
+            if effective_migrate_changes:
+                snapshot_restore(
+                    main_repo.path, (sub_path or main_repo.path) / repo.path
+                )
 
 
 def _apply_subgimera(
@@ -202,6 +208,7 @@ def _apply_subgimera(
         # commit submodule updates or changed dirs
     os.chdir(pwd)
 
+
 def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
     """
     if git submodule and exists: nothing todo
@@ -234,4 +241,3 @@ def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
         if not existing_submodules:
             _raise_error(f"Error with submodule {path}")
         del existing_submodules
-

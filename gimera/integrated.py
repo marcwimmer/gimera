@@ -14,6 +14,7 @@ from .tools import _get_remotes
 from .patches import _apply_patchfile
 from .cachedir import _get_cache_dir
 
+
 def _update_integrated_module(
     working_dir,
     main_repo,
