@@ -16,6 +16,7 @@ from .config import Config
 from .patches import _get_available_patchfiles
 from .tools import try_rm_tree
 from .tools import _get_missing_repos
+from .tools import _get_main_repo
 from .apply import _apply
 from .commit import _commit
 from .patches import _edit_patch
@@ -45,6 +46,7 @@ def _expand_repos(repos):
     if len(exact_match) == 1:
         return exact_match
     return res
+
 
 @cli.command(name="clean", help="Removes all git-dirty items")
 def clean():
@@ -81,6 +83,7 @@ def _get_available_repos(ctx, param, incomplete):
     repos = list(_expand_repos([incomplete]))
 
     return sorted(repos)
+
 
 @cli.command(name="apply", help="Applies configuration from gimera.yml")
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
@@ -239,12 +242,14 @@ def apply(
 
         snapshot.cleanup()
 
+
 def clean_branch_names(arr):
     for x in arr:
         x = x.strip()
         if x.startswith("* "):
             x = x[2:]
         yield x
+
 
 @cli.command()
 @click.option(
@@ -343,6 +348,7 @@ def abort():
                 },
             )
 
+
 @cli.command()
 def status():
     config = Config()
@@ -376,17 +382,45 @@ def purge():
         click.secho(f"Deleting: {repo.path}")
         try_rm_tree(repo.path)
 
+
 @cli.command()
 def list_snapshots():
     from .snapshot import list_snapshots
+
     for snap in list_snapshots():
-        click.secho(snap, fg='green')
+        click.secho(snap, fg="green")
+
 
 @cli.command()
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
-def snapshot():
-    pass
+def snapshot(repos):
+    from .snapshot import snapshot_recursive
+
+    main_repo = _get_main_repo()
+    repos = list(_expand_repos(repos))
+    for repo in repos:
+        token = snapshot_recursive(main_repo.path, main_repo.path / repo)
+    click.secho(f"Snapshot stored under token: {token}")
+
 
 @cli.command()
 def snaprestore():
-    pass
+    from .snapshot import snapshot_restore
+    from .snapshot import get_snapshots
+
+    main_repo = _get_main_repo()
+    snapshots = get_snapshots(main_repo.path)
+    token = inquirer.prompt(
+        [
+            inquirer.List(
+                "snapshot",
+                "Choose snapshot",
+                default=True,
+                choices=snapshots,
+            )
+        ]
+    )["snapshot"]
+    config = Config()
+    repos = config.repos
+    for repo in repos:
+        snapshot_restore(main_repo.path, main_repo.path / repo.path, token=token)

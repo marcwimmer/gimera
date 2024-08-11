@@ -295,7 +295,7 @@ def _make_sure_hidden_gimera_dir(root_dir):
         content = path.read_text().splitlines()
         if not [x for x in content if x == '.gimera']:
             content.append(".gimera")
-            path.write_text(content)
+            path.write_text('\n'.join(content))
     return root_dir / '.gimera'
 
 @yieldlist

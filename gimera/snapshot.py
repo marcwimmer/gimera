@@ -14,6 +14,14 @@ import shutil
 to_cleanup = []
 
 
+def get_snapshots(root_dir):
+    path = root_dir / ".gimera" / "snapshots"
+    res = []
+    for snapshot in path.glob("*"):
+        res.append(snapshot.name)
+    return res
+
+
 def snapshot_recursive(root_dir, start_path):
     repo = get_nearest_repo(root_dir, start_path)
     parent = get_nearest_repo(root_dir, repo)
@@ -24,11 +32,12 @@ def snapshot_recursive(root_dir, start_path):
         parent_path=parent,
         filter_paths=[start_path],
     )
+    return _get_token()
 
 
-def snapshot_restore(root_dir, start_path):
+def snapshot_restore(root_dir, start_path, token=None):
     repo = get_nearest_repo(root_dir, start_path)
-    token = _get_token()
+    token = token or _get_token()
     patches = root_dir / ".gimera" / "snapshots" / token
     for patchfile in patches.rglob("**/*.patch"):
         relpath = safe_relative_to(patchfile.parent, root_dir)
@@ -85,9 +94,10 @@ def _get_patch_filepath(root_dir, file_relpath):
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
+
 def list_snapshots(root_dir):
     res = []
-    for dir in (root_dir / '.gimera' / 'snapshots').glob("*"):
+    for dir in (root_dir / ".gimera" / "snapshots").glob("*"):
         if not dir.is_dir():
             continue
         res.append(dir)
