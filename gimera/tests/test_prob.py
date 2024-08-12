@@ -23,7 +23,17 @@ current_dir = Path(
 )
 
 
-def test_snapshot_switch_around_and_check_if_everything_is_there(temppath):
+def test_snapshot_switch_around_and_check_if_everything_is_there_several_subpaths(
+    temppath,
+):
+    _test_snapshot_switch_around_and_check_if_everything_is_there(temppath, "a/b/sub1")
+
+
+def test_snapshot_switch_around_and_check_if_everything_is_there_direct_root(temppath):
+    _test_snapshot_switch_around_and_check_if_everything_is_there(temppath, "sub1")
+
+
+def _test_snapshot_switch_around_and_check_if_everything_is_there(temppath, sub_path):
     """
     Challenge is, that the logic of snapshots can handle the root paths
     """
@@ -50,7 +60,7 @@ def test_snapshot_switch_around_and_check_if_everything_is_there(temppath):
                         {
                             "url": str(repo_sub1),
                             "branch": "branch1",
-                            "path": "a/b/sub1",
+                            "path": sub_path,
                             "type": "integrated",
                         },
                     ]
@@ -66,10 +76,10 @@ def test_snapshot_switch_around_and_check_if_everything_is_there(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     # assert everything is there
-    assert (workspace_main / "a/b/sub1").exists()
+    assert (workspace_main / sub_path).exists()
 
     # make it dirty
-    dirty_file1 = workspace_main / "a/b/sub1" / "repo_sub.txt"
+    dirty_file1 = workspace_main / sub_path / "repo_sub.txt"
     assert dirty_file1.exists()
     dirty_file1.write_text("1")
     os.environ["GIMERA_FORCE"] = "0"
