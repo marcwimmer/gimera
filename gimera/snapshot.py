@@ -97,7 +97,10 @@ def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
 def cleanup():
     for path in to_cleanup:
         if path.exists():
-            shutil.rmtree(path)
+            if path.is_file():
+                path.unlink()
+            else:
+                shutil.rmtree(path)
 
 
 def _get_token():
