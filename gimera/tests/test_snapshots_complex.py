@@ -1,4 +1,4 @@
-from .fixtures import * # required for all
+from .fixtures import *  # required for all
 import shutil
 import os
 import yaml
@@ -119,7 +119,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     from ..snapshot import snapshot_recursive
     from ..snapshot import snapshot_restore
 
-
     workspace = temppath / "test_snapshot_and_restore"
     workspace.mkdir()
     workspace_main = workspace / "main_working"
@@ -137,7 +136,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo.X(*(git + ["push"]))
 
     # change every level of the repo for its own; then change all levels and check
-    for mode in ['use_gimera_migrate']: # ,'direct_snapshots']:
+    for mode in ["use_gimera_migrate", "direct_snapshots"]:
         for i, adapted_paths in enumerate(
             [
                 ["a1/b1/sub1"],
@@ -173,7 +172,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             ).exists()
 
             for adapted_path in adapted_paths:
-
                 # make it dirty
                 dirty_file = workspace_main / adapted_path / "file1.txt"
                 original_content = dirty_file.read_text()
@@ -186,14 +184,14 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 deleted_file.unlink()
 
             os.chdir(workspace_main)
-            if mode == 'direct_snapshots':
+            if mode == "direct_snapshots":
                 snapshot_path = workspace_main / "a1/b1/sub1"
                 snapshot_recursive(workspace_main, [snapshot_path])
 
             # reapply
             os.chdir(workspace_main)
 
-            if mode == 'direct_snapshots':
+            if mode == "direct_snapshots":
                 os.environ["GIMERA_FORCE"] = "1"
                 gimera_apply([], None, recursive=True)
 
@@ -206,7 +204,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 gimera_apply([], None, recursive=True, migrate_changes=True)
 
             # restore
-            if mode == 'direct_snapshots':
+            if mode == "direct_snapshots":
                 snapshot_restore(workspace_main, snapshot_path)
 
             for adapted_path in adapted_paths:
