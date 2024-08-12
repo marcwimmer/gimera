@@ -18,7 +18,7 @@ to_cleanup = []
 def get_snapshots(root_dir):
     path = root_dir / ".gimera" / "snapshots"
     res = []
-    for snapshot in path.glob("*"):
+    for snapshot in reversed(list(path.glob("*"))):
         res.append(snapshot.name)
     return res
 
@@ -33,7 +33,7 @@ def _get_repo_for_filter_paths(root_dir, filter_paths):
     repo = list(repos)[0]
     return repo
 
-def snapshot_recursive(root_dir, filter_paths):
+def snapshot_recursive(root_dir, filter_paths, token=None):
     repo = _get_repo_for_filter_paths(root_dir, filter_paths)
     parent = get_nearest_repo(root_dir, repo)
     assert isinstance(filter_paths, list)
@@ -54,7 +54,10 @@ def snapshot_restore(root_dir, filter_paths, token=None):
         relpath = safe_relative_to(patchfile.parent, root_dir)
         relpath = Path("/".join(relpath.parts[3:]))
 
-        repo_dir = root_dir / relpath / patchfile.name.rstrip(".patch")
+        if filter_paths and patchfile.stem not in map(str, filter_paths):
+            continue
+
+        repo_dir = root_dir / relpath / patchfile.stem
         subprocess.check_call((git + ["apply", patchfile]), cwd=repo_dir)
 
 
@@ -62,15 +65,6 @@ def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
     if filter_paths is None:
         filter_paths = []
         filter_paths.append(repo.path)
-        # gimera_file = repo.path / 'gimera.yml'
-        # if not gimera_file.exists():
-        #     import pudb;pudb.set_trace()
-        #     filter_paths.append(repo.path)
-        # else:
-        #     config = Config(force_gimera_file=gimera_file)
-        #     filter_paths = []
-        #     for subrepo in config.repos:
-        #         filter_paths.append(parent_path / subrepo.path)
 
     assert isinstance(filter_paths, list)
     for path in filter_paths:
@@ -133,5 +127,7 @@ def list_snapshots(root_dir):
     for dir in (root_dir / ".gimera" / "snapshots").glob("*"):
         if not dir.is_dir():
             continue
-        res.append(dir)
+        parts = dir.parts
+        parts = parts[parts.index("snapshots") + 1:]
+        res.append('/'.join(parts))
     return res

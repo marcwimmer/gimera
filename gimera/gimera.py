@@ -387,25 +387,34 @@ def purge():
 def list_snapshots():
     from .snapshot import list_snapshots
 
-    for snap in list_snapshots():
+    main_repo = _get_main_repo()
+
+    for snap in reversed(list(list_snapshots(main_repo.path))):
         click.secho(snap, fg="green")
 
 
 @cli.command()
+@click.argument("name", required=True)
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
-def snapshot(repos):
+def snap(name, repos):
     from .snapshot import snapshot_recursive
 
+    os.environ["GIMERA_TOKEN"] = datetime.now().strftime(f"%Y-%m-%d-%H%M%S-{name}")
     main_repo = _get_main_repo()
-    repos = list(_expand_repos(repos))
+    if not repos:
+        config = Config()
+        repos = [x.path for x in config.get_repos(None) if x.path.exists()]
+    else:
+        repos = list(_expand_repos(repos))
     token = snapshot_recursive(
         main_repo.path, [main_repo.path / repo for repo in repos]
     )
-    click.secho(f"Snapshot stored under token: {token}")
+    click.secho(f"Snapshot stored under token: {token}", fg="green")
 
 
 @cli.command()
-def snaprestore():
+@click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
+def snaprestore(repos):
     from .snapshot import snapshot_restore
     from .snapshot import get_snapshots
 
@@ -421,7 +430,10 @@ def snaprestore():
             )
         ]
     )["snapshot"]
-    config = Config()
-    repos = config.repos
-    for repo in repos:
-        snapshot_restore(main_repo.path, main_repo.path / repo.path, token=token)
+    filter_repos = []
+    if repos:
+        repos = list(_expand_repos(repos))
+        for repo in repos:
+            filter_repos.append(str(repo))
+
+    snapshot_restore(main_repo.path, filter_repos, token=token)
