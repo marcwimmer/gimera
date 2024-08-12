@@ -1,38 +1,17 @@
 import tempfile
-import re
-from contextlib import contextmanager
-import os
-from datetime import datetime
 import inquirer
 import click
 import sys
 from pathlib import Path
-from .repo import Repo, Remote
-from .gitcommands import GitCommands
-from .fetch import _fetch_repos_in_parallel
+from .repo import Repo
 from .tools import _get_main_repo
-from .tools import _raise_error, safe_relative_to
 from .consts import gitcmd as git
 from .tools import prepare_dir
-from .tools import wait_git_lock
-from .tools import rmtree
-from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 from .config import Config
-from .patches import make_patches
-from .patches import _apply_patches
 from .patches import _apply_patchfile
 from .patches import _technically_make_patch
-from .patches import _get_available_patchfiles
-from .tools import is_forced
-from .tools import verbose
-from .tools import try_rm_tree
-from .tools import _get_remotes
 from .patches import _apply_patchfile
-from .cachedir import _get_cache_dir
-from .submodule import _make_sure_subrepo_is_checked_out
-from .submodule import _fetch_latest_commit_in_submodule
-from .snapshot import snapshot_recursive, snapshot_restore
-from .tools import _get_missing_repos
+
 
 def _commit(repo, branch, message, preview):
     config = Config()

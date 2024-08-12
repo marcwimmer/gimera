@@ -398,8 +398,9 @@ def snapshot(repos):
 
     main_repo = _get_main_repo()
     repos = list(_expand_repos(repos))
-    for repo in repos:
-        token = snapshot_recursive(main_repo.path, main_repo.path / repo)
+    token = snapshot_recursive(
+        main_repo.path, [main_repo.path / repo for repo in repos]
+    )
     click.secho(f"Snapshot stored under token: {token}")
 
 

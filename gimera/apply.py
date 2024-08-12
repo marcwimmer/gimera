@@ -1,33 +1,15 @@
-import tempfile
-import re
 from contextlib import contextmanager
 import os
-from datetime import datetime
-import inquirer
-import click
-import sys
 from pathlib import Path
-from .repo import Repo, Remote
-from .gitcommands import GitCommands
+from .repo import Repo
 from .fetch import _fetch_repos_in_parallel
 from .tools import _get_main_repo
 from .tools import _raise_error, safe_relative_to
 from .consts import gitcmd as git
-from .tools import prepare_dir
-from .tools import wait_git_lock
-from .tools import rmtree
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 from .config import Config
 from .patches import make_patches
-from .patches import _apply_patches
-from .patches import _apply_patchfile
-from .patches import _technically_make_patch
-from .tools import is_forced
 from .tools import verbose
-from .tools import try_rm_tree
-from .tools import _get_remotes
-from .patches import _apply_patchfile
-from .cachedir import _get_cache_dir
 from .integrated import _update_integrated_module
 from .submodule import _make_sure_subrepo_is_checked_out
 from .snapshot import snapshot_recursive, snapshot_restore
@@ -55,7 +37,7 @@ def _apply(
     if raise_exception:
         os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     if migrate_changes:
-        no_patches=True
+        no_patches = True
     _internal_apply(
         repos,
         update,
@@ -102,10 +84,12 @@ def _internal_apply(
     # the files are not committed and still dirty
     effective_migrate_changes = migrate_changes and not sub_path
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
-        for repo in repos:
-            if effective_migrate_changes:
-                snapshot_recursive(main_repo.path, main_repo.path / repo.path)
+        if effective_migrate_changes:
+            snapshot_recursive(
+                main_repo.path, [main_repo.path / repo.path for repo in repos]
+            )
 
+        for repo in repos:
             verbose(f"applying {repo.path}")
             _turn_into_correct_repotype(
                 sub_path or main_repo.path, main_repo, repo, config
@@ -156,10 +140,10 @@ def _internal_apply(
                     migrate_changes=migrate_changes,
                     **options,
                 )
-            if effective_migrate_changes:
-                snapshot_restore(
-                    main_repo.path, (sub_path or main_repo.path) / repo.path
-                )
+        if effective_migrate_changes:
+            snapshot_restore(
+                main_repo.path, [main_repo.path / repo.path for repo in repos]
+            )
 
 
 def _apply_subgimera(

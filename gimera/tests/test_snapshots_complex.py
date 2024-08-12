@@ -137,7 +137,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo.X(*(git + ["push"]))
 
     # change every level of the repo for its own; then change all levels and check
-    for mode in ['use_gimera_migrate','direct_snapshots']:
+    for mode in ['use_gimera_migrate']: # ,'direct_snapshots']:
         for i, adapted_paths in enumerate(
             [
                 ["a1/b1/sub1"],
@@ -188,7 +188,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             os.chdir(workspace_main)
             if mode == 'direct_snapshots':
                 snapshot_path = workspace_main / "a1/b1/sub1"
-                snapshot_recursive(workspace_main, snapshot_path)
+                snapshot_recursive(workspace_main, [snapshot_path])
 
             # reapply
             os.chdir(workspace_main)

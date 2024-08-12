@@ -92,16 +92,17 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
 
     os.chdir(workspace_main)
     snapshot_path = workspace_main / repos_yaml["repos"][0]["path"]
-    snapshot_recursive(workspace_main, snapshot_path)
+    snapshot_recursive(workspace_main, [snapshot_path])
 
     # reapply
     os.chdir(workspace_main)
-    gimera_apply([], {})
+    os.environ['GIMERA_FORCE'] = '1'
+    gimera_apply([], None)
 
     assert dirty_file.read_text() == original_content
 
     # restore
-    snapshot_restore(workspace_main, snapshot_path)
+    snapshot_restore(workspace_main, [snapshot_path])
 
     # make sure that situation is like before:
     assert dirty_file.read_text() == "i changed the file"

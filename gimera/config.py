@@ -40,13 +40,15 @@ class Patchdir(object):
 
 class Config(object):
     def __init__(
-        self, force_type=None, recursive=False, common_vars=None, parent_config=None
+        self, force_type=None, recursive=False, common_vars=None, parent_config=None,
+        force_gimera_file=None,
     ):
         self.force_type = force_type
         self._repos = []
         self.recursive = recursive
         self.parent_common_vars = common_vars
         self.parent_config = parent_config
+        self.force_gimera_file = force_gimera_file
         self.load_config()
 
     @property
@@ -68,6 +70,8 @@ class Config(object):
     #     return p.config_file.parent
 
     def _get_config_file(self):
+        if self.force_gimera_file:
+            return self.force_gimera_file
         config_file = Path(os.getcwd()) / "gimera.yml"
         if not config_file.exists():
             _raise_error(f"Did not find: {config_file}")

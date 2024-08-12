@@ -10,6 +10,7 @@ import os
 import uuid
 from datetime import datetime
 import shutil
+from .config import Config 
 
 to_cleanup = []
 
@@ -22,21 +23,31 @@ def get_snapshots(root_dir):
     return res
 
 
-def snapshot_recursive(root_dir, start_path):
-    repo = get_nearest_repo(root_dir, start_path)
+def _get_repo_for_filter_paths(root_dir, filter_paths):
+    repos = set()
+    for path in filter_paths:
+        repo = get_nearest_repo(root_dir, path)
+        repos.add(repo)
+    if len(repos) > 1:
+        raise NotImplementedError("Two many repos associated.")
+    repo = list(repos)[0]
+    return repo
+
+def snapshot_recursive(root_dir, filter_paths):
+    repo = _get_repo_for_filter_paths(root_dir, filter_paths)
     parent = get_nearest_repo(root_dir, repo)
+    assert isinstance(filter_paths, list)
 
     _snapshot_dir(
         root_dir,
         Repo(repo),
         parent_path=parent,
-        filter_paths=[start_path],
+        filter_paths=filter_paths,
     )
     return _get_token()
 
 
-def snapshot_restore(root_dir, start_path, token=None):
-    repo = get_nearest_repo(root_dir, start_path)
+def snapshot_restore(root_dir, filter_paths, token=None):
     token = token or _get_token()
     patches = root_dir / ".gimera" / "snapshots" / token
     for patchfile in patches.rglob("**/*.patch"):
@@ -47,23 +58,46 @@ def snapshot_restore(root_dir, start_path, token=None):
         subprocess.check_call((git + ["apply", patchfile]), cwd=repo_dir)
 
 
-def _snapshot_dir(root_dir, repo, parent_path, filter_paths):
-    subprocess.check_call((git + ["add", "."]), cwd=repo.path)
-    patch_file_content = subprocess.check_output(
-        (git + ["diff", "--cached", "--relative"]), cwd=repo.path
-    )
-    subprocess.check_call((git + ["stash", "--include-untracked"]), cwd=repo.path)
+def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
+    if filter_paths is None:
+        filter_paths = []
+        filter_paths.append(repo.path)
+        # gimera_file = repo.path / 'gimera.yml'
+        # if not gimera_file.exists():
+        #     import pudb;pudb.set_trace()
+        #     filter_paths.append(repo.path)
+        # else:
+        #     config = Config(force_gimera_file=gimera_file)
+        #     filter_paths = []
+        #     for subrepo in config.repos:
+        #         filter_paths.append(parent_path / subrepo.path)
 
-    if patch_file_content:
-        cache_file = _get_patch_filepath(root_dir, repo.path)
-        cache_file.write_bytes(patch_file_content)
+    assert isinstance(filter_paths, list)
+    for path in filter_paths:
+        repo.X("git", "reset")
+        subprocess.check_call((git + ["add", "."]), cwd=path)
+        patch_file_content = subprocess.check_output(
+            (git + ["diff", "--cached", "--relative"]), cwd=repo.path
+        )
+
+        if patch_file_content:
+            cache_file = _get_patch_filepath(root_dir, path)
+            cache_file.write_bytes(patch_file_content)
+            subprocess.check_call(
+                (git + ["reset", path]), cwd=repo.path
+            )
+            subprocess.check_call(
+                (git + ["checkout", path]), cwd=repo.path
+            )
+            for dirtyfile in repo.untracked_files:
+                if dirtyfile.is_dir():
+                    shutil.rmtree(dirtyfile)
+                else:
+                    dirtyfile.unlink()
+
 
     for submodule in repo.get_submodules():
         _snapshot_dir(root_dir, submodule, repo.path, None)
-
-
-def _snapshot_restore(repo):
-    pass
 
 
 def cleanup():
@@ -73,8 +107,7 @@ def cleanup():
 
 
 def _get_token():
-    token = os.getenv("GIMERA_TOKEN")
-    if not token:
+    if not os.getenv("GIMERA_TOKEN"):
         os.environ["GIMERA_TOKEN"] = (
             datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + str(uuid.uuid4())
         )

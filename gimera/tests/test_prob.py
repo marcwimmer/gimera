@@ -70,7 +70,6 @@ def test_snapshot_two_root_submodules(temppath):
         git + ["clone", "file://" + str(repo_main), workspace_main],
         cwd=workspace.parent,
     )
-    repo = Repo(workspace_main)
     os.chdir(workspace_main)
     gimera_apply([], None)
     # assert everything is there
@@ -79,13 +78,13 @@ def test_snapshot_two_root_submodules(temppath):
 
     # make it dirty
     dirty_file1 = workspace_main / "sub1" / "repo_sub.txt"
-    dirty_file2 = workspace_main / "sub1" / "repo_sub.txt"
+    dirty_file2 = workspace_main / "sub2" / "repo_sub.txt"
     assert dirty_file1.exists()
     assert dirty_file2.exists()
     dirty_file1.write_text("1")
-    dirty_file2.write_text("1")
+    dirty_file2.write_text("2")
     os.environ["GIMERA_FORCE"] = "0"
     gimera_apply([], None, recursive=True, migrate_changes=True)
 
     assert dirty_file1.read_text() == "1"
-    assert dirty_file2.read_text() == "1"
+    assert dirty_file2.read_text() == "2"
