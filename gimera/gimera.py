@@ -355,6 +355,23 @@ def status():
     repos = list(_get_missing_repos(config))
     for repo in repos:
         click.secho(f"Missing: {repo.path}", fg="red")
+    main_repo = _get_main_repo()
+    all_subs = list(main_repo.get_submodules())
+    for repo in config.get_repos(None):
+        full_path = main_repo.path / repo.path
+        if not full_path.exists():
+            continue
+        eff_S = str(main_repo.path / repo.path) in [str(x.path) for x in all_subs]
+        deviates = (
+            repo.type == REPO_TYPE_INT
+            and eff_S
+            or repo.type == REPO_TYPE_SUB
+            and not eff_S
+        )
+        text = f"{repo.path}"
+        if deviates:
+            text += " IS NOW " + ("submodule" if eff_S else "integrated")
+        click.secho(text, fg="green" if not deviates else "yellow")
 
 
 @cli.command(
