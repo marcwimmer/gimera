@@ -67,7 +67,19 @@ def snapshot_restore(root_dir, filter_paths, token=None):
             continue
 
         repo_dir = root_dir / relpath / patchfile.stem
-        subprocess.check_call((git + ["apply", patchfile]), cwd=repo_dir)
+        # find out the belonging repository; if switched from submodule to integrated
+        # a new root must be added to the patch
+        nearest_repo_path = get_nearest_repo(root_dir, repo_dir)
+        delta_path = safe_relative_to(repo_dir, nearest_repo_path)
+        if str(delta_path) != '.':
+            subprocess.check_call(
+                (git + ["apply", "--reject", "--directory", delta_path, patchfile]),
+                cwd=nearest_repo_path,
+            )
+        else:
+            subprocess.check_call(
+                (git + ["apply", "--reject", patchfile]), cwd=repo_dir
+            )
 
 
 def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
@@ -80,7 +92,7 @@ def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
         repo.X("git", "reset")
         subprocess.check_call((git + ["add", "."]), cwd=path)
         patch_file_content = subprocess.check_output(
-            (git + ["diff", "--cached", "--relative"]), cwd=repo.path
+            (git + ["diff", "--cached", "--relative"]), cwd=path
         )
 
         if patch_file_content:

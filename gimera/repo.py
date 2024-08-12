@@ -22,6 +22,13 @@ class Repo(GitCommands):
     def __str__(self):
         return f"{self.path}"
 
+    def is_path_a_submodule(self, path):
+        assert not str(path).startswith("/")
+        for subm in self.get_submodules():
+            if subm.path == self.path / path:
+                return subm
+        return False
+
     def contain_commit(self, commit):
         try:
             output = (

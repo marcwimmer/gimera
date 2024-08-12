@@ -356,12 +356,11 @@ def status():
     for repo in repos:
         click.secho(f"[{repo.type[0].upper()}] {repo.path}", fg="red")
     main_repo = _get_main_repo()
-    all_subs = list(main_repo.get_submodules())
     for repo in config.get_repos(None):
         full_path = main_repo.path / repo.path
         if not full_path.exists():
             continue
-        eff_S = str(main_repo.path / repo.path) in [str(x.path) for x in all_subs]
+        eff_S = bool(main_repo.is_path_a_submodule(repo.path))
         deviates = (
             repo.type == REPO_TYPE_INT
             and eff_S
