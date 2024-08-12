@@ -10,7 +10,7 @@ import os
 import uuid
 from datetime import datetime
 import shutil
-from .config import Config 
+from .config import Config
 
 to_cleanup = []
 
@@ -33,6 +33,7 @@ def _get_repo_for_filter_paths(root_dir, filter_paths):
     repo = list(repos)[0]
     return repo
 
+
 def snapshot_recursive(root_dir, filter_paths, token=None):
     repo = _get_repo_for_filter_paths(root_dir, filter_paths)
     parent = get_nearest_repo(root_dir, repo)
@@ -54,7 +55,11 @@ def snapshot_restore(root_dir, filter_paths, token=None):
         relpath = safe_relative_to(patchfile.parent, root_dir)
         relpath = Path("/".join(relpath.parts[3:]))
 
-        if filter_paths and patchfile.stem not in map(str, filter_paths):
+        assert all(
+            str(x).startswith("/") for x in filter_paths
+        ), "Only absolute paths please"
+
+        if filter_paths and (root_dir / relpath / patchfile.stem) not in filter_paths:
             continue
 
         repo_dir = root_dir / relpath / patchfile.stem
@@ -77,18 +82,13 @@ def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
         if patch_file_content:
             cache_file = _get_patch_filepath(root_dir, path)
             cache_file.write_bytes(patch_file_content)
-            subprocess.check_call(
-                (git + ["reset", path]), cwd=repo.path
-            )
-            subprocess.check_call(
-                (git + ["checkout", path]), cwd=repo.path
-            )
+            subprocess.check_call((git + ["reset", path]), cwd=repo.path)
+            subprocess.check_call((git + ["checkout", path]), cwd=repo.path)
             for dirtyfile in repo.untracked_files:
                 if dirtyfile.is_dir():
                     shutil.rmtree(dirtyfile)
                 else:
                     dirtyfile.unlink()
-
 
     for submodule in repo.get_submodules():
         _snapshot_dir(root_dir, submodule, repo.path, None)
@@ -131,6 +131,6 @@ def list_snapshots(root_dir):
         if not dir.is_dir():
             continue
         parts = dir.parts
-        parts = parts[parts.index("snapshots") + 1:]
-        res.append('/'.join(parts))
+        parts = parts[parts.index("snapshots") + 1 :]
+        res.append("/".join(parts))
     return res
