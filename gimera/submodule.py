@@ -8,6 +8,7 @@ from .cachedir import _get_cache_dir
 from .consts import REPO_TYPE_SUB
 import click
 from .tools import rmtree
+from .tools import is_forced
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
