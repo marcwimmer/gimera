@@ -51,6 +51,7 @@ def snapshot_recursive(root_dir, filter_paths, token=None):
 def snapshot_restore(root_dir, filter_paths, token=None):
     token = token or _get_token()
     patches = root_dir / ".gimera" / "snapshots" / token
+
     for patchfile in patches.rglob("**/*.patch"):
         relpath = safe_relative_to(patchfile.parent, root_dir)
         relpath = Path("/".join(relpath.parts[3:]))
@@ -59,7 +60,10 @@ def snapshot_restore(root_dir, filter_paths, token=None):
             str(x).startswith("/") for x in filter_paths
         ), "Only absolute paths please"
 
-        if filter_paths and (root_dir / relpath / patchfile.stem) not in filter_paths:
+        if filter_paths and not [
+            (str(root_dir / relpath / patchfile.stem)).startswith(str(x))
+            for x in filter_paths
+        ]:
             continue
 
         repo_dir = root_dir / relpath / patchfile.stem

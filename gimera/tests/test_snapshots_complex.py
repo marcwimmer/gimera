@@ -205,7 +205,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
 
             # restore
             if mode == "direct_snapshots":
-                snapshot_restore(workspace_main, snapshot_path)
+                snapshot_restore(workspace_main, [snapshot_path])
 
             for adapted_path in adapted_paths:
                 dirty_file = workspace_main / adapted_path / "file1.txt"
