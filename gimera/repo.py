@@ -222,6 +222,9 @@ class Repo(GitCommands):
         submodules = self.out(*(git + ["submodule", "status"])).splitlines()
         for line in submodules:
             splitted = line.strip().split(" ")
+            if line.startswith("-") or splitted[1] == './':
+                # means, that path does not exist right now; path info is misleading ./
+                continue
             yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
 
     def check_ignore(self, path):

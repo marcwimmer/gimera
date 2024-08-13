@@ -56,7 +56,7 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
     state = get_effective_state(main_repo.path, path)
     parent_gimera = state["parent_gimera"]
     repo = Repo(state["parent_repo"])
-    relpath = state["relpath"]
+    relpath = state["parent_repo_relpath"]
     subrepo = repo.get_submodule(relpath)
     if subrepo.dirty:
         if os.getenv("GIMERA_FORCE") != "1":
@@ -73,7 +73,7 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
 
     if sha:
         if not subrepo.contain_commit(sha):
-            with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+            with _temporary_switch_remote_to_cachedir(main_repo, repo_yml, relpath):
                 subrepo.X(*(git + ["fetch", "--all"]))
 
         if not subrepo.contain_commit(sha):
@@ -105,7 +105,7 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
     subrepo.X(*(git + ["clean", "-xdff"]))
     if not repo_yml.sha or update:
         subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
-        with _temporary_switch_remote_to_cachedir(subrepo, repo_yml):
+        with _temporary_switch_remote_to_cachedir(repo, repo_yml, relpath):
             subrepo.pull(repo_yml=repo_yml)
         _commit_submodule()
 
@@ -114,13 +114,13 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
 
 
 @contextmanager
-def _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
+def _temporary_switch_remote_to_cachedir(main_repo, repo_yml, relpath):
     cache_dir = _get_cache_dir(main_repo, repo_yml)
-    main_repo.X(*(git + ["submodule", "set-url", repo_yml.path, f"file://{cache_dir}"]))
+    main_repo.X(*(git + ["submodule", "set-url", relpath, f"file://{cache_dir}"]))
     try:
         yield
     finally:
-        main_repo.X(*(git + ["submodule", "set-url", repo_yml.path, repo_yml.url]))
+        main_repo.X(*(git + ["submodule", "set-url", relpath, repo_yml.url]))
 
 
 def _make_sure_subrepo_is_checked_out(working_dir, main_repo, repo_yml):
@@ -129,15 +129,28 @@ def _make_sure_subrepo_is_checked_out(working_dir, main_repo, repo_yml):
     """
     assert repo_yml.type == REPO_TYPE_SUB
     path = working_dir / repo_yml.path
+    state = get_effective_state(main_repo.path, path)
     if path.exists() and not is_empty_dir(path):
         return
-    with _temporary_switch_remote_to_cachedir(main_repo, repo_yml):
-        main_repo.X(*(git + ["submodule", "update", "--init", "--recursive", path]))
+    repo = Repo(state["parent_repo"])
+    with _temporary_switch_remote_to_cachedir(
+        repo, repo_yml, state["parent_repo_relpath"]
+    ):
+        repo.X(
+            *(
+                git
+                + [
+                    "submodule",
+                    "update",
+                    "--init",
+                    "--recursive",
+                    state["parent_repo_relpath"],
+                ]
+            )
+        )
 
     if not path.exists():
-        _raise_error(
-            f"After submodule update the path {repo_yml['path']} did not exist"
-        )
+        _raise_error(f"After submodule update the path {path} did not exist")
 
 
 def _has_repo_latest_commit(repo, branch):

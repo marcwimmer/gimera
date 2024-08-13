@@ -278,14 +278,18 @@ def verbose(txt):
 
 
 def get_nearest_repo(end, start):
-    start = Path(start)
-    p = start
-    while p != Path(end):
-        git = p / ".git"
-        if git.exists():
-            return git.parent
-        p = p.parent
-    return end
+    from .repo import Repo
+    relpath = safe_relative_to(start, end)
+    result = {'repo': Repo(end)}
+    def walk(parent_module, path):
+        result['repo'] = parent_module
+        for submodule in parent_module.get_submodules():
+            submodulepath = path / safe_relative_to(submodule.path, parent_module.path)
+            if str(relpath).startswith(str(submodulepath)):
+                walk(submodule, submodulepath)
+                break
+    walk(result['repo'], path=Path("."))
+    return result['repo'].path
 
 
 def _make_sure_hidden_gimera_dir(root_dir):
@@ -339,7 +343,7 @@ def _get_missing_repos(config):
 
 def get_parent_gimera(end, start):
     p = start.parent
-    while p != end:
+    while safe_relative_to(p, end):
         if (p / "gimera.yml").exists():
             return p
         p = p.parent
@@ -366,21 +370,23 @@ def get_effective_state(root_dir, path):
         path_is_provided_by_gimera_but_itself_no_gimera = False
 
 
-    parent_gimera = get_parent_gimera(root_dir, closest_gimera)
+    if path_is_provided_by_gimera_but_itself_no_gimera:
+        parent_gimera = closest_gimera
+    else:
+        parent_gimera = get_parent_gimera(root_dir, closest_gimera)
     if parent_gimera == root_dir:
         parent_repo = root_dir
     else:
-        if path_is_provided_by_gimera_but_itself_no_gimera:
-            parent_repo = get_nearest_repo(root_dir, closest_gimera)
-        else:
-            parent_repo = get_nearest_repo(root_dir, parent_gimera)
+        parent_repo = get_nearest_repo(root_dir, parent_gimera)
 
-    rel_path = safe_relative_to(path, parent_repo)
-    is_submodule = Repo(parent_repo).is_path_a_submodule(rel_path)
+    parent_repo_relpath = safe_relative_to(path, parent_repo)
+    parent_gimera_relpath = safe_relative_to(path, parent_gimera)
+    is_submodule = Repo(parent_repo).is_path_a_submodule(parent_repo_relpath)
     return {
         "is_submodule": is_submodule,
-        "relpath": rel_path,
         "closest_gimera": closest_gimera,
         "parent_gimera": parent_gimera,
         "parent_repo": parent_repo,
+        "parent_gimera_relpath": parent_gimera_relpath,
+        "parent_repo_relpath": parent_repo_relpath,
     }

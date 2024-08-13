@@ -207,7 +207,9 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             else:
                 os.environ["GIMERA_FORCE"] = "0"
                 os.environ["PYTHONBREAKPOINT"] = "pudb"
-                gimera_apply([], None, recursive=True, migrate_changes=True, strict=True)
+                gimera_apply(
+                    [], None, recursive=True, migrate_changes=True, strict=True
+                )
 
             # restore
             if mode == "direct_snapshots":
@@ -220,13 +222,16 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 # switch to other mode integrated/submodule and check
                 # if changes are transported
                 for adapted_path in adapted_paths:
-                    state = get_effective_state(workspace_main, workspace_main / adapted_path)
-                    closest_gimera = state['closest_gimera']
-                    parent_gimera = state['parent_gimera']
-                    parent_repo  = Repo(state['parent_repo'])
+                    state = get_effective_state(
+                        workspace_main, workspace_main / adapted_path
+                    )
+                    closest_gimera = state["closest_gimera"]
+                    parent_gimera = state["parent_gimera"]
+                    parent_repo = Repo(state["parent_repo"])
                     working_dir = parent_gimera
-                    relpath = safe_relative_to(workspace_main / adapted_path, working_dir)
-                    import pudb;pudb.set_trace()
+                    relpath = safe_relative_to(
+                        workspace_main / adapted_path, working_dir
+                    )
                     effstate = get_effective_state(
                         workspace_main, workspace_main / adapted_path
                     )
@@ -237,7 +242,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                     pwd = os.getcwd()
                     os.chdir(working_dir)
                     gimera_apply(
-                        [effstate["relpath"]],
+                        [effstate["parent_gimera_relpath"]],
                         None,
                         force_type=other_type,
                         recursive=True,

@@ -15,6 +15,8 @@ from .submodule import _make_sure_subrepo_is_checked_out
 from .snapshot import snapshot_recursive, snapshot_restore
 from .submodule import _fetch_latest_commit_in_submodule
 from .submodule import __add_submodule
+from .tools import get_parent_gimera
+from .tools import get_effective_state
 
 
 def _apply(
@@ -38,6 +40,14 @@ def _apply(
         os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
     if migrate_changes:
         no_patches = True
+
+    sub_path = None
+    main_repo = _get_main_repo()
+    closest_gimera = get_parent_gimera(main_repo.path, Path(os.getcwd()) / "dummy")
+    os.chdir(closest_gimera)
+    if main_repo.path != closest_gimera:
+        sub_path = closest_gimera
+
     _internal_apply(
         repos,
         update,
@@ -48,6 +58,7 @@ def _apply(
         remove_invalid_branches=remove_invalid_branches,
         auto_commit=auto_commit,
         no_fetch=no_fetch,
+        sub_path=sub_path,
         migrate_changes=migrate_changes,
     )
 
@@ -82,17 +93,23 @@ def _internal_apply(
     )
     # does not work in sub repos, because at apply at this point in time
     # the files are not committed and still dirty
-    effective_migrate_changes = migrate_changes and not sub_path
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
-        if effective_migrate_changes:
+        if migrate_changes:
+            relative_sub_path = (
+                sub_path and safe_relative_to(sub_path, main_repo.path) or Path(".")
+            )
             snapshot_recursive(
-                main_repo.path, [main_repo.path / repo.path for repo in repos]
+                main_repo.path,
+                [main_repo.path / relative_sub_path / repo.path for repo in repos],
             )
 
         for repo in repos:
             verbose(f"applying {repo.path}")
             _turn_into_correct_repotype(
-                sub_path or main_repo.path, main_repo, repo, config
+                sub_path or main_repo.path,
+                main_repo,
+                repo,
+                config,
             )
             if repo.type == REPO_TYPE_SUB:
                 _make_sure_subrepo_is_checked_out(
@@ -130,19 +147,20 @@ def _internal_apply(
                     main_repo,
                     repo,
                     update,
-                    force_type,
+                    force_type if not strict else None,
                     strict=strict,
                     no_patches=no_patches,
                     common_vars=common_vars,
                     parent_config=config,
                     auto_commit=auto_commit,
                     sub_path=sub_path,
-                    migrate_changes=migrate_changes,
+                    migrate_changes=False,  # already done
                     **options,
                 )
-        if effective_migrate_changes:
+        if migrate_changes:
             snapshot_restore(
-                main_repo.path, [main_repo.path / repo.path for repo in repos]
+                main_repo.path,
+                [main_repo.path / relative_sub_path / repo.path for repo in repos],
             )
 
 
@@ -193,7 +211,9 @@ def _apply_subgimera(
     os.chdir(pwd)
 
 
-def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
+def _turn_into_correct_repotype(
+    working_dir, main_repo, repo_config, config
+):
     """
     if git submodule and exists: nothing todo
     if git submodule and not exists: cloned
@@ -204,17 +224,11 @@ def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
     if integrated and git submodule and already exists a path: submodule removed
 
     """
-    path = repo_config.path
-    repo = main_repo
-    if (working_dir / ".git").exists():
-        repo = Repo(working_dir)
+    state = get_effective_state(main_repo.path, working_dir / repo_config.path)
+    repo = Repo(state["parent_repo"])
     if repo_config.type == REPO_TYPE_INT:
-        # always delete
-        submodules = repo.get_submodules()
-        existing_submodules = list(
-            filter(lambda x: x.equals(repo.path / path), submodules)
-        )
-        if existing_submodules:
-            repo.force_remove_submodule(path)
+        if state['is_submodule']:
+            # always delete
+            repo.force_remove_submodule(state['parent_repo_relpath'])
     else:
-        __add_submodule(main_repo.path ,working_dir, repo, repo_config, config)
+        __add_submodule(main_repo.path, working_dir, repo, repo_config, config)
