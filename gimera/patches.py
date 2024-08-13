@@ -1,3 +1,4 @@
+import re
 import os
 from inquirer import errors
 import shutil
@@ -475,6 +476,7 @@ def _apply_patchfile(file, working_dir, error_ok=False, just_check=False):
     else:
         return True
 
+
 def _apply_patchfile(file, working_dir, error_ok=False):
     cwd = Path(working_dir)
     # must be check_output due to input keyword
@@ -527,6 +529,7 @@ def _apply_patchfile(file, working_dir, error_ok=False):
     except Exception as ex:  # pylint: disable=broad-except
         _raise_error(str(ex))
 
+
 def _get_repo_to_patchfiles(patchfiles):
     for patchfile in patchfiles:
         patchfile = Path(patchfile)
@@ -563,8 +566,10 @@ def _get_repo_to_patchfiles(patchfiles):
             _raise_error(f"Repo {repo.path} is not integrated")
         yield (repo, patchfile)
 
+
 def _edit_patch(patchfiles):
     from .apply import _internal_apply
+
     patchfiles = list(sorted(set(patchfiles)))
     for patchfile in list(_get_repo_to_patchfiles(patchfiles)):
         repo, patchfile = patchfile
@@ -606,3 +611,31 @@ def _get_available_patchfiles(ctx, param, incomplete):
     filtered_patchfiles = list(sorted(filtered_patchfiles))
     return sorted(list(set(map(str, filtered_patchfiles))))
 
+
+def remove_file_from_patch(files_to_exclude, patchfilecontent):
+    if not patchfilecontent:
+        return
+    lines = patchfilecontent.split(b"\n")
+
+    new_lines = []
+    skip_lines = False
+
+    for line in lines:
+        line = line.decode("utf8")
+        # Check if the line indicates the start of a new diff section
+        if line.startswith("diff --git"):
+            # Extract the file path from the diff line
+            match = re.search(r"a/(.+) b/(.+)", line)
+            if match:
+                file_path = match.group(1)
+                # Check if the file should be excluded
+                if file_path in files_to_exclude:
+                    skip_lines = True
+                else:
+                    skip_lines = False
+
+        # Only add lines if we're not skipping them
+        if not skip_lines:
+            new_lines.append(line)
+
+    return b"\n".join(map(lambda x: x.encode("utf8"), new_lines))

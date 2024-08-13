@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 import shutil
 from .config import Config
+from .patches import remove_file_from_patch
 
 to_cleanup = []
 
@@ -94,6 +95,7 @@ def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
         patch_file_content = subprocess.check_output(
             (git + ["diff", "--cached", "--relative"]), cwd=path
         )
+        patch_file_content = remove_file_from_patch(['.gitmodules'], patch_file_content)
 
         if patch_file_content:
             cache_file = _get_patch_filepath(root_dir, path)

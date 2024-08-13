@@ -105,7 +105,7 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
     subrepo.X(*(git + ["clean", "-xdff"]))
     if not repo_yml.sha or update:
         subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
-        with _temporary_switch_remote_to_cachedir(repo, repo_yml):
+        with _temporary_switch_remote_to_cachedir(subrepo, repo_yml):
             subrepo.pull(repo_yml=repo_yml)
         _commit_submodule()
 
