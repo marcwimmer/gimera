@@ -107,7 +107,7 @@ def test_common_patchfiles_in_subgimera(temppath):
     os.chdir(workspace)
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
-    gimera_apply([], update=True, recursive=True)
+    gimera_apply([], update=True, recursive=True, strict=True)
     testfile = workspace / "integrated" / "sub1" / "file_is_patch.txt"
     assert testfile.exists()
 
@@ -242,7 +242,7 @@ def test_common_patchfiles_in_subgimera_2_levels(temppath):
     subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(git + ["push"], cwd=workspace)
     os.chdir(workspace)
-    gimera_apply([], None, recursive=True)
+    gimera_apply([], None, recursive=True, strict=True)
     subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
     assert not Repo(workspace).staged_files
 
@@ -253,6 +253,6 @@ def test_common_patchfiles_in_subgimera_2_levels(temppath):
     os.chdir(workspace)
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
-    gimera_apply([], update=True, recursive=True)
+    gimera_apply([], update=True, recursive=True, strict=True)
     file = workspace / "integrated" / "sub1" / "file_is_patch.txt"
     assert file.exists()

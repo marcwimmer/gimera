@@ -349,20 +349,38 @@ def get_parent_gimera(end, start):
 
 def get_effective_state(root_dir, path):
     from .repo import Repo
+
     path = Path(path)
     root_dir = Path(root_dir)
 
+    # closest_gimera = local_gimera
+    from .config import Config
+
     closest_gimera = get_parent_gimera(root_dir, path / "dummy")
+    config = Config(force_gimera_file=closest_gimera / 'gimera.yml')
+    for repo in config.repos:
+        if repo.path == safe_relative_to(path, closest_gimera):
+            path_is_provided_by_gimera_but_itself_no_gimera = True
+            break
+    else:
+        path_is_provided_by_gimera_but_itself_no_gimera = False
+
+
     parent_gimera = get_parent_gimera(root_dir, closest_gimera)
     if parent_gimera == root_dir:
         parent_repo = root_dir
     else:
-        parent_repo = get_nearest_repo(root_dir, parent_gimera)
+        if path_is_provided_by_gimera_but_itself_no_gimera:
+            parent_repo = get_nearest_repo(root_dir, closest_gimera)
+        else:
+            parent_repo = get_nearest_repo(root_dir, parent_gimera)
 
     rel_path = safe_relative_to(path, parent_repo)
     is_submodule = Repo(parent_repo).is_path_a_submodule(rel_path)
-    import pudb;pudb.set_trace()
     return {
         "is_submodule": is_submodule,
         "relpath": rel_path,
+        "closest_gimera": closest_gimera,
+        "parent_gimera": parent_gimera,
+        "parent_repo": parent_repo,
     }

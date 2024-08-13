@@ -994,7 +994,7 @@ def test_2_submodules(temppath):
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
 
     os.chdir(workspace_main)
-    gimera_apply([], update=None, recursive=True)
+    gimera_apply([], update=None, recursive=True, strict=True)
     assert (workspace_main / "repo1" / "repo1.txt").exists()
     assert (workspace_main / "repo1" / "subrepo1" / "subrepo1.txt").exists()
     assert (workspace_main / "repo2" / "repo2.txt").exists()

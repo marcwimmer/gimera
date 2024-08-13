@@ -166,7 +166,7 @@ def test_switch_submodule_to_integrated_dont_loose_changes_with_subsub_repos(tem
     repo.X(*(git + ["push"]))
 
     os.chdir(workspace_main)
-    gimera_apply([], None, recursive=True)
+    gimera_apply([], None, recursive=True, strict=True)
 
     dirty_file = workspace_main / "sub1" / "subsub" / "file1.txt"
     original_content = dirty_file.read_text()

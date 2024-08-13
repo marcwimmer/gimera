@@ -77,7 +77,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo.simple_commit_all()
     repo.X(*(git + ["push"]))
     os.chdir(workspace_main)
-    gimera_apply([], {})
+    gimera_apply([], None)
 
     # make it dirty
     dirty_file = workspace_main / repos_yaml["repos"][0]["path"] / "file1.txt"

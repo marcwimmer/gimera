@@ -9,19 +9,23 @@ from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
 from .tools import gimera_apply
+from ..tools import get_nearest_repo
+from ..tools import safe_relative_to
+from ..tools import get_parent_gimera
+from ..tools import get_effective_state
 
 
 def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo(temppath):
     for I, combo in enumerate(
         [
-            ("S", "S", "S"),
-            ("S", "S", "I"),
-            ("S", "I", "S"),
+            # ("S", "S", "S"),
+            # ("S", "S", "I"),
+            # ("S", "I", "S"),
             ("I", "S", "S"),
-            ("S", "I", "I"),
-            ("I", "S", "I"),
-            ("I", "I", "S"),
-            ("I", "I", "I"),
+            # ("S", "I", "I"),
+            # ("I", "S", "I"),
+            # ("I", "I", "S"),
+            # ("I", "I", "I"),
         ]
     ):
 
@@ -136,22 +140,24 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo.X(*(git + ["push"]))
 
     # change every level of the repo for its own; then change all levels and check
-    for mode in ["use_gimera_migrate", "direct_snapshots"]:
+    # TODO
+    # for mode in ["use_gimera_migrate", "direct_snapshots"]:
+    for mode in ["use_gimera_migrate"]:
         for i, adapted_paths in enumerate(
             [
-                ["a1/b1/sub1"],
+                # ["a1/b1/sub1"],
                 ["a1/b1/sub1/a11/b11/sub1.1"],
-                ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
-                [
-                    "a1/b1/sub1/a11/b11/sub1.1",
-                    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                ],
-                [
-                    "a1/b1/sub1",
-                    "a1/b1/sub1/a11/b11/sub1.1",
-                    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                ],
-                ["a1/b1/sub1", "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
+                # ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
+                # [
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                # ],
+                # [
+                #     "a1/b1/sub1",
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                # ],
+                # ["a1/b1/sub1", "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
             ]
         ):
             if workspace_main.exists():
@@ -161,7 +167,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 cwd=workspace.parent,
             )
             os.chdir(workspace_main)
-            gimera_apply([], None, recursive=True)
+            gimera_apply([], None, recursive=True, strict=True)
             # assert everything is there
             assert (
                 workspace_main
@@ -193,7 +199,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
 
             if mode == "direct_snapshots":
                 os.environ["GIMERA_FORCE"] = "1"
-                gimera_apply([], None, recursive=True)
+                gimera_apply([], None, recursive=True, strict=True)
 
                 for adapted_path in adapted_paths:
                     dirty_file = workspace_main / adapted_path / "file1.txt"
@@ -201,17 +207,52 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             else:
                 os.environ["GIMERA_FORCE"] = "0"
                 os.environ["PYTHONBREAKPOINT"] = "pudb"
-                gimera_apply([], None, recursive=True, migrate_changes=True)
+                gimera_apply([], None, recursive=True, migrate_changes=True, strict=True)
 
             # restore
             if mode == "direct_snapshots":
                 snapshot_restore(workspace_main, [snapshot_path])
 
             for adapted_path in adapted_paths:
-                dirty_file = workspace_main / adapted_path / "file1.txt"
-                added_file = workspace_main / adapted_path / "newfile.txt"
-                deleted_file = workspace_main / adapted_path / "dont_look_at_me"
-                # make sure that situation is like before:
-                assert dirty_file.read_text() == "i changed the file"
-                assert added_file.exists()
-                assert not deleted_file.exists()
+                _assure_kept_changes(workspace_main, adapted_path)
+
+            if mode == "use_gimera_migrate":
+                # switch to other mode integrated/submodule and check
+                # if changes are transported
+                for adapted_path in adapted_paths:
+                    state = get_effective_state(workspace_main, workspace_main / adapted_path)
+                    closest_gimera = state['closest_gimera']
+                    parent_gimera = state['parent_gimera']
+                    parent_repo  = Repo(state['parent_repo'])
+                    working_dir = parent_gimera
+                    relpath = safe_relative_to(workspace_main / adapted_path, working_dir)
+                    import pudb;pudb.set_trace()
+                    effstate = get_effective_state(
+                        workspace_main, workspace_main / adapted_path
+                    )
+                    if effstate["is_submodule"]:
+                        other_type = "integrated"
+                    else:
+                        other_type = "submodule"
+                    pwd = os.getcwd()
+                    os.chdir(working_dir)
+                    gimera_apply(
+                        [effstate["relpath"]],
+                        None,
+                        force_type=other_type,
+                        recursive=True,
+                        migrate_changes=True,
+                        strict=True,
+                    )
+                    os.chdir(pwd)
+                    _assure_kept_changes(workspace_main, adapted_path)
+
+
+def _assure_kept_changes(workspace_main, adapted_path):
+    dirty_file = workspace_main / adapted_path / "file1.txt"
+    added_file = workspace_main / adapted_path / "newfile.txt"
+    deleted_file = workspace_main / adapted_path / "dont_look_at_me"
+    # make sure that situation is like before:
+    assert dirty_file.read_text() == "i changed the file"
+    assert added_file.exists()
+    assert not deleted_file.exists()

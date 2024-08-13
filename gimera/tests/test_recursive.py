@@ -97,7 +97,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 1: all integrated
     prepare_repos("integrated", "integrated")
     os.chdir(workspace_main)
-    gimera_apply([], None, recursive=True)
+    gimera_apply([], None, recursive=True, strict=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -108,7 +108,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 2: submodule then integrated
     prepare_repos("submodule", "integrated")
     os.chdir(workspace_main)
-    gimera_apply([], update=None, recursive=True)
+    gimera_apply([], update=None, recursive=True, strict=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -119,7 +119,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 3: integrated then submodule
     prepare_repos("integrated", "submodule")
     os.chdir(workspace_main)
-    gimera_apply([], update=None, recursive=True)
+    gimera_apply([], update=None, recursive=True, strict=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -130,7 +130,7 @@ def test_recursive_gimeras_2_levels(temppath):
     # region: case 4: submodule submodule
     prepare_repos("submodule", "submodule")
     os.chdir(workspace_main)
-    gimera_apply([], update=None, recursive=True)
+    gimera_apply([], update=None, recursive=True, strict=True)
 
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
@@ -244,7 +244,7 @@ def test_recursive_gimeras_3_levels(temppath):
 
         prepare_repos(*tuple(map(ttype, permutation)))
         os.chdir(workspace_main)
-        gimera_apply([], update=None, recursive=True)
+        gimera_apply([], update=None, recursive=True, strict=True)
 
         repo = Repo(workspace_main)
         assert (workspace_main / "sub1" / "sub1.txt").exists()
@@ -399,7 +399,7 @@ def test_recursive_gimeras_5_levels(temppath):
 
         prepare_repos(*tuple(map(ttype, permutation)))
         os.chdir(workspace_main)
-        gimera_apply([], update=None, recursive=True)
+        gimera_apply([], update=None, recursive=True, strict=True)
 
         repo = Repo(workspace_main)
         assert (workspace_main / "sub1" / "sub1.txt").exists()

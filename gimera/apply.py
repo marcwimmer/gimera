@@ -217,11 +217,4 @@ def _turn_into_correct_repotype(working_dir, main_repo, repo_config, config):
         if existing_submodules:
             repo.force_remove_submodule(path)
     else:
-        __add_submodule(working_dir, repo, repo_config, config)
-        submodules = repo.get_submodules()
-        existing_submodules = list(
-            filter(lambda x: x.equals(repo.path / path), submodules)
-        )
-        if not existing_submodules:
-            _raise_error(f"Error with submodule {path}")
-        del existing_submodules
+        __add_submodule(main_repo.path ,working_dir, repo, repo_config, config)

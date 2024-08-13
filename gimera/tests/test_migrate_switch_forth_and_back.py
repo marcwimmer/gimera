@@ -83,12 +83,24 @@ def _test_snapshot_switch_around_and_check_if_everything_is_there(temppath, sub_
     assert dirty_file1.exists()
     dirty_file1.write_text("1")
     os.environ["GIMERA_FORCE"] = "0"
-    gimera_apply([], None, recursive=True, migrate_changes=True)
-
-    assert dirty_file1.read_text() == "1"
-    gimera_apply([], None, force_type="submodule", recursive=True, migrate_changes=True)
+    gimera_apply([], None, recursive=True, migrate_changes=True, strict=True)
 
     assert dirty_file1.read_text() == "1"
     gimera_apply(
-        [], None, force_type="integrated", recursive=True, migrate_changes=True
+        [],
+        None,
+        force_type="submodule",
+        recursive=True,
+        migrate_changes=True,
+        strict=True,
+    )
+
+    assert dirty_file1.read_text() == "1"
+    gimera_apply(
+        [],
+        None,
+        force_type="integrated",
+        recursive=True,
+        migrate_changes=True,
+        strict=True,
     )

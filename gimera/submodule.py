@@ -9,6 +9,9 @@ from .consts import REPO_TYPE_SUB
 import click
 from .tools import rmtree
 from .tools import is_forced
+from .tools import get_effective_state
+from .tools import get_nearest_repo
+from .tools import get_parent_gimera
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
@@ -50,10 +53,11 @@ def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=F
     if not path.exists():
         return
 
-    repo = main_repo
-    if (working_dir / ".git").exists():
-        repo = Repo(working_dir)
-    subrepo = repo.get_submodule(repo_yml.path)
+    state = get_effective_state(main_repo.path, path)
+    parent_gimera = state["parent_gimera"]
+    repo = Repo(state["parent_repo"])
+    relpath = state["relpath"]
+    subrepo = repo.get_submodule(relpath)
     if subrepo.dirty:
         if os.getenv("GIMERA_FORCE") != "1":
             _raise_error(
@@ -135,6 +139,7 @@ def _make_sure_subrepo_is_checked_out(working_dir, main_repo, repo_yml):
             f"After submodule update the path {repo_yml['path']} did not exist"
         )
 
+
 def _has_repo_latest_commit(repo, branch):
     out = repo.out(*(git + ["ls-remote", "origin", branch]))
     sha = out.splitlines()[0].strip().split()[0].strip()
@@ -142,7 +147,7 @@ def _has_repo_latest_commit(repo, branch):
     return sha == current
 
 
-def __add_submodule(working_dir, repo, config, all_config):
+def __add_submodule(root_dir, working_dir, repo, config, all_config):
     if config.type != REPO_TYPE_SUB:
         return
     path = working_dir / config.path
@@ -220,3 +225,10 @@ def __add_submodule(working_dir, repo, config, all_config):
     click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
     if repo.staged_files:
         repo.X(*(git + ["commit", "-m", f"gimera added submodule: {relpath}"]))
+
+    # check for success
+    state = get_effective_state(
+        root_dir,
+        path,
+    )
+    assert state["is_submodule"]

@@ -52,7 +52,7 @@ def test_checkout_not_update_if_last_commit_matches_branch_make_branch_be_checke
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
 
     os.chdir(workspace_main)
-    gimera_apply([], update=None, recursive=True)
+    gimera_apply([], update=None, recursive=True, strict=True)
 
     assert (workspace_main / "sub1" / "submodule.txt").exists()
 
