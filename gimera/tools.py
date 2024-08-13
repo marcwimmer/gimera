@@ -281,26 +281,29 @@ def get_nearest_repo(end, start):
     start = Path(start)
     p = start
     while p != Path(end):
-        git = p / '.git'
+        git = p / ".git"
         if git.exists():
             return git.parent
         p = p.parent
     return end
 
+
 def _make_sure_hidden_gimera_dir(root_dir):
-    path = Path(root_dir) / '.gitignore'
+    path = Path(root_dir) / ".gitignore"
     if not path.exists():
         path.write_text(".gimera\n")
     else:
         content = path.read_text().splitlines()
-        if not [x for x in content if x == '.gimera']:
+        if not [x for x in content if x == ".gimera"]:
             content.append(".gimera")
-            path.write_text('\n'.join(content))
-    return root_dir / '.gimera'
+            path.write_text("\n".join(content))
+    return root_dir / ".gimera"
+
 
 @yieldlist
 def _get_remotes(repo_yml):
     from .repo import Remote
+
     config = repo_yml.remotes
     if not config:
         return
@@ -311,10 +314,11 @@ def _get_remotes(repo_yml):
 
 def _get_main_repo():
     from .repo import Repo
+
     path = Path(os.getcwd())
     while True:
         #  TODO think about that
-        #if (path / ".git").exists() and (path / ".git").is_dir():
+        # if (path / ".git").exists() and (path / ".git").is_dir():
         if (path / ".git").exists():
             break
         path = path.parent
@@ -331,3 +335,34 @@ def _get_missing_repos(config):
             continue
         if not repo.path.exists():
             yield repo
+
+
+def get_parent_gimera(end, start):
+    p = start.parent
+    while p != end:
+        if (p / "gimera.yml").exists():
+            return p
+        p = p.parent
+    return end
+    raise Exception(f"No parent gimera found for {start}")
+
+
+def get_effective_state(root_dir, path):
+    from .repo import Repo
+    path = Path(path)
+    root_dir = Path(root_dir)
+
+    closest_gimera = get_parent_gimera(root_dir, path / "dummy")
+    parent_gimera = get_parent_gimera(root_dir, closest_gimera)
+    if parent_gimera == root_dir:
+        parent_repo = root_dir
+    else:
+        parent_repo = get_nearest_repo(root_dir, parent_gimera)
+
+    rel_path = safe_relative_to(path, parent_repo)
+    is_submodule = Repo(parent_repo).is_path_a_submodule(rel_path)
+    import pudb;pudb.set_trace()
+    return {
+        "is_submodule": is_submodule,
+        "relpath": rel_path,
+    }

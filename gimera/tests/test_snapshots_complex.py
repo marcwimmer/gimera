@@ -30,8 +30,8 @@ def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo(temppath)
             return "submodule" if x == "S" else "integrated"
 
         type1 = _e(combo[0])
-        type11 = _e(combo[0])
-        type111 = _e(combo[0])
+        type11 = _e(combo[1])
+        type111 = _e(combo[2])
 
         _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodule(
             temppath,

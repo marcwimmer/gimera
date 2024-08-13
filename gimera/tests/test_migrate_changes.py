@@ -80,6 +80,3 @@ def test_switch_submodule_to_integrated_migrate_changes(temppath):
 
     # check if still dirty
     _assert_changes()
-
-    # (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
-    # repo.simple_commit_all()
