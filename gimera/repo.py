@@ -481,11 +481,11 @@ class Repo(GitCommands):
         repo = self.root_repo
         root = repo.path / ".git" / "modules"
         parts = list(rel_path_to_root.parts)
+        next_path = root
         while parts:
             part = parts.pop(0)
             if not parts:
                 # kill
-                next_path = root / part
                 if next_path.exists():
                     rmtree(next_path)
                 else:
@@ -494,11 +494,9 @@ class Repo(GitCommands):
                     )
 
             else:
-                next_path = root / part / "modules"
-                if next_path.exists():
-                    root = next_path
-                else:
-                    break
+                next_path = next_path / part / "modules"
+                if not next_path.exists():
+                    next_path = next_path.parent
 
     @contextmanager
     def stay_at_commit(self, enabled):

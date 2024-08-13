@@ -20,8 +20,8 @@ def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo(temppath)
         [
             # ("S", "S", "S"),
             # ("S", "S", "I"),
-            # ("S", "I", "S"),
-            ("I", "S", "S"),
+            ("S", "I", "S"),
+            #("I", "S", "S"),
             # ("S", "I", "I"),
             # ("I", "S", "I"),
             # ("I", "I", "S"),
@@ -69,7 +69,7 @@ def _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodul
                 {
                     "repos": [
                         {
-                            "url": f"file://{repo_sub111}",
+                            "url": str(repo_sub111),
                             "branch": "branch1",
                             "path": "a111/b111/sub1.1.1",
                             "patches": [],
@@ -89,7 +89,7 @@ def _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodul
                 {
                     "repos": [
                         {
-                            "url": f"file://{repo_sub11}",
+                            "url": str(repo_sub11),
                             "branch": "branch1",
                             "path": "a11/b11/sub1.1",
                             "patches": [],
@@ -104,7 +104,7 @@ def _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodul
     repos_yaml = {
         "repos": [
             {
-                "url": f"file://{repo_sub1}",
+                "url": str(repo_sub1),
                 "branch": "branch1",
                 "path": "a1/b1/sub1",
                 "patches": [],
@@ -130,7 +130,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo_main = _make_remote_repo(temppath / "mainrepo")
 
     subprocess.check_output(
-        git + ["clone", "file://" + str(repo_main), workspace_main],
+        git + ["clone", str(repo_main), workspace_main],
         cwd=workspace.parent,
     )
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_yaml))
@@ -141,11 +141,11 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
 
     # change every level of the repo for its own; then change all levels and check
     # TODO
-    # for mode in ["use_gimera_migrate", "direct_snapshots"]:
+    #for mode in ["use_gimera_migrate", "direct_snapshots"]:
     for mode in ["use_gimera_migrate"]:
         for i, adapted_paths in enumerate(
             [
-                # ["a1/b1/sub1"],
+                #["a1/b1/sub1"],
                 ["a1/b1/sub1/a11/b11/sub1.1"],
                 # ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
                 # [
@@ -163,7 +163,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             if workspace_main.exists():
                 shutil.rmtree(workspace_main)
             subprocess.check_output(
-                git + ["clone", "file://" + str(repo_main), workspace_main],
+                git + ["clone", str(repo_main), workspace_main],
                 cwd=workspace.parent,
             )
             os.chdir(workspace_main)

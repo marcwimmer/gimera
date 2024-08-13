@@ -232,7 +232,7 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config):
         rmtree(repo.path / relpath)
 
     cache_dir = _get_cache_dir(repo, config)
-    repo.submodule_add(config.branch, f"file://{cache_dir}", relpath)
+    repo.submodule_add(config.branch, str(cache_dir), relpath)
     repo.X(*(git + ["submodule", "set-url", relpath, config.url]))
     repo.X(*(git + ["add", ".gitmodules"]))
     click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
