@@ -629,7 +629,7 @@ def remove_file_from_patch(files_to_exclude, patchfilecontent):
             if match:
                 file_path = match.group(1)
                 # Check if the file should be excluded
-                if file_path in files_to_exclude:
+                if any(file_path.startswith(x) for x in files_to_exclude):
                     skip_lines = True
                 else:
                     skip_lines = False

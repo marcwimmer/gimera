@@ -6,6 +6,7 @@ from .repo import Repo
 from .tools import get_nearest_repo
 from .tools import safe_relative_to
 from .tools import _make_sure_hidden_gimera_dir
+from .tools import get_effective_state
 import os
 import uuid
 from datetime import datetime
@@ -36,14 +37,11 @@ def _get_repo_for_filter_paths(root_dir, filter_paths):
 
 
 def snapshot_recursive(root_dir, filter_paths, token=None):
-    repo = _get_repo_for_filter_paths(root_dir, filter_paths)
-    parent = get_nearest_repo(root_dir, repo)
     assert isinstance(filter_paths, list)
 
     _snapshot_dir(
         root_dir,
-        Repo(repo),
-        parent_path=parent,
+        path=None,
         filter_paths=filter_paths,
     )
     return _get_token()
@@ -55,7 +53,7 @@ def snapshot_restore(root_dir, filter_paths, token=None):
 
     for patchfile in patches.rglob("**/*.patch"):
         relpath = safe_relative_to(patchfile.parent, root_dir)
-        relpath = Path("/".join(relpath.parts[3:]))
+        relpath = Path("/".join(relpath.parts[3:])) / patchfile.stem
 
         assert all(
             str(x).startswith("/") for x in filter_paths
@@ -67,49 +65,73 @@ def snapshot_restore(root_dir, filter_paths, token=None):
         ]:
             continue
 
-        repo_dir = root_dir / relpath / patchfile.stem
+        repo_dir = root_dir / relpath
         # find out the belonging repository; if switched from submodule to integrated
         # a new root must be added to the patch
         nearest_repo_path = get_nearest_repo(root_dir, repo_dir)
         delta_path = safe_relative_to(repo_dir, nearest_repo_path)
-        if str(delta_path) != '.':
-            subprocess.check_call(
-                (git + ["apply", "--reject", "--directory", delta_path, patchfile]),
-                cwd=nearest_repo_path,
-            )
+        cmd = git + ["apply", "--reject"]
+        if str(delta_path) != ".":
+            cmd += ["--directory", delta_path]
+        cmd += [patchfile]
+        subprocess.check_call(cmd, cwd=nearest_repo_path)
+
+
+def _find_matching_dirs(root_dir, path, filter_paths):
+    if path is None:
+        path = root_dir
+
+    repo = get_nearest_repo(root_dir, path)
+
+    def _matches_filter_paths(path, direction):
+        if direction == "before":
+            return bool(any(x for x in filter_paths if safe_relative_to(x, path)))
         else:
-            subprocess.check_call(
-                (git + ["apply", "--reject", patchfile]), cwd=repo_dir
-            )
+            return bool(any(x for x in filter_paths if safe_relative_to(path, x)))
+
+    if _matches_filter_paths(path, "before") or _matches_filter_paths(path, "after"):
+        if _matches_filter_paths(path, "after"):
+            if Repo(repo).all_dirty_files:
+                yield Repo(repo), path
+        for sub in path.iterdir():
+            if sub.is_dir():
+                if sub.name == ".git":
+                    continue
+                yield from _find_matching_dirs(root_dir, sub, filter_paths)
 
 
-def _snapshot_dir(root_dir, repo, parent_path, filter_paths=None):
-    if filter_paths is None:
-        filter_paths = []
-        filter_paths.append(repo.path)
+def _snapshot_dir(root_dir, path, filter_paths=None):
+    matching_dirs = list(
+        reversed(list(_find_matching_dirs(root_dir, path, filter_paths)))
+    )
 
-    assert isinstance(filter_paths, list)
-    for path in filter_paths:
+    for repo, path in matching_dirs:
         repo.X("git", "reset")
-        subprocess.check_call((git + ["add", "."]), cwd=path)
+        if not repo.all_dirty_files:
+            continue
+        dirty_files = [x for x in repo.all_dirty_files if x.parent == path]
+        if not dirty_files:
+            continue
+        for dirty_file in dirty_files:
+            if any(x == dirty_file.name for x in [".gitmodules", ".git"]):
+                continue
+            subprocess.check_call((git + ["add", dirty_file]), cwd=path)
         patch_file_content = subprocess.check_output(
             (git + ["diff", "--cached", "--relative"]), cwd=path
         )
-        patch_file_content = remove_file_from_patch(['.gitmodules'], patch_file_content)
-
         if patch_file_content:
             cache_file = _get_patch_filepath(root_dir, path)
             cache_file.write_bytes(patch_file_content)
-            subprocess.check_call((git + ["reset", path]), cwd=repo.path)
-            subprocess.check_call((git + ["checkout", path]), cwd=repo.path)
-            for dirtyfile in repo.untracked_files:
-                if dirtyfile.is_dir():
-                    shutil.rmtree(dirtyfile)
-                else:
-                    dirtyfile.unlink()
 
-    for submodule in repo.get_submodules():
-        _snapshot_dir(root_dir, submodule, repo.path, None)
+    repos = map(Repo, set(x[0].path for x in matching_dirs))
+    for repo in repos:
+        subprocess.check_call((git + ["reset", path]), cwd=repo.path)
+        subprocess.check_call((git + ["checkout", path]), cwd=repo.path)
+        for dirtyfile in repo.untracked_files:
+            if dirtyfile.is_dir():
+                shutil.rmtree(dirtyfile)
+            else:
+                dirtyfile.unlink()
 
 
 def cleanup():

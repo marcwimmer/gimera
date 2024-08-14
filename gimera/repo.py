@@ -472,14 +472,20 @@ class Repo(GitCommands):
         try:
             self.out(*commands)
         except subprocess.CalledProcessError as ex:
-            self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
+            rel_path_repo = safe_relative_to(self.path, self.root_repo.path)
+            #self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
+            self._remove_internal_submodule_clone(rel_path_repo / rel_path.parts[0])
             if (self.path / rel_path).exists():
                 rmtree(self.path / rel_path)
             self.out(*commands)
 
     def _remove_internal_submodule_clone(self, rel_path_to_root):
+        # switching integrated/submodule often makes weird conflicts;
         repo = self.root_repo
         root = repo.path / ".git" / "modules"
+        # if root.exists():
+        #     shutil.rmtree(root)
+        #     return
         parts = list(rel_path_to_root.parts)
         next_path = root
         while parts:
