@@ -14,6 +14,7 @@ from ..tools import safe_relative_to
 from ..tools import get_parent_gimera
 from ..tools import get_effective_state
 
+token  = {'token': 1}
 
 def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo(temppath):
     for I, combo in enumerate(
@@ -21,7 +22,7 @@ def test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo(temppath)
             # ("S", "S", "S"),
             # ("S", "S", "I"),
             ("S", "I", "S"),
-            #("I", "S", "S"),
+            # ("I", "S", "S"),
             # ("S", "I", "I"),
             # ("I", "S", "I"),
             # ("I", "I", "S"),
@@ -141,12 +142,12 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
 
     # change every level of the repo for its own; then change all levels and check
     # TODO
-    #for mode in ["use_gimera_migrate", "direct_snapshots"]:
-    for mode in ["use_gimera_migrate"]:
+    # for mode in ["use_gimera_migrate"]:
+    for mode in ["use_gimera_migrate", "direct_snapshots"]:
         for i, adapted_paths in enumerate(
             [
-                #["a1/b1/sub1"],
-                ["a1/b1/sub1/a11/b11/sub1.1"],
+                # ["a1/b1/sub1"],
+                # ["a1/b1/sub1/a11/b11/sub1.1"],
                 # ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
                 # [
                 #     "a1/b1/sub1/a11/b11/sub1.1",
@@ -157,7 +158,8 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 #     "a1/b1/sub1/a11/b11/sub1.1",
                 #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
                 # ],
-                # ["a1/b1/sub1", "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
+                ["a1/b1/sub1" ,"a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
+                ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1", "a1/b1/sub1"],
             ]
         ):
             if workspace_main.exists():
@@ -241,6 +243,8 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                         other_type = "submodule"
                     pwd = os.getcwd()
                     os.chdir(working_dir)
+                    os.environ['GIMERA_TOKEN'] = str(token['token'])
+                    token['token'] += 1
                     gimera_apply(
                         [effstate["parent_gimera_relpath"]],
                         None,

@@ -125,8 +125,8 @@ def _snapshot_dir(root_dir, path, filter_paths=None):
 
     repos = map(Repo, set(x[0].path for x in matching_dirs))
     for repo in repos:
-        subprocess.check_call((git + ["reset", path]), cwd=repo.path)
-        subprocess.check_call((git + ["checkout", path]), cwd=repo.path)
+        subprocess.check_call((git + ["reset"]), cwd=repo.path)
+        subprocess.check_call((git + ["checkout", "."]), cwd=repo.path)
         for dirtyfile in repo.untracked_files:
             if dirtyfile.is_dir():
                 shutil.rmtree(dirtyfile)
