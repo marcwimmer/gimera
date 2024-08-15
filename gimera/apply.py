@@ -195,16 +195,19 @@ def _apply_subgimera(
             **options,
         )
 
+        state = get_effective_state(main_repo.path, new_sub_path)
+        parent_repo = Repo(state['parent_repo'])
+
         dirty_files = list(
             filter(
-                lambda x: safe_relative_to(x, new_sub_path), main_repo.all_dirty_files
+                lambda x: safe_relative_to(x, new_sub_path), parent_repo.all_dirty_files
             )
         )
         if dirty_files:
-            main_repo.please_no_staged_files()
+            parent_repo.please_no_staged_files()
             for f in dirty_files:
-                main_repo.X(*(git + ["add", f]))
-            main_repo.X(
+                parent_repo.X(*(git + ["add", f]))
+            parent_repo.X(
                 *(git + ["commit", "-m", f"gimera: updated sub path {repo.path}"])
             )
         # commit submodule updates or changed dirs
