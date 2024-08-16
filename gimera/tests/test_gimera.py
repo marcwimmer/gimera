@@ -707,6 +707,7 @@ def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(tempp
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_sub))
     repo.simple_commit_all()
     os.chdir(workspace_main)
+    os.environ["BREAKPOINT"] = "1"
     gimera_apply([], None)
     try:
         repo.get_submodule("sub1")
@@ -714,9 +715,11 @@ def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(tempp
         raise Exception("Should be found")
     assert not repo.all_dirty_files
 
+    import pudb;pudb.set_trace()
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
     repo.simple_commit_all()
     os.chdir(workspace_main)
+    pudb.set_trace()
     gimera_apply([], None)
     try:
         repo.get_submodule("sub1")
@@ -792,6 +795,7 @@ def test_git_submodule_point_to_branch_if_last_commit_matches_tip_point_of_branc
     submodule = repo.get_submodule("sub1")
     assert submodule.get_commit() == commit
     assert submodule.get_branch() == branch, "Should now be on the branch, not a sha"
+
 
 def test_2_submodules(temppath):
     """

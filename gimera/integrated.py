@@ -65,6 +65,7 @@ def _update_integrated_module(
             repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
         )
 
+
 def _apply_merges(repo, repo_yml):
     if not repo_yml.merges:
         return []

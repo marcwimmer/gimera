@@ -201,7 +201,7 @@ class Repo(GitCommands):
             self.X(*(git + ["add", "-A", path]))
         if self.lsfiles(fullpath.relative_to(self.path)):
             self.X(*(git + ["add", "-f", "-A", path]))
-        if (self.path / ".gitmodules") in self.all_dirty_files:
+        if (self.path_absolute / ".gitmodules") in self.all_dirty_files_absolute:
             self.X(*(git + ["add", "-A", ".gitmodules"]))
 
         if self.staged_files:
