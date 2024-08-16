@@ -1,17 +1,14 @@
 import subprocess
-import click
 from pathlib import Path
 from .consts import gitcmd as git
 from .repo import Repo
 from .tools import get_nearest_repo
 from .tools import safe_relative_to
 from .tools import _make_sure_hidden_gimera_dir
-from .tools import get_effective_state
 import os
 import uuid
 from datetime import datetime
 import shutil
-from .config import Config
 from .patches import remove_file_from_patch
 
 to_cleanup = []

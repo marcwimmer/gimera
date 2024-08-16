@@ -15,7 +15,7 @@ from .submodule import _make_sure_subrepo_is_checked_out
 from .snapshot import snapshot_recursive, snapshot_restore
 from .submodule import _fetch_latest_commit_in_submodule
 from .submodule import __add_submodule
-from .tools import get_parent_gimera
+from .tools import get_closest_gimera
 from .tools import get_effective_state
 
 
@@ -43,7 +43,9 @@ def _apply(
 
     sub_path = None
     main_repo = _get_main_repo()
-    closest_gimera = get_parent_gimera(main_repo.path, Path(os.getcwd()) / "dummy")
+    closest_gimera = (
+        get_closest_gimera(main_repo.path, Path(os.getcwd()) / "dummy") or main_repo.path
+    )
     os.chdir(closest_gimera)
     if main_repo.path != closest_gimera:
         sub_path = closest_gimera
@@ -93,6 +95,7 @@ def _internal_apply(
     )
     # does not work in sub repos, because at apply at this point in time
     # the files are not committed and still dirty
+    common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         if migrate_changes:
             relative_sub_path = (
@@ -110,13 +113,18 @@ def _internal_apply(
                 main_repo,
                 repo,
                 config,
+                common_vars,
             )
             if repo.type == REPO_TYPE_SUB:
                 _make_sure_subrepo_is_checked_out(
-                    sub_path or main_repo.path, main_repo, repo
+                    sub_path or main_repo.path, main_repo, repo, common_vars
                 )
                 _fetch_latest_commit_in_submodule(
-                    sub_path or main_repo.path, main_repo, repo, update=update
+                    sub_path or main_repo.path,
+                    main_repo,
+                    repo,
+                    common_vars,
+                    update=update,
                 )
             elif repo.type == REPO_TYPE_INT:
                 if not no_patches:
@@ -142,7 +150,6 @@ def _internal_apply(
                     force_type = REPO_TYPE_INT
 
             if recursive:
-                common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
                 _apply_subgimera(
                     main_repo,
                     repo,
@@ -173,6 +180,7 @@ def _apply_subgimera(
     no_patches,
     parent_config,
     sub_path,
+    common_vars,
     **options,
 ):
     subgimera = Path(repo.path) / "gimera.yml"
@@ -192,11 +200,12 @@ def _apply_subgimera(
             no_patches=no_patches,
             parent_config=parent_config,
             sub_path=new_sub_path,
+            common_vars=common_vars,
             **options,
         )
 
-        state = get_effective_state(main_repo.path, new_sub_path)
-        parent_repo = Repo(state['parent_repo'])
+        state = get_effective_state(main_repo.path, new_sub_path, common_vars)
+        parent_repo = Repo(state["parent_repo"])
 
         dirty_files = list(
             filter(
@@ -215,7 +224,7 @@ def _apply_subgimera(
 
 
 def _turn_into_correct_repotype(
-    working_dir, main_repo, repo_config, config
+    working_dir, main_repo, repo_config, config, common_vars
 ):
     """
     if git submodule and exists: nothing todo
@@ -227,11 +236,15 @@ def _turn_into_correct_repotype(
     if integrated and git submodule and already exists a path: submodule removed
 
     """
-    state = get_effective_state(main_repo.path, working_dir / repo_config.path)
+    state = get_effective_state(
+        main_repo.path, working_dir / repo_config.path, common_vars
+    )
     repo = Repo(state["parent_repo"])
     if repo_config.type == REPO_TYPE_INT:
-        if state['is_submodule']:
+        if state["is_submodule"]:
             # always delete
-            repo.force_remove_submodule(state['parent_repo_relpath'])
+            repo.force_remove_submodule(state["parent_repo_relpath"])
     else:
-        __add_submodule(main_repo.path, working_dir, repo, repo_config, config)
+        __add_submodule(
+            main_repo.path, working_dir, repo, repo_config, config, common_vars
+        )

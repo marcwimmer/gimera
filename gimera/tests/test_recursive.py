@@ -237,6 +237,7 @@ def test_recursive_gimeras_3_levels(temppath):
 
     permutations = list(sorted(set(itertools.permutations("000111", 3))))
 
+    # TODO undo
     for i, permutation in enumerate(permutations):
 
         def ttype(x):

@@ -36,13 +36,13 @@ if basename == 'test_snapshots_complex':
         filename = f"{basename}_{letters}.py"
         path = current_file.parent / filename
         code = current_file.read_text()
-        code = code.replace("__COMBO__ = []", f"__COMBO__ = [{combo}]")
-        code = code.replace("test_snapshot_complex__COMBO__", f"test_snapshot_complex_{letters}")
+        code = code.replace("__COMBO__ = [('I', 'S', 'I')]", f"__COMBO__ = [{combo}]")
+        code = code.replace("test_snapshot_complex_ISI", f"test_snapshot_complex_{letters}")
         path.write_text(code)
-__COMBO__ = []
+__COMBO__ = [('I', 'S', 'I')]
 
 
-def test_snapshot_complex__COMBO__(temppath):
+def test_snapshot_complex_ISI(temppath):
     for I, combo in enumerate(__COMBO__):
 
         def _e(x):

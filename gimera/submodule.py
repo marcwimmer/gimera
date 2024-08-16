@@ -10,8 +10,6 @@ import click
 from .tools import rmtree
 from .tools import is_forced
 from .tools import get_effective_state
-from .tools import get_nearest_repo
-from .tools import get_parent_gimera
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
@@ -48,12 +46,12 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
     )
 
 
-def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, update=False):
+def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, common_vars, update=False):
     path = Path(working_dir) / repo_yml.path
     if not path.exists():
         return
 
-    state = get_effective_state(main_repo.path, path)
+    state = get_effective_state(main_repo.path, path, common_vars)
     parent_gimera = state["parent_gimera"]
     repo = Repo(state["parent_repo"])
     relpath = state["parent_repo_relpath"]
@@ -123,13 +121,13 @@ def _temporary_switch_remote_to_cachedir(main_repo, repo_yml, relpath):
         main_repo.X(*(git + ["submodule", "set-url", relpath, repo_yml.url]))
 
 
-def _make_sure_subrepo_is_checked_out(working_dir, main_repo, repo_yml):
+def _make_sure_subrepo_is_checked_out(working_dir, main_repo, repo_yml, common_vars):
     """
     Could be, that git submodule update was not called yet.
     """
     assert repo_yml.type == REPO_TYPE_SUB
     path = working_dir / repo_yml.path
-    state = get_effective_state(main_repo.path, path)
+    state = get_effective_state(main_repo.path, path, common_vars)
     if path.exists() and not is_empty_dir(path):
         return
     repo = Repo(state["parent_repo"])
@@ -160,7 +158,7 @@ def _has_repo_latest_commit(repo, branch):
     return sha == current
 
 
-def __add_submodule(root_dir, working_dir, repo, config, all_config):
+def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars):
     if config.type != REPO_TYPE_SUB:
         return
     path = working_dir / config.path
@@ -243,5 +241,6 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config):
     state = get_effective_state(
         root_dir,
         path,
+        common_vars,
     )
     assert state["is_submodule"]

@@ -128,7 +128,7 @@ def test_common_patchfiles_in_subgimera_2_levels(temppath):
     * check after apply that file exists in both
     * make a patch in integrated version
     """
-    workspace = temppath / "workspace"
+    workspace = temppath / "test_common_patchfiles_in_subgimera_2_levels"
 
     remote_main_repo = _make_remote_repo(temppath / "mainrepo")
     remote_sub_repo = _make_remote_repo(temppath / "subrepo")

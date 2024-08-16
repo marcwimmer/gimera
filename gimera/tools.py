@@ -1,4 +1,5 @@
 import subprocess
+import yaml
 import tempfile
 import time
 from datetime import datetime
@@ -279,17 +280,20 @@ def verbose(txt):
 
 def get_nearest_repo(end, start):
     from .repo import Repo
+
     relpath = safe_relative_to(start, end)
-    result = {'repo': Repo(end)}
+    result = {"repo": Repo(end)}
+
     def walk(parent_module, path):
-        result['repo'] = parent_module
+        result["repo"] = parent_module
         for submodule in parent_module.get_submodules():
             submodulepath = path / safe_relative_to(submodule.path, parent_module.path)
             if str(relpath).startswith(str(submodulepath)):
                 walk(submodule, submodulepath)
                 break
-    walk(result['repo'], path=Path("."))
-    return result['repo'].path
+
+    walk(result["repo"], path=Path("."))
+    return result["repo"].path
 
 
 def _make_sure_hidden_gimera_dir(root_dir):
@@ -339,8 +343,11 @@ def _get_missing_repos(config):
             yield repo
 
 
-def get_parent_gimera(end, start):
-    p = start.parent
+def get_closest_gimera(end, start):
+    if start.is_dir():
+        p = start
+    else:
+        p = start.parent
     while safe_relative_to(p, end):
         if (p / "gimera.yml").exists():
             return p
@@ -349,7 +356,25 @@ def get_parent_gimera(end, start):
     raise Exception(f"No parent gimera found for {start}")
 
 
-def get_effective_state(root_dir, path):
+def collect_upwards_common_vars(root_dir, start_gimera):
+    result = {}
+
+    def x(content):
+        content = yaml.load(content, Loader=yaml.FullLoader)
+        for k, v in content.get("common", {}).get("vars", {}).items():
+            if k not in result:
+                result[k] = v
+
+    file = start_gimera / "gimera.yml"
+    while file:
+        x(file.read_text())
+        file = get_closest_gimera(root_dir, file)
+        if file:
+            file = file / "gimera.yml"
+    return result
+
+
+def get_effective_state(root_dir, path, common_vars):
     from .repo import Repo
 
     path = Path(path)
@@ -358,8 +383,13 @@ def get_effective_state(root_dir, path):
     # closest_gimera = local_gimera
     from .config import Config
 
-    closest_gimera = get_parent_gimera(root_dir, path / "dummy")
-    config = Config(force_gimera_file=closest_gimera / 'gimera.yml')
+    closest_gimera = get_closest_gimera(root_dir, path / "dummy") or root_dir
+    # import pudb;pudb.set_trace()
+    # common_vars = collect_upwards_common_vars(root_dir, closest_gimera)
+    config = Config(
+        force_gimera_file=closest_gimera / "gimera.yml",
+        common_vars=common_vars,
+    )
     for repo in config.repos:
         if repo.path == safe_relative_to(path, closest_gimera):
             path_is_provided_by_gimera_but_itself_no_gimera = True
@@ -367,11 +397,10 @@ def get_effective_state(root_dir, path):
     else:
         path_is_provided_by_gimera_but_itself_no_gimera = False
 
-
     if path_is_provided_by_gimera_but_itself_no_gimera:
         parent_gimera = closest_gimera
     else:
-        parent_gimera = get_parent_gimera(root_dir, closest_gimera)
+        parent_gimera = get_closest_gimera(root_dir, closest_gimera.parent)
     if parent_gimera == root_dir:
         parent_repo = root_dir
     else:
