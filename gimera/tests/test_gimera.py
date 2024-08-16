@@ -715,11 +715,9 @@ def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(tempp
         raise Exception("Should be found")
     assert not repo.all_dirty_files
 
-    import pudb;pudb.set_trace()
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
     repo.simple_commit_all()
     os.chdir(workspace_main)
-    pudb.set_trace()
     gimera_apply([], None)
     try:
         repo.get_submodule("sub1")
