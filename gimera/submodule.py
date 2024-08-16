@@ -174,7 +174,7 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
 
             dirty_files = [
                 x
-                for x in repo.all_dirty_files
+                for x in repo.all_dirty_files_absolute
                 if safe_relative_to(x, repo.path / relpath)
             ]
             if dirty_files:

@@ -1,3 +1,4 @@
+import os
 import uuid
 import subprocess
 import click
@@ -9,6 +10,7 @@ from .consts import gitcmd as git
 from contextlib import contextmanager
 from .tools import is_forced
 from .tools import temppath
+from .tools import filter_files_to_folders
 
 
 class Repo(GitCommands):
@@ -143,9 +145,10 @@ class Repo(GitCommands):
 
         # if there are dirty files, then abort to not destroy data
         dirty_files = list(
-            filter(
-                lambda file: safe_relative_to(self.path / file, self.path / path),
-                self.all_dirty_files,
+            filter_files_to_folders(
+                self.all_dirty_files_absolute,
+                [self.path_absolute / path],
+
             )
         )
         if dirty_files:

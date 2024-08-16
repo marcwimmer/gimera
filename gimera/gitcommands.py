@@ -148,7 +148,7 @@ class GitCommands(object):
     def dirty(self):
         files = []
         for modifier, path in self._parse_git_status():
-            if str(path.relative_to(self.path)) == "gimera.yml":
+            if str(path) == "gimera.yml":
                 continue
             files.append(path)
         return bool(files)
