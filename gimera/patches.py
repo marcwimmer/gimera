@@ -15,12 +15,15 @@ from .tools import path1inpath2
 from .consts import inquirer_theme
 from .tools import (
     _raise_error,
+    get_nearest_repo,
     safe_relative_to,
     is_empty_dir,
     _strip_paths,
     temppath,
     rsync,
     wait_git_lock,
+    files_relative_to,
+    filter_files_to_folders,
 )
 import inquirer
 from pathlib import Path
@@ -285,7 +288,7 @@ def _start_question(repo_yml, changed_files):
 def _write_patch_content(
     main_repo, repo_yml, subrepo, subrepo_path, patch_dir, patch_filename, patch_content
 ):
-    if path1inpath2(patch_dir._path, subrepo.path):
+    if path1inpath2(patch_dir._path, subrepo_path):
         # case: patch must be put within patches folder of the integrated module
         # so it must be uploaded via a temp path; and the latest version must be
         # pulled
@@ -344,10 +347,29 @@ def _prepare(main_repo, repo_yml):
     if not subrepo_path.exists():
         yield None, None, [], []
     else:
-        subrepo = main_repo.get_submodule(repo_yml.path, force=True)
-        if subrepo.path.exists():
-            changed_files = subrepo.filterout_submodules(subrepo.all_dirty_files)
-            untracked_files = subrepo.filterout_submodules(subrepo.untracked_files)
+        try:
+            subrepo = main_repo.get_submodule(repo_yml.path)
+        except ValueError:
+            subrepo = None
+
+        if subrepo and subrepo.path.exists():
+            changed_files = subrepo.all_dirty_files
+            untracked_files = subrepo.untracked_files
+        elif subrepo_path.exists():
+            repo = Repo(get_nearest_repo(main_repo.path, subrepo_path))
+            changed_files = repo.all_dirty_files_absolute
+            untracked_files = repo.untracked_files_absolute
+            changed_files = list(
+                files_relative_to(
+                    filter_files_to_folders(changed_files, [subrepo_path]), repo.path
+                )
+            )
+            untracked_files = list(
+                files_relative_to(
+                    filter_files_to_folders(untracked_files, [subrepo_path]), repo.path
+                )
+            )
+
         else:
             changed_files, untracked_files = [], []
         yield subrepo, subrepo_path, changed_files, untracked_files

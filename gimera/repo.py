@@ -13,7 +13,7 @@ from .tools import temppath
 
 class Repo(GitCommands):
     def __init__(self, path):
-        self.path = Path(path)
+        super().__init__(path)
         self.is_submodule = False
 
     def __repr__(self):
@@ -280,10 +280,7 @@ class Repo(GitCommands):
                     *(git + ["commit", "-m", f"removed invalid subrepo: {linepath}"])
                 )
 
-    def get_submodule(self, path, force=False):
-        if force:
-            return Submodule(self.path / path, self.path)
-
+    def get_submodule(self, path):
         for submodule in self.get_submodules():
             if str(submodule.path.relative_to(self.path)) == str(Path(path)):
                 return submodule
@@ -394,16 +391,6 @@ class Repo(GitCommands):
             result[name] = repo
         return result.values()
 
-    @yieldlist
-    def filterout_submodules(self, filelist):
-        submodules = self.get_submodules()
-        for file in filelist:
-            for submodule in submodules:
-                if safe_relative_to(file, submodule.path):
-                    break
-            else:
-                yield file
-
     def clear_empty_subpaths(self, config):
         """
         If subrepo is at ./path1/path2/path3 and it is removed,
@@ -441,7 +428,7 @@ class Repo(GitCommands):
         if any(
             map(
                 lambda filepath: safe_relative_to(filepath, self.path / rel_path),
-                self.all_dirty_files,
+                self.all_dirty_files_absolute,
             )
         ):
             self.X(*(git + ["add", rel_path]))
@@ -550,6 +537,7 @@ class Remote(object):
 class Submodule(Repo):
     def __init__(self, path, parent_path):
         self.path = Path(path)
+        self.path_absolute = path.absolute()
         self.parent_path = Path(parent_path)
         self.relpath = self.path.relative_to(self.parent_path)
         self.is_submodule = True

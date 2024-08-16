@@ -87,7 +87,7 @@ def _find_matching_dirs(root_dir, path, filter_paths):
             return bool(any(x for x in filter_paths if safe_relative_to(path, x)))
 
     if _matches_filter_paths(path, "before") or _matches_filter_paths(path, "after"):
-        if _matches_filter_paths(path, "after"):
+        if _matches_filter_paths(path, "after") or _matches_filter_paths(path, "before"):
             if Repo(repo).all_dirty_files:
                 yield Repo(repo), path
         for sub in path.iterdir():

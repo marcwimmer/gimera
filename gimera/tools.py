@@ -417,3 +417,15 @@ def get_effective_state(root_dir, path, common_vars):
         "parent_gimera_relpath": parent_gimera_relpath,
         "parent_repo_relpath": parent_repo_relpath,
     }
+
+def filter_files_to_folders(files, folders):
+    for file in files:
+        for folder in folders:
+            if str(file).startswith(str(folder)):
+                yield file
+
+def files_relative_to(files, folder):
+    for file in files:
+        res = safe_relative_to(file, folder)
+        if res:
+            yield res

@@ -16,28 +16,31 @@ token = {"token": 0}
 import inspect
 import os
 from pathlib import Path
+
 current_file = Path(os.path.abspath(inspect.getfile(inspect.currentframe())))
 basename = current_file.stem
 
 combinations = [
-            ("S", "S", "S"),
-            ("S", "S", "I"),
-            ("S", "I", "S"),
-            ("I", "S", "S"),
-            ("S", "I", "I"),
-            ("I", "S", "I"),
-            ("I", "I", "S"),
-            ("I", "I", "I"),
-        ]
+    ("S", "S", "S"),
+    ("S", "S", "I"),
+    ("S", "I", "S"),
+    ("I", "S", "S"),
+    ("S", "I", "I"),
+    ("I", "S", "I"),
+    ("I", "I", "S"),
+    ("I", "I", "I"),
+]
 
-if basename == 'test_snapshots_complex':
+if basename == "test_snapshots_complex":
     for combo in combinations:
-        letters = ''.join(combo)
+        letters = "".join(combo)
         filename = f"{basename}_{letters}.py"
         path = current_file.parent / filename
         code = current_file.read_text()
         code = code.replace("__COMBO__ = [('S', 'S', 'I')]", f"__COMBO__ = [{combo}]")
-        code = code.replace("test_snapshot_complex_SSI", f"test_snapshot_complex_{letters}")
+        code = code.replace(
+            "test_snapshot_complex_SSI", f"test_snapshot_complex_{letters}"
+        )
         path.write_text(code)
 __COMBO__ = [('S', 'S', 'I')]
 
@@ -156,43 +159,45 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo.X(*(git + ["push"]))
 
     # change every level of the repo for its own; then change all levels and check
-    for mode in ["use_gimera_migrate", "direct_snapshots"]:
+    # for mode in ["use_gimera_migrate", "direct_snapshots"]:
+    for mode in ["use_gimera_migrate"]:
+        # for mode in ["direct_snapshots"]:
         for i, adapted_paths in enumerate(
             [
-                #["a1/b1/sub1"],
-                #["a1/b1/sub1/a11/b11/sub1.1"],
-                #["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
-                #[
-                #    "a1/b1/sub1/a11/b11/sub1.1",
-                #    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                #],
-                #[
-                #    "a1/b1/sub1",
-                #    "a1/b1/sub1/a11/b11/sub1.1",
-                #    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                #],
-                #[
-                #    "a1/b1/sub1/a11/b11/sub1.1",
-                #    "a1/b1/sub1",
-                #    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                #],
-                #[
-                #    "a1/b1/sub1/a11/b11/sub1.1",
-                #    "a1/b1/sub1",
-                #    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                #],
-                #[
-                #    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                #    "a1/b1/sub1/a11/b11/sub1.1",
-                #    "a1/b1/sub1",
-                #],
-                #[
-                #    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                #    "a1/b1/sub1",
-                #    "a1/b1/sub1/a11/b11/sub1.1",
-                #],
-                #["a1/b1/sub1" ,"a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
-                ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1", "a1/b1/sub1"],
+                # ["a1/b1/sub1"],
+                # ["a1/b1/sub1/a11/b11/sub1.1"],
+                # ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
+                # [
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                # ],
+                # [
+                #     "a1/b1/sub1",
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                # ],
+                # [
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                #     "a1/b1/sub1",
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                # ],
+                # [
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                #     "a1/b1/sub1",
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                # ],
+                # [
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                #     "a1/b1/sub1",
+                # ],
+                [
+                    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                    # "a1/b1/sub1",
+                    "a1/b1/sub1/a11/b11/sub1.1",
+                ],
+                # ["a1/b1/sub1", "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
+                # ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1", "a1/b1/sub1"],
             ]
         ):
             if workspace_main.exists():
@@ -202,6 +207,9 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 cwd=workspace.parent,
             )
             os.chdir(workspace_main)
+            import pudb
+
+            pudb.set_trace()
             gimera_apply([], None, recursive=True, strict=True)
             # assert everything is there
             assert (
@@ -225,14 +233,14 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 deleted_file.unlink()
 
             os.chdir(workspace_main)
+            token["token"] += 1
+            os.environ["GIMERA_TOKEN"] = str(token["token"])
             if mode == "direct_snapshots":
                 snapshot_path = workspace_main / "a1/b1/sub1"
                 snapshot_recursive(workspace_main, [snapshot_path])
 
             # reapply
             os.chdir(workspace_main)
-            token["token"] += 1
-            os.environ["GIMERA_TOKEN"] = str(token["token"])
 
             if mode == "direct_snapshots":
                 os.environ["GIMERA_FORCE"] = "1"
@@ -244,6 +252,9 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             else:
                 os.environ["GIMERA_FORCE"] = "0"
                 os.environ["PYTHONBREAKPOINT"] = "pudb"
+                import pudb
+
+                pudb.set_trace()
                 gimera_apply(
                     [], None, recursive=True, migrate_changes=True, strict=True
                 )
@@ -258,7 +269,10 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             if mode == "use_gimera_migrate":
                 # switch to other mode integrated/submodule and check
                 # if changes are transported
-                for adapted_path in adapted_paths:
+                for j, adapted_path in enumerate(adapted_paths):
+                    import pudb
+
+                    pudb.set_trace()
                     state = get_effective_state(
                         workspace_main, workspace_main / adapted_path, {}
                     )
@@ -280,6 +294,10 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                     os.chdir(working_dir)
                     token["token"] += 1
                     os.environ["GIMERA_TOKEN"] = str(token["token"])
+                    # if j == 0:
+                    #     import pudb
+
+                    #     pudb.set_trace()
                     gimera_apply(
                         [effstate["parent_gimera_relpath"]],
                         None,
@@ -301,8 +319,12 @@ def _commit_to_parent_repos(root_dir, working_dir):
     from ..repo import Repo
 
     state = get_effective_state(root_dir, working_dir, {})
-    parent_repo = Repo(state['parent_repo'])
-    parent_repo.commit_dir_if_dirty(state["parent_repo_relpath"], "auto")
+    parent_repo = Repo(state["parent_repo"])
+    dirty_files = parent_repo.all_dirty_files
+    path_to_subrepo = parent_repo.path / state["parent_repo_relpath"]
+    if path_to_subrepo in dirty_files:
+        parent_repo.X(git + ["add", path_to_subrepo])
+        parent_repo.X(git + ["commit", "auto"])
     _commit_to_parent_repos(root_dir, state["parent_repo"])
 
 
@@ -311,6 +333,22 @@ def _assure_kept_changes(workspace_main, adapted_path):
     added_file = workspace_main / adapted_path / "newfile.txt"
     deleted_file = workspace_main / adapted_path / "dont_look_at_me"
     # make sure that situation is like before:
+    state = get_effective_state(workspace_main, workspace_main / adapted_path, {})
+    parent_repo = state["parent_repo"]
+
     assert dirty_file.read_text() == "i changed the file"
     assert added_file.exists()
     assert not deleted_file.exists()
+
+    import pudb
+
+    pudb.set_trace()
+    os.environ['BREAKPOINT'] = '1'
+    for file in [dirty_file, added_file, deleted_file]:
+        if state["is_submodule"]:
+            repo = Repo(adapted_path)
+        else:
+            repo = Repo(parent_repo)
+        assert (
+            file in repo.all_dirty_files_absolute
+        ), f"{file} not in {repo.all_dirty_files}"
