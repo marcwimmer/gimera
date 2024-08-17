@@ -285,10 +285,14 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                     os.chdir(working_dir)
                     token["token"] += 1
                     os.environ["GIMERA_TOKEN"] = str(token["token"])
-                    # if j == 0:
-                    #     import pudb
 
-                    #     pudb.set_trace()
+                    # Explanation for gimera force = True:
+                    # If submodules receive commits they get changed; so
+                    # they appear as "new commits" in git status. It is uncertain,
+                    # that other commits were done to the sup repo as well and then
+                    # just deleting the subrepo would be a loss.
+                    os.environ["GIMERA_FORCE"] = "1"
+
                     gimera_apply(
                         [effstate["parent_gimera_relpath"]],
                         None,
@@ -331,7 +335,7 @@ def _assure_kept_changes(workspace_main, adapted_path):
     assert added_file.exists()
     assert not deleted_file.exists()
 
-    os.environ['BREAKPOINT'] = '1'
+    os.environ["BREAKPOINT"] = "1"
     for file in [dirty_file, added_file, deleted_file]:
         if state["is_submodule"]:
             repo = Repo(adapted_path)
