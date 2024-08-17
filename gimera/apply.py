@@ -172,27 +172,27 @@ def _internal_apply(
                 # if subgimera is a git submodule and was committed and changed,
                 # then this parent gimera is dirty; so we also commit the child
                 if auto_commit:
-                    if repo.type == REPO_TYPE_SUB:
-                        state = get_effective_state(
-                            main_repo.path, sub_path or main_repo.path, common_vars
+                    state = get_effective_state(
+                        main_repo.path, (sub_path or main_repo.path) / repo.path, common_vars
+                    )
+                    # commit a gitmodule if sha updated
+                    parent_repo = Repo(state["parent_repo"])
+                    # Path(repo.path)
+                    if state['parent_repo_relpath'] in parent_repo.all_dirty_files:
+                        parent_repo.commit_dir_if_dirty(
+                            state['parent_repo_relpath'], "gimera: updated submodule"
                         )
-                        # commit a gitmodule if sha updated
-                        parent_repo = Repo(state["parent_repo"])
-                        if Path(repo.path) in parent_repo.all_dirty_files:
-                            parent_repo.commit_dir_if_dirty(
-                                repo.path, "gimera: updated submodule"
-                            )
-                        del parent_repo
+                    del parent_repo
 
-                        # commit updated gimera if e.g. sha changed
-                        parent_repo = Repo(state["parent_repo"])
-                        parent_repo_relpath = state['parent_repo_relpath']
-                        parent_repo_gimera = Path(parent_repo_relpath / 'gimera.yml')
-                        if parent_repo_gimera in parent_repo.all_dirty_files:
-                            parent_repo.commit_dir_if_dirty(
-                                parent_repo_gimera, "gimera: updated submodule"
-                            )
-                        del parent_repo
+                    # commit updated gimera if e.g. sha changed
+                    parent_repo = Repo(state["parent_repo"])
+                    parent_repo_relpath = state['parent_repo_relpath']
+                    parent_repo_gimera = Path(parent_repo_relpath / 'gimera.yml')
+                    if parent_repo_gimera in parent_repo.all_dirty_files:
+                        parent_repo.commit_dir_if_dirty(
+                            parent_repo_gimera, "gimera: updated submodule"
+                        )
+                    del parent_repo
         if migrate_changes:
             snapshot_restore(
                 main_repo.path,
