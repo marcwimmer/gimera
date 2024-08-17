@@ -207,9 +207,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 cwd=workspace.parent,
             )
             os.chdir(workspace_main)
-            import pudb
-
-            pudb.set_trace()
             gimera_apply([], None, recursive=True, strict=True)
             # assert everything is there
             assert (
@@ -252,9 +249,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
             else:
                 os.environ["GIMERA_FORCE"] = "0"
                 os.environ["PYTHONBREAKPOINT"] = "pudb"
-                import pudb
-
-                pudb.set_trace()
                 gimera_apply(
                     [], None, recursive=True, migrate_changes=True, strict=True
                 )
@@ -270,9 +264,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 # switch to other mode integrated/submodule and check
                 # if changes are transported
                 for j, adapted_path in enumerate(adapted_paths):
-                    import pudb
-
-                    pudb.set_trace()
                     state = get_effective_state(
                         workspace_main, workspace_main / adapted_path, {}
                     )
@@ -340,9 +331,6 @@ def _assure_kept_changes(workspace_main, adapted_path):
     assert added_file.exists()
     assert not deleted_file.exists()
 
-    import pudb
-
-    pudb.set_trace()
     os.environ['BREAKPOINT'] = '1'
     for file in [dirty_file, added_file, deleted_file]:
         if state["is_submodule"]:

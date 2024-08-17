@@ -384,8 +384,6 @@ def get_effective_state(root_dir, path, common_vars):
     from .config import Config
 
     closest_gimera = get_closest_gimera(root_dir, path / "dummy") or root_dir
-    # import pudb;pudb.set_trace()
-    # common_vars = collect_upwards_common_vars(root_dir, closest_gimera)
     config = Config(
         force_gimera_file=closest_gimera / "gimera.yml",
         common_vars=common_vars,

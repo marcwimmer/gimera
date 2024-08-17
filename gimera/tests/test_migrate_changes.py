@@ -1,4 +1,4 @@
-from .fixtures import * # required for all
+from .fixtures import *  # required for all
 import os
 import yaml
 import subprocess
@@ -18,24 +18,23 @@ def test_switch_submodule_to_integrated_migrate_changes(temppath):
 
     def _make_changes():
         # make it dirty
-        dirty_file = workspace_main / 'a' / 'b' / 'sub1' / "file1.txt"
+        dirty_file = workspace_main / "a" / "b" / "sub1" / "file1.txt"
         original_content = dirty_file.read_text()
         dirty_file.write_text("i changed the file")
         # add a file
-        added_file = workspace_main / 'a' / 'b' / 'sub1' / "newfile.txt"
+        added_file = workspace_main / "a" / "b" / "sub1" / "newfile.txt"
         added_file.write_text("new file")
         # delete a file
-        deleted_file = workspace_main / 'a' / 'b' / 'sub1' / "dont_look_at_me"
+        deleted_file = workspace_main / "a" / "b" / "sub1" / "dont_look_at_me"
         deleted_file.unlink()
 
     def _assert_changes():
-        dirty_file = workspace_main / 'a' / 'b' / 'sub1' / "file1.txt"
-        added_file = workspace_main / 'a' / 'b' / 'sub1' / "newfile.txt"
-        deleted_file = workspace_main / 'a' / 'b' / 'sub1' / "dont_look_at_me"
+        dirty_file = workspace_main / "a" / "b" / "sub1" / "file1.txt"
+        added_file = workspace_main / "a" / "b" / "sub1" / "newfile.txt"
+        deleted_file = workspace_main / "a" / "b" / "sub1" / "dont_look_at_me"
         assert dirty_file.read_text() == "i changed the file"
         assert added_file.exists()
         assert not deleted_file.exists()
-
 
     workspace = temppath / "test_switch_submodule_to_integrated_migrate_changes"
     workspace.mkdir()

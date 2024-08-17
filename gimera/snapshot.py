@@ -87,7 +87,9 @@ def _find_matching_dirs(root_dir, path, filter_paths):
             return bool(any(x for x in filter_paths if safe_relative_to(path, x)))
 
     if _matches_filter_paths(path, "before") or _matches_filter_paths(path, "after"):
-        if _matches_filter_paths(path, "after") or _matches_filter_paths(path, "before"):
+        if _matches_filter_paths(path, "after") or _matches_filter_paths(
+            path, "before"
+        ):
             if Repo(repo).all_dirty_files:
                 yield Repo(repo), path
         for sub in path.iterdir():
@@ -106,7 +108,7 @@ def _snapshot_dir(root_dir, path, filter_paths=None):
         repo.X("git", "reset")
         if not repo.all_dirty_files:
             continue
-        dirty_files = [x for x in repo.all_dirty_files if x.parent == path]
+        dirty_files = [x for x in repo.all_dirty_files_absolute if x.parent == path]
         if not dirty_files:
             continue
         for dirty_file in dirty_files:
@@ -124,7 +126,7 @@ def _snapshot_dir(root_dir, path, filter_paths=None):
     for repo in repos:
         subprocess.check_call((git + ["reset"]), cwd=repo.path)
         subprocess.check_call((git + ["checkout", "."]), cwd=repo.path)
-        for dirtyfile in repo.untracked_files:
+        for dirtyfile in repo.untracked_files_absolute:
             if dirtyfile.is_dir():
                 shutil.rmtree(dirtyfile)
             else:
