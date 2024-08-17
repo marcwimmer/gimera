@@ -378,7 +378,7 @@ def _prepare(main_repo, repo_yml):
 def _clone_directory_and_add_patch_file(
     main_repo, repo_yml, branch, repo_url, patch_path, content
 ):
-    from .gimera import _fetch_branch, _get_cache_dir
+    from .fetch import _fetch_branch, _get_cache_dir
 
     with temppath() as path:
         path = path / "repo"
