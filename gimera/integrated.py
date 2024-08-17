@@ -11,6 +11,8 @@ from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 from .patches import _apply_patches
 from .patches import _apply_patchfile
 from .tools import _get_remotes
+from .tools import get_effective_state
+from .tools import get_nearest_repo
 from .patches import _apply_patchfile
 from .cachedir import _get_cache_dir
 
@@ -20,6 +22,7 @@ def _update_integrated_module(
     main_repo,
     repo_yml,
     update,
+    common_vars,
     **options,
 ):
     """
@@ -32,11 +35,9 @@ def _update_integrated_module(
     repo = Repo(cache_dir)
 
     parent_repo = main_repo
-    if (working_dir / ".git").exists():
-        parent_repo = Repo(working_dir)
-
     dest_path = Path(working_dir) / repo_yml.path
-    dest_path.parent.mkdir(exist_ok=True, parents=True)
+    parent_repo = Repo(get_nearest_repo(main_repo.path, dest_path))
+
     # BTW: delete-after cannot remove unused directories - cool to know; is
     # just standarded out
     if dest_path.exists():
@@ -50,15 +51,24 @@ def _update_integrated_module(
                 worktree, repo_yml
             )
             worktree.move_worktree_content(dest_path)
-            parent_repo.commit_dir_if_dirty(repo_yml.path, "\n".join(msgs))
+            # TODO perhaps not necessary as of line 63
+            parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs))
         del repo
 
     # apply patches:
     _apply_patches(repo_yml)
-    parent_repo.commit_dir_if_dirty(
-        repo_yml.path, f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
-    )
+    msg = f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
     repo_yml.sha = new_sha
+    if repo_yml.config.config_file in parent_repo.all_dirty_files_absolute:
+        parent_repo.X(*(git + ["add", repo_yml.config.config_file]))
+    parent_repo.commit_dir_if_dirty(dest_path, msg)
+    if any(
+        str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
+    ):
+        parent_repo.X(*(git + ["add", dest_path]))
+
+    if parent_repo.staged_files:
+        parent_repo.X(*(git + ["commit", "-m", msg]))
 
     if repo_yml.edit_patchfile:
         _apply_patchfile(

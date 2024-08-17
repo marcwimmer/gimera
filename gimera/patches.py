@@ -31,13 +31,13 @@ from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 from .config import Config
 
 
-def make_patches(working_dir, main_repo, repo_yml):
+def make_patches(working_dir, main_repo, repo_yml, common_vars):
     if repo_yml.type != REPO_TYPE_INT:
         raise NotImplementedError(repo_yml.type)
 
-    with _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml) as (
-        main_repo
-    ):
+    with _if_ignored_move_to_separate_dir(
+        working_dir, main_repo, repo_yml, common_vars
+    ) as (main_repo):
         with _prepare(main_repo, repo_yml) as (
             subrepo,
             subrepo_path,
@@ -116,7 +116,7 @@ def _temporarily_move_gimera(repo_yml, to_path):
 
 
 @contextmanager
-def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml):
+def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_vars):
     """
     If directory is ignored then move to temporary path.
     Apply changes from local dir to get the diffs.
@@ -150,6 +150,7 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml):
                     main_repo2,
                     repo_yml,
                     update=False,
+                    common_vars=common_vars,
                 )
                 main_repo2.simple_commit_all()
 
