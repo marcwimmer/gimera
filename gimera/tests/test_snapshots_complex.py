@@ -160,9 +160,9 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo.X(*(git + ["push"]))
 
     # change every level of the repo for its own; then change all levels and check
-    # for mode in ["use_gimera_migrate", "direct_snapshots"]:
-    for mode in ["use_gimera_migrate"]:
-        # for mode in ["direct_snapshots"]:
+    for mode in ["use_gimera_migrate", "direct_snapshots"]:
+    # for mode in ["direct_snapshots"]:
+    # for mode in ["use_gimera_migrate"]:
         for i, adapted_paths in enumerate(
             [
                 ["a1/b1/sub1"],
@@ -308,6 +308,14 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                     assert os.getenv("GIMERA_FORCE") == "0"
 
                     for path in [
+                        ".",
+                        "a1/b1/sub1",
+                        "a1/b1/sub1/a11/b11/sub1.1",
+                        "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                        ".",
+                        "a1/b1/sub1",
+                        "a1/b1/sub1/a11/b11/sub1.1",
+                        "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
                         ".",
                         "a1/b1/sub1",
                         "a1/b1/sub1/a11/b11/sub1.1",

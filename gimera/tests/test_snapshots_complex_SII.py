@@ -160,9 +160,9 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     repo.X(*(git + ["push"]))
 
     # change every level of the repo for its own; then change all levels and check
-    # for mode in ["use_gimera_migrate", "direct_snapshots"]:
-    for mode in ["use_gimera_migrate"]:
-        # for mode in ["direct_snapshots"]:
+    for mode in ["use_gimera_migrate", "direct_snapshots"]:
+    # for mode in ["direct_snapshots"]:
+    # for mode in ["use_gimera_migrate"]:
         for i, adapted_paths in enumerate(
             [
                 ["a1/b1/sub1"],
@@ -287,16 +287,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                     token["token"] += 1
                     os.environ["GIMERA_TOKEN"] = str(token["token"])
 
-                    # Explanation for gimera force = True:
-                    # If submodules receive commits they get changed; so
-                    # they appear as "new commits" in git status. It is uncertain,
-                    # that other commits were done to the sup repo as well and then
-                    # just deleting the subrepo would be a loss.
-                    # Keeping this comment: we check transferring the changes, so just
-                    # forcing takes some of the test complexity away.
-                    # We explicitly commit the dirty sub repos.
-                    assert os.getenv("GIMERA_FORCE") == "0"
-
                     def _apply():
                         gimera_apply(
                             [effstate["parent_gimera_relpath"]],
@@ -307,81 +297,35 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                             strict=True,
                         )
 
+                    # Explanation for gimera force = True:
+                    # If submodules receive commits they get changed; so
+                    # they appear as "new commits" in git status. It is uncertain,
+                    # that other commits were done to the sup repo as well and then
+                    # just deleting the subrepo would be a loss.
+                    # Keeping this comment: we check transferring the changes, so just
+                    # forcing takes some of the test complexity away.
+                    # We explicitly commit the dirty sub repos.
+                    assert os.getenv("GIMERA_FORCE") == "0"
+
                     for path in [
+                        ".",
+                        "a1/b1/sub1",
+                        "a1/b1/sub1/a11/b11/sub1.1",
+                        "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                        ".",
+                        "a1/b1/sub1",
+                        "a1/b1/sub1/a11/b11/sub1.1",
+                        "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
                         ".",
                         "a1/b1/sub1",
                         "a1/b1/sub1/a11/b11/sub1.1",
                         "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
                     ]:
                         repo = Repo(workspace_main / path)
-                        try:
-                            list(repo.get_submodules_with_new_commits())
-                        except:
-                            import pudb
-
-                            pudb.set_trace()
-                        for submodule in list(
-                            repo.get_submodules_with_new_commits()
-                        ):
+                        list(repo.get_submodules_with_new_commits())
+                        for submodule in list(repo.get_submodules_with_new_commits()):
                             repo.X(*(git + ["add", submodule.path]))
                             repo.X(*(git + ["commit", "-m", "committed changes"]))
-                    # Repo(workspace_main).get_submodules_with_new_commits()
-                    # cb = "".join(__COMBO__[0])
-                    # if cb in ("ISI", "ISS"):
-                    #     if j in [1]:
-                    #         if (
-                    #             adapted_path
-                    #             == "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"
-                    #         ):
-                    #             pass
-                    #         elif adapted_path == "a1/b1/sub1":
-                    #             pass
-                    #         elif (
-                    #             adapted_path == "a1/b1/sub1/a11/b11/sub1.1"
-                    #             and cb == "ISI"
-                    #         ):
-                    #             pass
-                    #             # import pudb;pudb.set_trace()
-                    #             # repo = Repo(workspace_main)
-                    #             # repo.X(*(git + ["add", "a1/b1/sub1/a11/b11/sub1.1"]))
-                    #             # repo.X(*(git + ["commit", "-m", "committed changes"]))
-                    #         else:
-                    #             repo = Repo(workspace_main)
-                    #             import pudb
-
-                    #             pudb.set_trace()
-                    #             assert (
-                    #                 workspace_main / "a1/b1/sub1/a11/b11/sub1.1"
-                    #                 in map(lambda x: x.path, repo.get_submodules())
-                    #             )
-                    #             repo.X(*(git + ["add", "a1/b1/sub1/a11/b11/sub1.1"]))
-                    #             repo.X(*(git + ["commit", "-m", "committed changes"]))
-                    # elif cb in ("SSS", "SSI"):
-                    #     if j in [1]:
-                    #         repo = Repo(workspace_main / "a1/b1/sub1")
-                    #         submodules = list(
-                    #             map(lambda x: x.path, repo.get_submodules())
-                    #         )
-                    #         assert repo.path / "a11/b11/sub1.1" in submodules
-                    #         repo.X(*(git + ["add", "a11/b11/sub1.1"]))
-                    #         repo.X(*(git + ["commit", "-m", "committed changes"]))
-                    #     if j in [2]:
-                    #         repo = Repo(workspace_main)
-                    #         submodules = list(
-                    #             map(lambda x: x.path, repo.get_submodules())
-                    #         )
-                    #         assert repo.path / "a1/b1/sub1" in submodules
-                    #         repo.X(*(git + ["add", "a1/b1/sub1"]))
-                    #         repo.X(*(git + ["commit", "-m", "committed changes"]))
-                    # elif cb in ("SIS", "SII"):
-                    #     if j in [2]:
-                    #         repo = Repo(workspace_main)
-                    #         submodules = list(
-                    #             map(lambda x: x.path, repo.get_submodules())
-                    #         )
-                    #         assert repo.path / "a1/b1/sub1" in submodules
-                    #         repo.X(*(git + ["add", "a1/b1/sub1"]))
-                    #         repo.X(*(git + ["commit", "-m", "committed changes"]))
                     _apply()
                     os.chdir(pwd)
                     _assure_kept_changes(workspace_main, adapted_path)
