@@ -186,16 +186,16 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 #     "a1/b1/sub1",
                 #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
                 # ],
-                # [
-                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                #     "a1/b1/sub1/a11/b11/sub1.1",
-                #     "a1/b1/sub1",
-                # ],
                 [
                     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                    # "a1/b1/sub1",
                     "a1/b1/sub1/a11/b11/sub1.1",
+                    "a1/b1/sub1",
                 ],
+                # [
+                #     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
+                #     "a1/b1/sub1",
+                #     "a1/b1/sub1/a11/b11/sub1.1",
+                # ],
                 # ["a1/b1/sub1", "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1"],
                 # ["a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1", "a1/b1/sub1"],
             ]
@@ -285,18 +285,50 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                     os.chdir(working_dir)
                     token["token"] += 1
                     os.environ["GIMERA_TOKEN"] = str(token["token"])
-                    os.environ["GIMERA_FORCE"] = "1"
-                    gimera_apply(
-                        [effstate["parent_gimera_relpath"]],
-                        None,
-                        force_type=other_type,
-                        recursive=True,
-                        migrate_changes=True,
-                        strict=True,
-                    )
-                    _commit_to_parent_repos(workspace_main, working_dir)
+
+                    # Explanation for gimera force = True:
+                    # If submodules receive commits they get changed; so
+                    # they appear as "new commits" in git status. It is uncertain,
+                    # that other commits were done to the sup repo as well and then
+                    # just deleting the subrepo would be a loss.
+                    # Keeping this comment: we check transferring the changes, so just
+                    # forcing takes some of the test complexity away.
+                    # We explicitly commit the dirty sub repos.
+                    assert os.getenv("GIMERA_FORCE") == "0"
+
+                    def _apply():
+                        gimera_apply(
+                            [effstate["parent_gimera_relpath"]],
+                            None,
+                            force_type=other_type,
+                            recursive=True,
+                            migrate_changes=True,
+                            strict=True,
+                        )
+
+                    try:
+                        _apply()
+                    except Exception as ex:
+                        cb = "".join(__COMBO__[0])
+                        if cb == "ISI":
+                            if j in [1]:
+                                repo = Repo(workspace_main)
+                                assert (
+                                    workspace_main / "a1/b1/sub1/a11/b11/sub1.1"
+                                    in map(lambda x: x.path, repo.get_submodules())
+                                )
+                                repo.X(*(git + ["add", "a1/b1/sub1/a11/b11/sub1.1"]))
+                                repo.X(*(git + ["commit", "-m", "committed changes"]))
+                        _apply()
+                    # _commit_to_parent_repos(workspace_main, working_dir)
                     os.chdir(pwd)
-                    _assure_kept_changes(workspace_main, adapted_path)
+                    try:
+                        _assure_kept_changes(workspace_main, adapted_path)
+                    except:
+                        import pudb
+
+                        pudb.set_trace()
+                        raise
 
 
 def _commit_to_parent_repos(root_dir, working_dir):
