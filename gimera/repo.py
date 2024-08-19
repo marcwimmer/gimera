@@ -219,6 +219,13 @@ class Repo(GitCommands):
             p = p.parent
         return self.path
 
+    def get_submodules_with_new_commits(self):
+        submodules = self.out(*(git + ["submodule", "status"])).splitlines()
+        for line in submodules:
+            splitted = line.strip().split(" ")
+            if line.startswith("+") or splitted[1] == "./":
+                yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
+
     @yieldlist
     def get_submodules(self):
         submodules = self.out(*(git + ["submodule", "status"])).splitlines()
