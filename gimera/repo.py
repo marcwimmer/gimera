@@ -148,7 +148,6 @@ class Repo(GitCommands):
             filter_files_to_folders(
                 self.all_dirty_files_absolute,
                 [self.path_absolute / path],
-
             )
         )
         if dirty_files:
@@ -225,7 +224,7 @@ class Repo(GitCommands):
         submodules = self.out(*(git + ["submodule", "status"])).splitlines()
         for line in submodules:
             splitted = line.strip().split(" ")
-            if line.startswith("-") or splitted[1] == './':
+            if line.startswith("-") or splitted[1] == "./":
                 # means, that path does not exist right now; path info is misleading ./
                 continue
             yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
@@ -463,7 +462,7 @@ class Repo(GitCommands):
             self.out(*commands)
         except subprocess.CalledProcessError as ex:
             rel_path_repo = safe_relative_to(self.path, self.root_repo.path)
-            #self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
+            # self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
             self._remove_internal_submodule_clone(rel_path_repo / rel_path.parts[0])
             if (self.path / rel_path).exists():
                 rmtree(self.path / rel_path)

@@ -306,21 +306,42 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                             strict=True,
                         )
 
-                    try:
-                        _apply()
-                    except Exception as ex:
-                        cb = "".join(__COMBO__[0])
-                        if cb == "ISI":
-                            if j in [1]:
-                                repo = Repo(workspace_main)
-                                assert (
-                                    workspace_main / "a1/b1/sub1/a11/b11/sub1.1"
-                                    in map(lambda x: x.path, repo.get_submodules())
-                                )
-                                repo.X(*(git + ["add", "a1/b1/sub1/a11/b11/sub1.1"]))
-                                repo.X(*(git + ["commit", "-m", "committed changes"]))
-                        _apply()
-                    # _commit_to_parent_repos(workspace_main, working_dir)
+                    cb = "".join(__COMBO__[0])
+                    if cb in ("ISI", "ISS"):
+                        if j in [1]:
+                            repo = Repo(workspace_main)
+                            assert workspace_main / "a1/b1/sub1/a11/b11/sub1.1" in map(
+                                lambda x: x.path, repo.get_submodules()
+                            )
+                            repo.X(*(git + ["add", "a1/b1/sub1/a11/b11/sub1.1"]))
+                            repo.X(*(git + ["commit", "-m", "committed changes"]))
+                    elif cb in ("SSS", "SSI"):
+                        if j in [1]:
+                            repo = Repo(workspace_main / "a1/b1/sub1")
+                            submodules = list(
+                                map(lambda x: x.path, repo.get_submodules())
+                            )
+                            assert repo.path / "a11/b11/sub1.1" in submodules
+                            repo.X(*(git + ["add", "a11/b11/sub1.1"]))
+                            repo.X(*(git + ["commit", "-m", "committed changes"]))
+                        if j in [2]:
+                            repo = Repo(workspace_main)
+                            submodules = list(
+                                map(lambda x: x.path, repo.get_submodules())
+                            )
+                            assert repo.path / "a1/b1/sub1" in submodules
+                            repo.X(*(git + ["add", "a1/b1/sub1"]))
+                            repo.X(*(git + ["commit", "-m", "committed changes"]))
+                    elif cb in ("SIS", "SII"):
+                        if j in [2]:
+                            repo = Repo(workspace_main)
+                            submodules = list(
+                                map(lambda x: x.path, repo.get_submodules())
+                            )
+                            assert repo.path / "a1/b1/sub1" in submodules
+                            repo.X(*(git + ["add", "a1/b1/sub1"]))
+                            repo.X(*(git + ["commit", "-m", "committed changes"]))
+                    _apply()
                     os.chdir(pwd)
                     try:
                         _assure_kept_changes(workspace_main, adapted_path)
@@ -329,23 +350,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
 
                         pudb.set_trace()
                         raise
-
-
-def _commit_to_parent_repos(root_dir, working_dir):
-    # required, if changed sub1.1 then still dirty for parent path;
-    # this is ok for live with gimera in real world; but here it must be clean
-    if root_dir == working_dir:
-        return
-    from ..repo import Repo
-
-    state = get_effective_state(root_dir, working_dir, {})
-    parent_repo = Repo(state["parent_repo"])
-    dirty_files = parent_repo.all_dirty_files
-    path_to_subrepo = parent_repo.path / state["parent_repo_relpath"]
-    if path_to_subrepo in dirty_files:
-        parent_repo.X(git + ["add", path_to_subrepo])
-        parent_repo.X(git + ["commit", "auto"])
-    _commit_to_parent_repos(root_dir, state["parent_repo"])
 
 
 def _assure_kept_changes(workspace_main, adapted_path):

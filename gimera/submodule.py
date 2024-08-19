@@ -46,7 +46,9 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
     )
 
 
-def _fetch_latest_commit_in_submodule(working_dir, main_repo, repo_yml, common_vars, update=False):
+def _fetch_latest_commit_in_submodule(
+    working_dir, main_repo, repo_yml, common_vars, update=False
+):
     path = Path(working_dir) / repo_yml.path
     if not path.exists():
         return
