@@ -1,18 +1,20 @@
 import os
 from pathlib import Path
 from .tools import safe_relative_to, yieldlist, X, wait_git_lock
+from .consts import gitcmd as git
 
 
 class GitCommands(object):
     def __init__(self, path=None):
         self.path = Path(path or os.getcwd())
+        self.path_absolute = self.path.absolute()
 
     @property
     def configdir(self):
         from .repo import Repo
 
-        stop_at = Repo(self.path).root_repo
-        here = self.path
+        stop_at = Repo(self.path_absolute).root_repo
+        here = self.path_absolute
         while True:
             default = here / ".git"
             if default.exists() and default.is_dir():
@@ -29,7 +31,7 @@ class GitCommands(object):
     def X(self, *params, allow_error=False, env=None, output=None):
         if output is None:
             output = False
-        with wait_git_lock(self.path):
+        with wait_git_lock(self.path_absolute):
             kwparams = {
                 "output": output,
                 "allow_error": allow_error,
@@ -45,11 +47,15 @@ class GitCommands(object):
 
     def _parse_git_status(self):
         for line in X(
-            "git",
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
-            cwd=self.path,
+            *(
+                git
+                + [
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=all",
+                ]
+            ),
+            cwd=self.path_absolute,
             output=True,
         ).splitlines():
             # splits: A  asdas
@@ -57,20 +63,11 @@ class GitCommands(object):
             #          M  asdsad
             #         ??  asasdasd
             modifier = line[:2]
-            path = line.strip().split(" ", 1)[1]
-            parent_path = getattr(self, "parent_path", None)
+            path = line.strip().split(" ", 1)[1].strip()
             if path.startswith(".."):
                 continue
-            path = Path(path.strip())
-            if parent_path:
-                if self.is_git_submodule:
-                    path = parent_path / self.relpath / path
-                else:
-                    path = parent_path / path
-            else:
-                path = self.path / path
-            if safe_relative_to(path, self.path):
-                yield modifier, path
+
+            yield modifier, Path(path)
 
     @property
     @yieldlist
@@ -93,10 +90,23 @@ class GitCommands(object):
 
     @property
     @yieldlist
+    def all_dirty_files_absolute(self):
+        res = self.untracked_files + self.dirty_existing_files
+        res = list(map(lambda x: self.path_absolute / x, res))
+        return res
+
+    @property
+    @yieldlist
     def untracked_files(self):
         for modifier, path in self._parse_git_status():
             if modifier == "??" or modifier[0] == "A":
                 yield path
+
+    @property
+    @yieldlist
+    def untracked_files_absolute(self):
+        for file in self.untracked_files:
+            yield self.path_absolute / file
 
     @property
     def dirty(self):
@@ -105,11 +115,11 @@ class GitCommands(object):
     def is_submodule(self, path):
         path = self._combine(path)
         for line in X(
-            "git", "submodule", "status", output=True, cwd=self.path
+            *(git + ["submodule", "status"]), output=True, cwd=self.path_absolute
         ).splitlines():
             line = line.strip()
             _, _path, _ = line.split(" ", 2)
-            if _path == str(path.relative_to(self.path)):
+            if _path == str(path.relative_to(self.path_absolute)):
                 return path
 
     def _combine(self, path):
@@ -121,14 +131,14 @@ class GitCommands(object):
         return path
 
     def output_status(self):
-        self.X("git", "status")
+        self.X(*(git + ["status"]))
 
     def get_all_branches(self):
         res = list(
             map(
                 lambda x: x.strip(),
                 self.out(
-                    "git", "for-each-ref", "--format=%(refname:short)", "refs/heads"
+                    *(git + ["for-each-ref", "--format=%(refname:short)", "refs/heads"])
                 ).splitlines(),
             )
         )
@@ -138,18 +148,18 @@ class GitCommands(object):
     def dirty(self):
         files = []
         for modifier, path in self._parse_git_status():
-            if str(path.relative_to(self.path)) == "gimera.yml":
+            if str(path) == "gimera.yml":
                 continue
             files.append(path)
         return bool(files)
 
     def simple_commit_all(self, msg="."):
-        self.X("git", "add", ".")
-        self.X("git", "commit", "--allow-empty", "-am", msg)
+        self.X(*(git + ["add", "."]))
+        self.X(*(git + ["commit", "--allow-empty", "-am", msg]))
 
     @property
     def hex(self):
-        return self.out("git", "log", "-n", "1", "--pretty=%H")
+        return self.out(*(git + ["log", "-n", "1", "--pretty=%H"]))
 
     def checkout(self, ref, force=False):
-        self.X("git", "checkout", "-f" if force else None, ref)
+        self.X(*(git + ["checkout", "-f" if force else None, ref]))
