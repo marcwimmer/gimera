@@ -224,11 +224,16 @@ class Repo(GitCommands):
         for line in submodules:
             splitted = line.strip().split(" ")
             if line.startswith("+") or splitted[1] == "./":
-                yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
+                yield Submodule(
+                    self.next_module_root / splitted[1], self.next_module_root
+                )
 
     @yieldlist
     def get_submodules(self):
-        submodules = self.out(*(git + ["submodule", "status"])).splitlines()
+        submodules = self.out(
+            *(git + ["submodule", "status"]), allow_error=True
+        ).splitlines()
+        # no entry found for x in .gitmodules
         for line in submodules:
             splitted = line.strip().split(" ")
             if line.startswith("-") or splitted[1] == "./":
