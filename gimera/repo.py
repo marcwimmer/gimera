@@ -231,7 +231,7 @@ class Repo(GitCommands):
     @yieldlist
     def get_submodules(self):
         submodules = self.out(
-            *(git + ["submodule", "status"]), allow_error=True
+            *(git + ["submodule", "status"])
         ).splitlines()
         # no entry found for x in .gitmodules
         for line in submodules:

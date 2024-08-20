@@ -241,6 +241,7 @@ def apply(
         from . import snapshot
 
         snapshot.cleanup()
+        raise
 
 
 def clean_branch_names(arr):
