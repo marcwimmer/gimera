@@ -230,9 +230,7 @@ class Repo(GitCommands):
 
     @yieldlist
     def get_submodules(self):
-        submodules = self.out(
-            *(git + ["submodule", "status"])
-        ).splitlines()
+        submodules = self.out(*(git + ["submodule", "status"])).splitlines()
         # no entry found for x in .gitmodules
         for line in submodules:
             splitted = line.strip().split(" ")
