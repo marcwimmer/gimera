@@ -56,6 +56,7 @@ def _update_integrated_module(
             # TODO perhaps not necessary as of line 63 -- seems to be necessary
             # case: submodule is in .gitignore; updates the submodule
             # then git add <path> needs to add the deleted files
+            # Could also be that a subgimera sha was updated
             parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
         del repo
 
@@ -64,7 +65,9 @@ def _update_integrated_module(
     msg = f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
     repo_yml.sha = new_sha
     if repo_yml.config.config_file in parent_repo.all_dirty_files_absolute:
-        parent_repo.X(*(git + ["add", repo_yml.config.config_file]))
+        # could be, that the parent path of the gimera.yml belongs to gitignore
+        # so force add
+        parent_repo.X(*(git + ["add", '-f', repo_yml.config.config_file]))
     parent_repo.commit_dir_if_dirty(dest_path, msg)
     if any(
         str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
