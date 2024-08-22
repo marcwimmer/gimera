@@ -13,6 +13,7 @@ from .patches import _apply_patchfile
 from .tools import _get_remotes
 from .tools import get_effective_state
 from .tools import get_nearest_repo
+from .tools import verbose
 from .patches import _apply_patchfile
 from .cachedir import _get_cache_dir
 
@@ -33,6 +34,7 @@ def _update_integrated_module(
     if not os.access(cache_dir, os.W_OK):
         _raise_error(f"No R/W rights on {cache_dir}")
     repo = Repo(cache_dir)
+    verbose(f"Updating integrated module {repo_yml.path}")
 
     parent_repo = main_repo
     dest_path = Path(working_dir) / repo_yml.path
@@ -51,8 +53,10 @@ def _update_integrated_module(
                 worktree, repo_yml
             )
             worktree.move_worktree_content(dest_path)
-            # TODO perhaps not necessary as of line 63
-            parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs))
+            # TODO perhaps not necessary as of line 63 -- seems to be necessary
+            # case: submodule is in .gitignore; updates the submodule
+            # then git add <path> needs to add the deleted files
+            parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
         del repo
 
     # apply patches:

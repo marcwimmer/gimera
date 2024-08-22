@@ -94,9 +94,12 @@ def _internal_apply(
     _fetch_repos_in_parallel(
         main_repo, repos, update=update, minimal_fetch=no_fetch, no_fetch=no_fetch
     )
+    if sub_path:
+        verbose(f"internal apply at sub path: {sub_path}")
     # does not work in sub repos, because at apply at this point in time
     # the files are not committed and still dirty
     common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
+    verbose(f"common vars: {common_vars}")
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
         if migrate_changes:
             relative_sub_path = (
@@ -219,8 +222,12 @@ def _apply_subgimera(
         sub_path = main_repo.path
 
     new_sub_path = Path(sub_path or main_repo.path) / repo.path
+    if not subgimera.exists():
+        return
     pwd = os.getcwd()
-    if subgimera.exists():
+
+    try:
+        verbose(f"apply subgimera: {subgimera}")
         os.chdir(new_sub_path)
         _internal_apply(
             [],
@@ -251,7 +258,8 @@ def _apply_subgimera(
                 *(git + ["commit", "-m", f"gimera: updated sub path {repo.path}"])
             )
         # commit submodule updates or changed dirs
-    os.chdir(pwd)
+    finally:
+        os.chdir(pwd)
 
 
 def _turn_into_correct_repotype(
@@ -267,6 +275,7 @@ def _turn_into_correct_repotype(
     if integrated and git submodule and already exists a path: submodule removed
 
     """
+    verbose(f"turn into correct repotype: {repo_config.path}")
     state = get_effective_state(
         main_repo.path, working_dir / repo_config.path, common_vars
     )

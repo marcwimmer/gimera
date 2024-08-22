@@ -431,11 +431,11 @@ class Repo(GitCommands):
 
     def lsfiles(self, path):
         files = list(
-            map(lambda x: Path(x), self.out(*(git + ["ls-files", path])).splitlines())
+            map(Path, self.out(*(git + ["ls-files", path])).splitlines())
         )
         return files
 
-    def commit_dir_if_dirty(self, rel_path, commit_msg):
+    def commit_dir_if_dirty(self, rel_path, commit_msg, force=False):
         # commit updated directories
         if any(
             map(
@@ -443,7 +443,11 @@ class Repo(GitCommands):
                 self.all_dirty_files_absolute,
             )
         ):
-            self.X(*(git + ["add", rel_path]))
+            add_cmd = git + ["add"]
+            if force:
+                add_cmd += ["-f"]
+            add_cmd += [rel_path]
+            self.X(*add_cmd)
             # if there are no staged files, it can be, that below that, there is a
             # submodule which changed files; then after git add it is not added
             if self.staged_files:

@@ -12,6 +12,7 @@ from .consts import gitcmd as git
 from .tools import confirm
 from .tools import temppath
 from .tools import path1inpath2
+from .tools import verbose
 from .consts import inquirer_theme
 from .tools import (
     _raise_error,
@@ -34,6 +35,7 @@ from .config import Config
 def make_patches(working_dir, main_repo, repo_yml, common_vars):
     if repo_yml.type != REPO_TYPE_INT:
         raise NotImplementedError(repo_yml.type)
+    verbose(f"Making patches for {repo_yml.path}")
 
     with _if_ignored_move_to_separate_dir(
         working_dir, main_repo, repo_yml, common_vars
@@ -417,6 +419,7 @@ def _technically_make_patch(repo, path):
 
 
 def _apply_patches(repo_yml):
+    verbose(f"Applying patches for {repo_yml.path}")
     relevant_patch_files = set()
     for patchdir in repo_yml.all_patch_dirs(rel_or_abs="absolute") or []:
         # with patchdir.path as dir:
@@ -437,6 +440,7 @@ def _apply_patches(repo_yml):
 
 
 def _apply_patchfile(file, working_dir, error_ok=False, just_check=False):
+    verbose(f"Applying patchfile {file} in working dir {working_dir}")
     cwd = Path(working_dir)
     # must be check_output due to input keyword
     # Explaining -R option:

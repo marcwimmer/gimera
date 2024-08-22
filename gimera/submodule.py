@@ -10,6 +10,7 @@ import click
 from .tools import rmtree
 from .tools import is_forced
 from .tools import get_effective_state
+from .tools import verbose
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
@@ -52,6 +53,7 @@ def _fetch_latest_commit_in_submodule(
     path = Path(working_dir) / repo_yml.path
     if not path.exists():
         return
+    verbose(f"Fetching latest commit in submodule {path}")
 
     state = get_effective_state(main_repo.path, path, common_vars)
     parent_gimera = state["parent_gimera"]
@@ -163,6 +165,7 @@ def _has_repo_latest_commit(repo, branch):
 def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars):
     if config.type != REPO_TYPE_SUB:
         return
+    verbose(f"Adding submodule {config.path}")
     path = working_dir / config.path
     relpath = path.relative_to(repo.path)
     if path.exists():
