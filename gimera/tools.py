@@ -297,6 +297,9 @@ def get_nearest_repo(end, start):
 
 
 def _make_sure_hidden_gimera_dir(root_dir):
+    from .repo import Repo
+    from .consts import gitcmd as git
+
     path = Path(root_dir) / ".gitignore"
     if not path.exists():
         path.write_text(".gimera\n")
@@ -305,6 +308,11 @@ def _make_sure_hidden_gimera_dir(root_dir):
         if not [x for x in content if x == ".gimera"]:
             content.append(".gimera")
             path.write_text("\n".join(content))
+            repo = Repo(root_dir)
+            if repo.staged_files:
+                _raise_error("No staged files allowed, when changing .gitignore")
+            repo.X(*(git + ["add", ".gitignore"]))
+            repo.X(*(git + ["commit", "-m", "add .gimera to .gitignore"]))
     return root_dir / ".gimera"
 
 
@@ -416,11 +424,13 @@ def get_effective_state(root_dir, path, common_vars):
         "parent_repo_relpath": parent_repo_relpath,
     }
 
+
 def filter_files_to_folders(files, folders):
     for file in files:
         for folder in folders:
             if str(file).startswith(str(folder)):
                 yield file
+
 
 def files_relative_to(files, folder):
     for file in files:

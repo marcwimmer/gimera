@@ -17,6 +17,7 @@ from .submodule import _fetch_latest_commit_in_submodule
 from .submodule import __add_submodule
 from .tools import get_closest_gimera
 from .tools import get_effective_state
+from .tools import _make_sure_hidden_gimera_dir
 
 
 def _apply(
@@ -41,12 +42,15 @@ def _apply(
     if migrate_changes:
         no_patches = True
 
+
     sub_path = None
     main_repo = _get_main_repo()
     closest_gimera = (
         get_closest_gimera(main_repo.path, Path(os.getcwd()) / "dummy")
         or main_repo.path
     )
+    if not sub_path:
+        _make_sure_hidden_gimera_dir(main_repo.path)
     os.chdir(closest_gimera)
     if main_repo.path != closest_gimera:
         sub_path = closest_gimera
