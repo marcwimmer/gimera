@@ -74,10 +74,12 @@ def snapshot_restore(root_dir, filter_paths, token=None):
         subprocess.check_call(cmd, cwd=nearest_repo_path)
 
 
-def _find_matching_dirs(root_dir, path, filter_paths):
+def _find_matching_dirs(root_dir, path, filter_paths, cache=None):
+    cache = cache or {}
     if path is None:
         path = root_dir
 
+    cache.setdefault('nearest', {})
     repo = get_nearest_repo(root_dir, path)
 
     def _matches_filter_paths(path, direction):
@@ -86,17 +88,20 @@ def _find_matching_dirs(root_dir, path, filter_paths):
         else:
             return bool(any(x for x in filter_paths if safe_relative_to(path, x)))
 
-    if _matches_filter_paths(path, "before") or _matches_filter_paths(path, "after"):
-        if _matches_filter_paths(path, "after") or _matches_filter_paths(
-            path, "before"
-        ):
-            if Repo(repo).all_dirty_files:
-                yield Repo(repo), path
+    before = _matches_filter_paths(path, "before")
+    after = _matches_filter_paths(path, "after")
+
+    if before or after:
+        cache.setdefault("dirty", {})
+        if repo not in cache['dirty']:
+            cache['dirty'][repo] = Repo(repo).all_dirty_files
+        if cache['dirty'][repo]:
+            yield Repo(repo), path
         for sub in path.iterdir():
             if sub.is_dir():
                 if sub.name == ".git":
                     continue
-                yield from _find_matching_dirs(root_dir, sub, filter_paths)
+                yield from _find_matching_dirs(root_dir, sub, filter_paths, cache=cache)
 
 
 def _snapshot_dir(root_dir, path, filter_paths=None):
@@ -104,17 +109,24 @@ def _snapshot_dir(root_dir, path, filter_paths=None):
         reversed(list(_find_matching_dirs(root_dir, path, filter_paths)))
     )
 
+    cache = {'dirty': {}}
     for repo, path in matching_dirs:
-        repo.X("git", "reset")
-        if not repo.all_dirty_files:
-            continue
-        dirty_files = [x for x in repo.all_dirty_files_absolute if x.parent == path]
+        if repo.path not in cache['dirty']:
+            repo.X("git", "reset", output=True)
+            cache['dirty'][repo.path] = repo.all_dirty_files_absolute
+
+        dirty_files = cache['dirty'][repo.path]
         if not dirty_files:
             continue
+        dirty_files = [x for x in dirty_files if x.parent == path]
+        if not dirty_files:
+            continue
+        cache['dirty'].pop(repo.path)
         for dirty_file in dirty_files:
             if any(x == dirty_file.name for x in [".gitmodules", ".git"]):
                 continue
             subprocess.check_call((git + ["add", dirty_file]), cwd=path)
+            del dirty_file
         patch_file_content = subprocess.check_output(
             (git + ["diff", "--cached", "--relative"]), cwd=path
         )
@@ -127,6 +139,8 @@ def _snapshot_dir(root_dir, path, filter_paths=None):
         subprocess.check_call((git + ["reset"]), cwd=repo.path)
         subprocess.check_call((git + ["checkout", "."]), cwd=repo.path)
         for dirtyfile in repo.untracked_files_absolute:
+            if safe_relative_to(dirtyfile, repo.path / '.gimera'):
+                continue
             if dirtyfile.is_dir():
                 shutil.rmtree(dirtyfile)
             else:
