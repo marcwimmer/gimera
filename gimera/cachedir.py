@@ -19,7 +19,7 @@ def _get_cache_dir(main_repo, repo_yml):
     )
     path.parent.mkdir(exist_ok=True, parents=True)
 
-    must_exist = ["HEAD", "packed-refs", "refs", "objects", "config", "info"]
+    must_exist = ["HEAD", "refs", "objects", "config", "info"]
     if path.exists() and any(not (path / x).exists() for x in must_exist):
         shutil.rmtree(path)
 
