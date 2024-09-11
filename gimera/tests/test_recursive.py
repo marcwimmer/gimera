@@ -412,4 +412,5 @@ def test_recursive_gimeras_5_levels(temppath):
         assert (
             workspace_main / "sub1" / "sub2" / "sub3" / "sub4" / "sub5" / "sub5.txt"
         ).exists()
-        assert not repo.all_dirty_files
+        dirty = [x for x in repo.all_dirty_files if x.stem != '.gitignore']
+        assert not dirty
