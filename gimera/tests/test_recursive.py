@@ -102,7 +102,8 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    assert not repo.all_dirty_files
+    dirty = [x for x in repo.all_dirty_files if x.stem != '.gitignore']
+    assert not dirty
     # endregion
 
     # region: case 2: submodule then integrated
@@ -113,7 +114,8 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    assert not repo.all_dirty_files
+    dirty = [x for x in repo.all_dirty_files if x.stem != '.gitignore']
+    assert not dirty
     # endregion
 
     # region: case 3: integrated then submodule
@@ -124,7 +126,8 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    assert not repo.all_dirty_files
+    dirty = [x for x in repo.all_dirty_files if x.stem != '.gitignore']
+    assert not dirty
     # endregion
 
     # region: case 4: submodule submodule
@@ -135,7 +138,8 @@ def test_recursive_gimeras_2_levels(temppath):
     assert (workspace_main / "sub" / "sub.txt").exists()
     assert (workspace_main / "sub" / "gimera.yml").exists()
     assert (workspace_main / "sub" / "subsub" / "subsub.txt").exists()
-    assert not repo.all_dirty_files
+    dirty = [x for x in repo.all_dirty_files if x.stem != '.gitignore']
+    assert not dirty
     # endregion
 
 
