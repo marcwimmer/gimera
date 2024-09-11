@@ -11,6 +11,7 @@ from .tools import clone_and_commit
 from .tools import gimera_apply
 from ..tools import safe_relative_to
 from ..tools import get_effective_state
+from ..tools import _make_sure_hidden_gimera_dir
 
 token = {"token": 0}
 
@@ -156,6 +157,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos_yaml))
     (workspace_main / "main.txt").write_text("main repo")
     repo = Repo(workspace_main)
+    _make_sure_hidden_gimera_dir(repo.path)
     repo.simple_commit_all()
     repo.X(*(git + ["push"]))
 
