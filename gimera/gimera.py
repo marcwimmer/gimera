@@ -297,7 +297,7 @@ def add(url, branch, path, type):
     config = Config()
     repos = config.repos
     for repo in repos:
-        if repo.path == path:
+        if str(repo.path) == path:
             config._store(repo, data)
             break
     else:
