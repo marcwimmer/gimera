@@ -197,9 +197,6 @@ def _get_new_patchfilename(repo_yml):
     patchdirs = repo_yml.all_patch_dirs(rel_or_abs="absolute")
     if len(patchdirs) == 1:
         patch_dir = patchdirs[0]
-    elif os.getenv("GIMERA_NON_INTERACTIVE") == "1":
-        subpath = str(repo_yml.path).replace("/", "_")
-        patch_dir = f"patches.{subpath}"
     else:
         questions = [
             inquirer.List(
