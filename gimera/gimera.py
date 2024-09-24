@@ -32,8 +32,9 @@ def _expand_repos(repos):
         config = Config()
         for repo in repos:
             if "*" not in repo:
-                if not repo.endswith("/"):
-                    yield repo
+                if repo.endswith("/"):
+                    repo = repo[:-1]
+                yield repo
             repo = repo.replace("*", ".*")
             for candi in config.repos:
                 if not candi.enabled:
