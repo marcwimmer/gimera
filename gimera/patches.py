@@ -336,7 +336,7 @@ def _temporarily_add_untracked_files(repo, untracked_files):
         # (use "git restore <file>..." to discard changes in working directory)
         #         modified:   roles2/sub1/file2.txt
         #         new file:   roles2/sub1/file3.txt
-        repo.X(*(git + ["add", "-N", untracked_file]))
+        repo.X(*(git + ["add", "-f", "-N", untracked_file]))
 
     yield
 
