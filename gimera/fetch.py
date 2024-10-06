@@ -128,8 +128,8 @@ def _set_url_and_fetch(
         try:
             repo.out(*(git + ["fetch", remote_name] + todo_branches))
             success = True
-        except subprocess.CalledProcessError:
-            pass
+        except subprocess.CalledProcessError as ex:
+            click.secho(ex.stderr, fg='red')
 
     if success:
         if not _has_repo_latest_commit(repo, repo_yml.branch):

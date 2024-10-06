@@ -201,7 +201,7 @@ def _get_new_patchfilename(repo_yml):
         if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
             _raise_error((
                 "A patch dir is required but non interactive mode is set. "
-                "You can provide the --no-patch option perhaps.
+                "You can provide the --no-patch option perhaps."
             ))
 
         questions = [
