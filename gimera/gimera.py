@@ -223,6 +223,9 @@ def apply(
     if missing:
         config = Config()
         repos = list(map(lambda x: str(x.path), _get_missing_repos(config)))
+        if not repos:
+            click.secho("Nothing to do - all paths exist.", fg="green")
+            return
 
     try:
         _apply(
