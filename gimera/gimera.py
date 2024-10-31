@@ -184,6 +184,11 @@ def _get_available_repos(ctx, param, incomplete):
     is_flag=True,
     help="Raises exception instead of exit of program",
 )
+@click.option(
+    "--do-not-apply-patches",
+    is_flag=True,
+    help="Do not apply patches",
+)
 def apply(
     repos,
     update,
@@ -202,6 +207,7 @@ def apply(
     no_sha_update,
     migrate_changes,
     raise_exception,
+    do_not_apply_patches,
 ):
     if verbose:
         os.environ["GIMERA_VERBOSE"] = "1"
@@ -212,6 +218,8 @@ def apply(
     if non_interactive:
         os.environ["GIMERA_NON_INTERACTIVE"] = "1"
         os.environ["GIT_TERMINAL_PROMPT"] = "0"
+    if do_not_apply_patches:
+        os.environ['GIMERA_DO_NOT_APPLY_PATCHES'] = "1"
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
