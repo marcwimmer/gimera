@@ -33,15 +33,8 @@ class Repo(GitCommands):
 
     def contain_commit(self, commit):
         try:
-            output = (
-                self.X(
-                    *(git + ["rev-parse", "--verify", commit]),
-                    output=True,
-                )
-                .strip()
-                .splitlines()
-            )
-            return bool(output)
+            self.X(*(git + ["cat-file", "-t", commit]))
+            return True
         except Exception as ex:
             return False
 

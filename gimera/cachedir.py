@@ -9,7 +9,8 @@ from .consts import gitcmd as git
 from .repo import Repo
 from .tools import prepare_dir
 from .tools import remember_cwd
-from .tools import get_url_type, reformat_url
+from .tools import reformat_url
+from .tools import _raise_error
 
 # store big repos in tar file and try to restore from there;
 # otherwise lot of downloads have to be done
@@ -53,9 +54,15 @@ def _get_cache_dir(main_repo, repo_yml):
                     _make_tar_file(_path, tarfile)
 
     if repo_yml.sha:
-        if not Repo(path).contain_commit(repo_yml.sha):
+        repo = Repo(path)
+        if not repo.contain_commit(repo_yml.sha):
             # make a fetch quickly; sha is missing
-            Repo(path).X(*(git + ["fetch", "--all"]))
+            repo.X(*(git + ["fetch", "--all"]))
+            if not repo.contain_commit(repo_yml.sha):
+                _raise_error((
+                    f"After fetching the commit {repo_yml.sha} "
+                    f"was not found for {repo_yml.path}"
+                ))
     return path
 
 def _get_cache_dir_tarfile(_path):
