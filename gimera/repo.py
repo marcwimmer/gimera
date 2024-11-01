@@ -35,7 +35,7 @@ class Repo(GitCommands):
         try:
             output = (
                 self.X(
-                    *(git + ["branch", "-r", "--contains", commit]),
+                    *(git + ["rev-parse", "--verify", commit]),
                     output=True,
                 )
                 .strip()
