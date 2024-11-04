@@ -198,6 +198,12 @@ def _get_new_patchfilename(repo_yml):
     if len(patchdirs) == 1:
         patch_dir = patchdirs[0]
     else:
+        if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+            _raise_error((
+                "A patch dir is required but non interactive mode is set. "
+                "You can provide the --no-patch option perhaps."
+            ))
+
         questions = [
             inquirer.List(
                 "path",
@@ -336,7 +342,7 @@ def _temporarily_add_untracked_files(repo, untracked_files):
         # (use "git restore <file>..." to discard changes in working directory)
         #         modified:   roles2/sub1/file2.txt
         #         new file:   roles2/sub1/file3.txt
-        repo.X(*(git + ["add", "-N", untracked_file]))
+        repo.X(*(git + ["add", "-f", "-N", untracked_file]))
 
     yield
 

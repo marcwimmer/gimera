@@ -61,7 +61,8 @@ def _update_integrated_module(
         del repo
 
     # apply patches:
-    _apply_patches(repo_yml)
+    if os.getenv("GIMERA_DO_NOT_APPLY_PATCHES") != "1":
+        _apply_patches(repo_yml)
     msg = f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
     repo_yml.sha = new_sha
     if repo_yml.config.config_file in parent_repo.all_dirty_files_absolute:

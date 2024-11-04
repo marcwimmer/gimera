@@ -32,8 +32,9 @@ def _expand_repos(repos):
         config = Config()
         for repo in repos:
             if "*" not in repo:
-                if not repo.endswith("/"):
-                    yield repo
+                if repo.endswith("/"):
+                    repo = repo[:-1]
+                yield repo
             repo = repo.replace("*", ".*")
             for candi in config.repos:
                 if not candi.enabled:
@@ -183,6 +184,11 @@ def _get_available_repos(ctx, param, incomplete):
     is_flag=True,
     help="Raises exception instead of exit of program",
 )
+@click.option(
+    "--do-not-apply-patches",
+    is_flag=True,
+    help="Do not apply patches",
+)
 def apply(
     repos,
     update,
@@ -201,6 +207,7 @@ def apply(
     no_sha_update,
     migrate_changes,
     raise_exception,
+    do_not_apply_patches,
 ):
     if verbose:
         os.environ["GIMERA_VERBOSE"] = "1"
@@ -211,6 +218,8 @@ def apply(
     if non_interactive:
         os.environ["GIMERA_NON_INTERACTIVE"] = "1"
         os.environ["GIT_TERMINAL_PROMPT"] = "0"
+    if do_not_apply_patches:
+        os.environ['GIMERA_DO_NOT_APPLY_PATCHES'] = "1"
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
     ttype = None
@@ -222,6 +231,9 @@ def apply(
     if missing:
         config = Config()
         repos = list(map(lambda x: str(x.path), _get_missing_repos(config)))
+        if not repos:
+            click.secho("Nothing to do - all paths exist.", fg="green")
+            return
 
     try:
         _apply(
@@ -297,7 +309,7 @@ def add(url, branch, path, type):
     config = Config()
     repos = config.repos
     for repo in repos:
-        if repo.path == path:
+        if str(repo.path) == path:
             config._store(repo, data)
             break
     else:
