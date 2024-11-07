@@ -144,9 +144,6 @@ def _set_url_and_fetch(
 
     if success:
         if not _has_repo_latest_commit(repo, repo_yml.branch):
-            import pudb
-
-            pudb.set_trace()
             success = False
 
     if not success:
