@@ -33,7 +33,9 @@ def _fetch_repos_in_parallel(
                 return
             verbose(f"Fetching {repo_yml.url}")
             results["urls"].add(repo_yml.url)
-            with _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=True) as cache_dir:
+            with _get_cache_dir(
+                main_repo, repo_yml, no_action_if_not_exist=True
+            ) as cache_dir:
                 if cache_dir is not None:
                     repo = Repo(cache_dir)
                     do_fetch = True
@@ -117,29 +119,49 @@ def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options)
             else:
                 raise fetch_exception
 
+
 def _set_url_and_fetch(
     repo, repo_yml, remote_name, url, filter_remote=None, trycount=0
 ):
     repo.set_remote_url(remote_name, url)
     branch = repo_yml.branch
-    todo_branches = [f"{branch}:{branch}"]
+    todo_branches = [branch]
     success = False
 
     with wait_git_lock(repo.path):
         try:
             repo.out(*(git + ["fetch", remote_name] + todo_branches))
+            for branch in todo_branches:
+                remote_sha = (
+                    repo.X(*(git + ["ls-remote", "origin", branch]), output=True)
+                    .strip()
+                    .split("\t")[0]
+                )
+                repo.X(*(git + ["update-ref", f"refs/heads/{branch}", remote_sha]))
             success = True
         except subprocess.CalledProcessError as ex:
-            click.secho(ex.stderr, fg='red')
+            click.secho(ex.stderr, fg="red")
 
     if success:
         if not _has_repo_latest_commit(repo, repo_yml.branch):
+            import pudb
+
+            pudb.set_trace()
             success = False
 
     if not success:
         if trycount == 0:
+            click.secho(
+                (
+                    f"This the absolutely LAST RESORT: deleting now {repo.path} as "
+                    "fetching the origin and updating the branches did not update the "
+                    "local branches."
+                )
+            )
+
             try_rm_tree(repo.path)
-            _get_cache_dir(repo, repo_yml)
+            with _get_cache_dir(repo, repo_yml) as path:
+                pass
             _set_url_and_fetch(
                 repo,
                 repo_yml,
@@ -152,4 +174,3 @@ def _set_url_and_fetch(
             _raise_error(
                 f"Even after rebuilding cache dir it was not possible to clone {repo_yml.path}"
             )
-

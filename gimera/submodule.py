@@ -159,7 +159,11 @@ def _has_repo_latest_commit(repo, branch):
     out = repo.out(*(git + ["ls-remote", "origin", branch]))
     sha = out.splitlines()[0].strip().split()[0].strip()
     current = repo.out(*(git + ["rev-parse", branch])).splitlines()[0].strip()
-    return sha == current
+    result = sha == current
+    click.secho(
+        f"Comparing {sha} and {current} at _has_repo_latest_commit with: {result}"
+    )
+    return result
 
 
 def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars):
