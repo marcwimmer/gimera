@@ -437,3 +437,14 @@ def files_relative_to(files, folder):
         res = safe_relative_to(file, folder)
         if res:
             yield res
+
+def replace_dir_with(source_dir, dest_dir):
+    tmppath = Path(str(dest_dir) + "." + str(uuid.uuid4()))
+    if dest_dir.exists():
+        shutil.move(dest_dir, tmppath)
+
+    try:
+        shutil.move(source_dir, dest_dir)
+    finally:
+        if tmppath.exists():
+            rmtree(tmppath)

@@ -30,58 +30,58 @@ def _update_integrated_module(
     Put contents of a git repository inside the main repository.
     """
     # use a cache directory for pulling the repository and updating it
-    cache_dir = _get_cache_dir(main_repo, repo_yml)
-    if not os.access(cache_dir, os.W_OK):
-        _raise_error(f"No R/W rights on {cache_dir}")
-    repo = Repo(cache_dir)
-    verbose(f"Updating integrated module {repo_yml.path}")
+    with _get_cache_dir(main_repo, repo_yml) as cache_dir:
+        if not os.access(cache_dir, os.W_OK):
+            _raise_error(f"No R/W rights on {cache_dir}")
+        repo = Repo(cache_dir)
+        verbose(f"Updating integrated module {repo_yml.path}")
 
-    parent_repo = main_repo
-    dest_path = Path(working_dir) / repo_yml.path
-    parent_repo = Repo(get_nearest_repo(main_repo.path, dest_path))
+        parent_repo = main_repo
+        dest_path = Path(working_dir) / repo_yml.path
+        parent_repo = Repo(get_nearest_repo(main_repo.path, dest_path))
 
-    # BTW: delete-after cannot remove unused directories - cool to know; is
-    # just standarded out
-    if dest_path.exists():
-        rmtree(dest_path)
+        # BTW: delete-after cannot remove unused directories - cool to know; is
+        # just standarded out
+        if dest_path.exists():
+            rmtree(dest_path)
 
-    with wait_git_lock(cache_dir):
-        commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
-        with repo.worktree(commit) as worktree:
-            new_sha = worktree.hex
-            msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
-                worktree, repo_yml
+        with wait_git_lock(cache_dir):
+            commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
+            with repo.worktree(commit) as worktree:
+                new_sha = worktree.hex
+                msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
+                    worktree, repo_yml
+                )
+                worktree.move_worktree_content(dest_path)
+                # TODO perhaps not necessary as of line 63 -- seems to be necessary
+                # case: submodule is in .gitignore; updates the submodule
+                # then git add <path> needs to add the deleted files
+                # Could also be that a subgimera sha was updated
+                parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
+            del repo
+
+        # apply patches:
+        if os.getenv("GIMERA_DO_NOT_APPLY_PATCHES") != "1":
+            _apply_patches(repo_yml)
+        msg = f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
+        repo_yml.sha = new_sha
+        if repo_yml.config.config_file in parent_repo.all_dirty_files_absolute:
+            # could be, that the parent path of the gimera.yml belongs to gitignore
+            # so force add
+            parent_repo.X(*(git + ["add", '-f', repo_yml.config.config_file]))
+        parent_repo.commit_dir_if_dirty(dest_path, msg)
+        if any(
+            str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
+        ):
+            parent_repo.X(*(git + ["add", dest_path]))
+
+        if parent_repo.staged_files:
+            parent_repo.X(*(git + ["commit", "-m", msg]))
+
+        if repo_yml.edit_patchfile:
+            _apply_patchfile(
+                repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
             )
-            worktree.move_worktree_content(dest_path)
-            # TODO perhaps not necessary as of line 63 -- seems to be necessary
-            # case: submodule is in .gitignore; updates the submodule
-            # then git add <path> needs to add the deleted files
-            # Could also be that a subgimera sha was updated
-            parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
-        del repo
-
-    # apply patches:
-    if os.getenv("GIMERA_DO_NOT_APPLY_PATCHES") != "1":
-        _apply_patches(repo_yml)
-    msg = f"updated {REPO_TYPE_INT} submodule: {repo_yml.path}"
-    repo_yml.sha = new_sha
-    if repo_yml.config.config_file in parent_repo.all_dirty_files_absolute:
-        # could be, that the parent path of the gimera.yml belongs to gitignore
-        # so force add
-        parent_repo.X(*(git + ["add", '-f', repo_yml.config.config_file]))
-    parent_repo.commit_dir_if_dirty(dest_path, msg)
-    if any(
-        str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
-    ):
-        parent_repo.X(*(git + ["add", dest_path]))
-
-    if parent_repo.staged_files:
-        parent_repo.X(*(git + ["commit", "-m", msg]))
-
-    if repo_yml.edit_patchfile:
-        _apply_patchfile(
-            repo_yml.edit_patchfile_full_path, repo_yml.fullpath, error_ok=True
-        )
 
 
 def _apply_merges(repo, repo_yml):

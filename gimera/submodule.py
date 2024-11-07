@@ -117,12 +117,12 @@ def _fetch_latest_commit_in_submodule(
 
 @contextmanager
 def _temporary_switch_remote_to_cachedir(main_repo, repo_yml, relpath):
-    cache_dir = _get_cache_dir(main_repo, repo_yml)
-    main_repo.X(*(git + ["submodule", "set-url", relpath, f"file://{cache_dir}"]))
-    try:
-        yield
-    finally:
-        main_repo.X(*(git + ["submodule", "set-url", relpath, repo_yml.url]))
+    with _get_cache_dir(main_repo, repo_yml) as cache_dir:
+        main_repo.X(*(git + ["submodule", "set-url", relpath, f"file://{cache_dir}"]))
+        try:
+            yield
+        finally:
+            main_repo.X(*(git + ["submodule", "set-url", relpath, repo_yml.url]))
 
 
 def _make_sure_subrepo_is_checked_out(working_dir, main_repo, repo_yml, common_vars):
@@ -234,13 +234,13 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
         repo.X(*(git + ["rm", "-rf", relpath]))
         rmtree(repo.path / relpath)
 
-    cache_dir = _get_cache_dir(repo, config)
-    repo.submodule_add(config.branch, str(cache_dir), relpath)
-    repo.X(*(git + ["submodule", "set-url", relpath, config.url]))
-    repo.X(*(git + ["add", ".gitmodules"]))
-    click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
-    if repo.staged_files:
-        repo.X(*(git + ["commit", "-m", f"gimera added submodule: {relpath}"]))
+    with _get_cache_dir(repo, config) as cache_dir:
+        repo.submodule_add(config.branch, str(cache_dir), relpath)
+        repo.X(*(git + ["submodule", "set-url", relpath, config.url]))
+        repo.X(*(git + ["add", ".gitmodules"]))
+        click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
+        if repo.staged_files:
+            repo.X(*(git + ["commit", "-m", f"gimera added submodule: {relpath}"]))
 
     # check for success
     state = get_effective_state(

@@ -33,23 +33,24 @@ def _fetch_repos_in_parallel(
                 return
             verbose(f"Fetching {repo_yml.url}")
             results["urls"].add(repo_yml.url)
-            cache_dir = _get_cache_dir(main_repo, repo_yml)
-            repo = Repo(cache_dir)
-            do_fetch = True
-            if minimal_fetch:
-                with wait_git_lock(cache_dir):
-                    if repo_yml.sha:
-                        if repo.contains(repo_yml.sha):
-                            do_fetch = False
-                    else:
-                        if repo.contains_branch(repo_yml.branch):
-                            do_fetch = False
+            with _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=True) as cache_dir:
+                if cache_dir is not None:
+                    repo = Repo(cache_dir)
+                    do_fetch = True
+                    if minimal_fetch:
+                        with wait_git_lock(cache_dir):
+                            if repo_yml.sha:
+                                if repo.contains(repo_yml.sha):
+                                    do_fetch = False
+                            else:
+                                if repo.contains_branch(repo_yml.branch):
+                                    do_fetch = False
 
-            if do_fetch:
-                with wait_git_lock(cache_dir):
-                    _fetch_branch(
-                        repo, repo_yml, filter_remote="origin", no_fetch=False
-                    )
+                    if do_fetch:
+                        with wait_git_lock(cache_dir):
+                            _fetch_branch(
+                                repo, repo_yml, filter_remote="origin", no_fetch=False
+                            )
 
         except Exception as ex:
             if os.getenv("GIMERA_IGNORE_FETCH_ERRORS") == "1":
