@@ -32,7 +32,7 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False):
     except:
         urlsafe = url
 
-    for c in "?:+[]{}\\/\"'":
+    for c in "?:+[]{}\\/\"'_":
         urlsafe = urlsafe.replace(c, "-")
     urlsafe = urlsafe.split("@")[-1]
 
