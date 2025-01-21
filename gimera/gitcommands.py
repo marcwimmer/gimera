@@ -134,12 +134,23 @@ class GitCommands(object):
         self.X(*(git + ["status"]))
 
     def get_all_branches(self):
+        """
+        4031c5eb19120f76a91b7cd9052bb27c5efe159a refs/heads/17.0
+        2e45846285c6afc396a7bbadaa9dad54360ed51c refs/heads/main
+        4031c5eb19120f76a91b7cd9052bb27c5efe159a refs/remotes/origin/17.0
+        2e45846285c6afc396a7bbadaa9dad54360ed51c refs/remotes/origin/HEAD
+        2e45846285c6afc396a7bbadaa9dad54360ed51c refs/remotes/origin/main
+        2e45846285c6afc396a7bbadaa9dad54360ed51c refs/remotes/origin/test123
+        """
         res = list(
-            map(
-                lambda x: x.strip(),
-                self.out(
-                    *(git + ["for-each-ref", "--format=%(refname:short)", "refs/heads"])
-                ).splitlines(),
+            set(
+            filter(
+                lambda x: x not in ["HEAD"],
+                map(
+                    lambda x: x.strip().split()[-1].split("/")[-1],
+                    self.out(*(git + ["show-ref"])).splitlines(),
+                ),
+            )
             )
         )
         return res
