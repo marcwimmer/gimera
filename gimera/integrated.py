@@ -30,7 +30,7 @@ def _update_integrated_module(
     Put contents of a git repository inside the main repository.
     """
     # use a cache directory for pulling the repository and updating it
-    with _get_cache_dir(main_repo, repo_yml) as cache_dir:
+    with _get_cache_dir(main_repo, repo_yml, update=update) as cache_dir:
         if not os.access(cache_dir, os.W_OK):
             _raise_error(f"No R/W rights on {cache_dir}")
         repo = Repo(cache_dir)

@@ -21,7 +21,7 @@ from .tools import replace_dir_with
 
 from contextlib import contextmanager
 @contextmanager
-def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False):
+def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=None):
     url = repo_yml.url
     if not url:
         click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
@@ -77,10 +77,11 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False):
                 # make a fetch quickly; sha is missing
                 repo.X(*(git + ["fetch", "--all"]))
                 if not repo.contain_commit(repo_yml.sha):
-                    _raise_error((
-                        f"After fetching the commit {repo_yml.sha} "
-                        f"was not found for {repo_yml.path}"
-                    ))
+                    if not update:
+                        _raise_error((
+                            f"After fetching the commit {repo_yml.sha} "
+                            f"was not found for {repo_yml.path}"
+                        ))
 
         yield effective_path
 
