@@ -20,6 +20,8 @@ from .tools import replace_dir_with
 
 
 from contextlib import contextmanager
+
+
 @contextmanager
 def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=None):
     url = repo_yml.url
@@ -28,7 +30,7 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         sys.exit(-1)
 
     try:
-        urlsafe = reformat_url(url, 'git')
+        urlsafe = reformat_url(url, "git")
     except:
         urlsafe = url
 
@@ -47,7 +49,9 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         golden_path.parent.mkdir(exist_ok=True, parents=True)
 
         must_exist = ["HEAD", "refs", "objects", "config", "info"]
-        if golden_path.exists() and any(not (golden_path / x).exists() for x in must_exist):
+        if golden_path.exists() and any(
+            not (golden_path / x).exists() for x in must_exist
+        ):
             rmtree(golden_path)
 
         just_cloned = False
@@ -78,10 +82,12 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
                 repo.X(*(git + ["fetch", "--all"]))
                 if not repo.contain_commit(repo_yml.sha):
                     if not update:
-                        _raise_error((
-                            f"After fetching the commit {repo_yml.sha} "
-                            f"was not found for {repo_yml.path}"
-                        ))
+                        _raise_error(
+                            (
+                                f"After fetching the commit {repo_yml.sha} "
+                                f"was not found for {repo_yml.path}"
+                            )
+                        )
 
         yield effective_path
 
@@ -93,15 +99,21 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         if possible_temp_path.exists():
             rmtree(possible_temp_path)
 
+
 def _get_cache_dir_tarfile(_path):
     return Path(str(_path) + ".tar.gz")
+
 
 def _make_tar_file(_path, tarfile):
     if tarfile.exists():
         tarfile.unlink()
-    click.secho(f"Creating tar file {tarfile} from {_path}", fg='yellow')
-    subprocess.check_call(["tar", "cfz", str(tarfile), "-C", str(_path), '.'])
+    click.secho(
+        f"Creating tar file {tarfile} from {_path} - might take some time on large repos.",
+        fg="yellow",
+    )
+    subprocess.check_call(["tar", "cfz", str(tarfile), "-C", str(_path), "."])
+
 
 def _extract_tar_file(_path, tarfile):
-    click.secho(f"Extracting tar file {tarfile} to {_path}", fg='yellow')
+    click.secho(f"Extracting tar file {tarfile} to {_path}", fg="yellow")
     subprocess.check_call(["tar", "xfz", str(tarfile)], cwd=_path)
