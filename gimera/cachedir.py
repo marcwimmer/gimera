@@ -99,6 +99,7 @@ def _get_cache_dir_tarfile(_path):
 def _make_tar_file(_path, tarfile):
     if tarfile.exists():
         tarfile.unlink()
+    click.secho(f"Creating tar file {tarfile} from {_path}", fg='yellow')
     subprocess.check_call(["tar", "cfz", str(tarfile), "-C", str(_path), '.'])
 
 def _extract_tar_file(_path, tarfile):
