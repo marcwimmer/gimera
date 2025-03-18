@@ -428,6 +428,7 @@ class Repo(GitCommands):
 
     def commit_dir_if_dirty(self, rel_path, commit_msg, force=False):
         # commit updated directories
+        ammend = False
         if any(
             map(
                 lambda filepath: safe_relative_to(filepath, self.path / rel_path),
@@ -453,17 +454,33 @@ class Repo(GitCommands):
                         ]
                     )
                 )
+                ammend = True
 
-        self.run_precommit_if_installed(rel_path)
+        self.run_precommit_if_installed(rel_path, ammend=ammend)
 
-    def run_precommit_if_installed(self, rel_path):
+    def run_precommit_if_installed(self, rel_path, ammend=False):
         if self.is_precommit_used():
             files = list((self.path / rel_path).rglob("*"))
             self.X(
                 *tuple(
                     ["pre-commit", "run", "--hook-stage", "commit", "--files"] + files
-                ), allow_error=True
+                ),
+                allow_error=True,
             )
+            gitcmd = ["commit", "--no-verify"]
+            if ammend:
+                gitcmd += ["--amend"]
+            else:
+                gitcmd += ["-m", f"pre-commit run for {rel_path}"]
+            dirty_files = list(
+                filter_files_to_folders(
+                    self.all_dirty_files_absolute,
+                    [self.path_absolute / rel_path],
+                )
+            )
+            if dirty_files:
+                self.X(*(git + ["add", rel_path]))
+                self.X(*(git + gitcmd))
 
     def is_precommit_used(self):
         candidates = [
