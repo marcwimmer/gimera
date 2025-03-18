@@ -449,6 +449,7 @@ class Repo(GitCommands):
                         git
                         + [
                             "commit",
+                            "--no-verify",
                             "-m",
                             commit_msg,
                         ]
@@ -518,7 +519,7 @@ class Repo(GitCommands):
                 repo = Repo(repo_folder)
                 self.X(*(git + ["worktree", "add", "--force", repo_folder, commit]))
                 yield repo
-            except Exception:
+            except Exception as ex:
                 click.secho(f"Error occurred at repo {self.path}", fg="red")
                 raise
             finally:
