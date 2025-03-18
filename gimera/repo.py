@@ -423,9 +423,7 @@ class Repo(GitCommands):
                 break
 
     def lsfiles(self, path):
-        files = list(
-            map(Path, self.out(*(git + ["ls-files", path])).splitlines())
-        )
+        files = list(map(Path, self.out(*(git + ["ls-files", path])).splitlines()))
         return files
 
     def commit_dir_if_dirty(self, rel_path, commit_msg, force=False):
@@ -455,6 +453,24 @@ class Repo(GitCommands):
                         ]
                     )
                 )
+
+        self.run_precommit_if_installed(rel_path)
+
+    def run_precommit_if_installed(self, rel_path):
+        if self.is_precommit_used():
+            files = list((self.path / rel_path).rglob("*"))
+            self.X(
+                *tuple(
+                    ["pre-commit", "run", "--hook-stage", "commit", "--files"] + files
+                ), allow_error=True
+            )
+
+    def is_precommit_used(self):
+        candidates = [
+            self.root_repo.path / ".pre-commit-config.yaml",
+            self.root_repo.path / ".pre-commit-config.yml",
+        ]
+        return any(x.exists() for x in candidates)
 
     def submodule_add(self, branch, url, rel_path):
         commands = git + [
