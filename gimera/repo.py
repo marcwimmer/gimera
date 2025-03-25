@@ -1,4 +1,3 @@
-import os
 import uuid
 import subprocess
 import click
@@ -461,6 +460,8 @@ class Repo(GitCommands):
 
     def run_precommit_if_installed(self, rel_path, ammend=False):
         if self.is_precommit_used():
+            if not shutil.which('pre-commit'):
+                print(f"Command 'pre-commit' not found in PATH")
             self.X(
                 *tuple(
                     ["pre-commit", "run", "--from-ref", "HEAD~1", "--to-ref", "HEAD"]
