@@ -1,3 +1,4 @@
+from itertools import islice
 import subprocess
 import yaml
 import tempfile
@@ -448,3 +449,11 @@ def replace_dir_with(source_dir, dest_dir):
     finally:
         if tmppath.exists():
             rmtree(tmppath)
+
+def split_every(n, iterable, piece_maker=tuple):
+    # thanks odoo
+    iterator = iter(iterable)
+    piece = piece_maker(islice(iterator, n))
+    while piece:
+        yield piece
+        piece = piece_maker(islice(iterator, n))

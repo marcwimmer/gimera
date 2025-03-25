@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from .tools import is_forced
 from .tools import temppath
 from .tools import filter_files_to_folders
+from .tools import split_every
 
 
 class Repo(GitCommands):
@@ -456,22 +457,23 @@ class Repo(GitCommands):
                 )
                 ammend = True
 
-        self.run_precommit_if_installed(rel_path, ammend=ammend)
+                self.run_precommit_if_installed(rel_path, ammend=ammend)
 
     def run_precommit_if_installed(self, rel_path, ammend=False):
         if self.is_precommit_used():
-            files = list((self.path / rel_path).rglob("*"))
             self.X(
                 *tuple(
-                    ["pre-commit", "run", "--hook-stage", "commit", "--files"] + files
+                    ["pre-commit", "run", "--from-ref", "HEAD~1", "--to-ref", "HEAD"]
                 ),
                 allow_error=True,
             )
+
             gitcmd = ["commit", "--no-verify"]
             if ammend:
                 gitcmd += ["--amend"]
             else:
                 gitcmd += ["-m", f"pre-commit run for {rel_path}"]
+
             dirty_files = list(
                 filter_files_to_folders(
                     self.all_dirty_files_absolute,
