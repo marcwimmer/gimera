@@ -37,6 +37,9 @@ def X(*params, output=False, cwd=None, allow_error=False, env=None):
     params = list(filter(lambda x: x is not None, list(params)))
     env2 = {k: v for k, v in os.environ.items()}
     env2.update(env or {})
+    if params and params[0] == 'git' and os.getenv("GIMERA_QUIET") == "1":
+        if any(x in params for x in ["commit", "push"]):
+            params.append("--quiet")
     if output:
         ret = subprocess.run(
             params,

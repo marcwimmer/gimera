@@ -76,7 +76,8 @@ def _update_integrated_module(
             parent_repo.X(*(git + ["add", dest_path]))
 
         if parent_repo.staged_files:
-            parent_repo.X(*(git + ["commit", "-m", msg]))
+            gitcmd = ["commit", "-m", msg]
+            parent_repo.X(*(git + gitcmd))
 
         if repo_yml.edit_patchfile:
             _apply_patchfile(

@@ -1,4 +1,5 @@
 import uuid
+import os
 import subprocess
 import click
 import shutil
@@ -443,15 +444,16 @@ class Repo(GitCommands):
             # if there are no staged files, it can be, that below that, there is a
             # submodule which changed files; then after git add it is not added
             if self.staged_files:
-                self.X(
-                    *(
-                        git
-                        + [
+                gitcmd = [
                             "commit",
                             "--no-verify",
                             "-m",
                             commit_msg,
                         ]
+                self.X(
+                    *(
+                        git
+                        + gitcmd
                     )
                 )
                 ammend = True

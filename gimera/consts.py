@@ -1,3 +1,4 @@
+import os
 import inquirer
 gitcmd = ["git", "-c", "protocol.file.allow=always"]
 try:
