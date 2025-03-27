@@ -231,8 +231,11 @@ def rsync(dir1, dir2, exclude=None, delete_after=True):
     cmd = [
         "rsync",
         "-ar",
-        "--info=progress2",
     ]
+    if os.getenv("GIMERA_QUIET") != "1":
+        cmd += [
+            "--info=progress2",
+        ]
     if delete_after:
         cmd += ["--delete-after"]
     for X in exclude or []:

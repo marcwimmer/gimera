@@ -208,6 +208,7 @@ How it works:
   * GIMERA_NON_THREADED=1 - non threaded fetch
   * GIMERA_IGNORE_FETCH_ERRORS=1 - ignore any fetch error at fetch
   * GIMERA_NO_SHA_UPDATE=1 - no shas updated in gimera file
+  * GIMERA_QUIET=1 - rsyncing quiet and git
 
 ## Authors:
   * Marc Wimmer (marc@zebroo.de)
