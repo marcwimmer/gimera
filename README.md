@@ -209,6 +209,7 @@ How it works:
   * GIMERA_IGNORE_FETCH_ERRORS=1 - ignore any fetch error at fetch
   * GIMERA_NO_SHA_UPDATE=1 - no shas updated in gimera file
   * GIMERA_QUIET=1 - rsyncing quiet and git
+  * GIMERA_NO_PRECOMMIT=1 - do not execute pre commits
 
 ## Authors:
   * Marc Wimmer (marc@zebroo.de)

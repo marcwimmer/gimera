@@ -461,6 +461,8 @@ class Repo(GitCommands):
                 self.run_precommit_if_installed(rel_path, ammend=ammend)
 
     def run_precommit_if_installed(self, rel_path, ammend=False):
+        if os.getenv("GIMERA_NO_PRECOMMIT") == "1":
+            return
         if self.is_precommit_used():
             if not shutil.which('pre-commit'):
                 print(f"Command 'pre-commit' not found in PATH")
