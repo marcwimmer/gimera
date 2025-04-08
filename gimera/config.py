@@ -133,7 +133,8 @@ class Config(object):
         ]:
             main_repo.X(*(git + ["add", self.config_file]))
         if main_repo.staged_files:
-            main_repo.X(*(git + ["commit", "-m", "auto update gimera.yml"]))
+            cmd = ["commit", "-m", "auto update gimera.yml", "--no-verify"]
+            main_repo.X(*(git + cmd))
 
     def get_repos(self, names):
         if not names:
