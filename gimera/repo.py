@@ -198,7 +198,7 @@ class Repo(GitCommands):
             self.X(*(git + ["add", "-A", ".gitmodules"]))
 
         if self.staged_files:
-            self.X(*(git + ["commit", "-m", f"removed submodule {path}"]))
+            self.X(*(git + ["commit", "-q", "-m", f"removed submodule {path}"]))
         self.X("rm", "-rf", f".git/modules/{subrepo.rel_path_to_root_repo}")
 
     @property
@@ -276,6 +276,7 @@ class Repo(GitCommands):
                             git
                             + [
                                 "commit",
+                                "-q",
                                 "-m",
                                 "gimera fix to removed subdirs: .gitmodules",
                             ]
@@ -283,7 +284,7 @@ class Repo(GitCommands):
                     )
                 self.X(*(git + ["rm", "-f", linepath]))
                 self.X(
-                    *(git + ["commit", "-m", f"removed invalid subrepo: {linepath}"])
+                    *(git + ["commit", "-q", "-m", f"removed invalid subrepo: {linepath}"])
                 )
 
     def get_submodule(self, path):
@@ -446,6 +447,7 @@ class Repo(GitCommands):
             if self.staged_files:
                 gitcmd = [
                             "commit",
+                            "-q",
                             "--no-verify",
                             "-m",
                             commit_msg,
@@ -473,7 +475,7 @@ class Repo(GitCommands):
                 allow_error=True,
             )
 
-            gitcmd = ["commit", "--no-verify"]
+            gitcmd = ["commit", "-q", "--no-verify"]
             if ammend:
                 gitcmd += ["--amend", "--no-edit"]
             else:
