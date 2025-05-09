@@ -39,7 +39,7 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
 
     with _if_ignored_move_to_separate_dir(
         working_dir, main_repo, repo_yml, common_vars
-    ) as (main_repo):
+    ) as (main_repo, is_temp_path):
         with _prepare(main_repo, repo_yml) as (
             subrepo,
             subrepo_path,
@@ -48,6 +48,20 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         ):
             if not changed_files:
                 return
+            if not is_temp_path:
+                return
+            if is_temp_path and changed_files:
+                if  os.getenv("GIMERA_FORCE") == "1":
+                    return
+                # hold on full stop: we are in an ignored directory and have changes
+                # They would be lost if we just continue
+                click.secho(
+                    f"Changed files detected in probably ignored directory.\nPlease analyze changes here: \n{main_repo.path}",
+                    fg="red",
+                )
+                main_repo.X(*(git + ["status"]))
+                main_repo.X(*(git + ["diff"]))
+                _raise_error("Halted to avoid data loss. Please check your changes or provide --force option to continue.")
             if not _start_question(repo_yml, changed_files):
                 return
 
@@ -58,7 +72,7 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
                 if not repo_yml.all_patch_dirs(rel_or_abs="relative"):
                     if os.getenv("GIMERA_FORCE") == "1":
                         return
-                    if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
+                    if os.getenv("GIMERA_NON_INTERACTIVE") != "1" and not is_temp_path:
                         repo_yml = _ask_user_to_create_path_directory(repo_yml)
                     if not repo_yml.all_patch_dirs:
                         _raise_error(
@@ -79,6 +93,10 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
 
 
 def _ask_user_to_create_path_directory(repo_yml):
+    import pudb
+
+    pudb.set_trace()
+
     def validation(answers, current):
         if current and current.startswith("/"):
             raise errors.ValidationError(
@@ -86,6 +104,9 @@ def _ask_user_to_create_path_directory(repo_yml):
             )
         return True
 
+    import pudb
+
+    pudb.set_trace()
     questions = [
         inquirer.Text(
             "path",
@@ -99,6 +120,9 @@ def _ask_user_to_create_path_directory(repo_yml):
     answers = inquirer.prompt(questions, theme=inquirer_theme)
     path = answers["path"]
 
+    import pudb
+
+    pudb.set_trace()
     repo_yml.config._store(repo_yml, {"patches": [path]})
     repo_yml.config.load_config()
     repo_yml = [x for x in repo_yml.config.repos if x.path == repo_yml.path][0]
@@ -162,12 +186,12 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
                     path / repo_yml.path,
                     exclude=[".git"],
                 )
-                yield main_repo2
+                yield main_repo2, True
 
                 for patchdir in repo_yml.patches:
                     rsync(main_repo2.path / patchdir, main_repo.path / patchdir)
     else:
-        yield main_repo
+        yield main_repo, False
 
 
 def _update_edited_patchfile(repo_yml):
@@ -199,10 +223,12 @@ def _get_new_patchfilename(repo_yml):
         patch_dir = patchdirs[0]
     else:
         if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
-            _raise_error((
-                "A patch dir is required but non interactive mode is set. "
-                "You can provide the --no-patch option perhaps."
-            ))
+            _raise_error(
+                (
+                    "A patch dir is required but non interactive mode is set. "
+                    "You can provide the --no-patch option perhaps."
+                )
+            )
 
         questions = [
             inquirer.List(

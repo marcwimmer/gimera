@@ -64,7 +64,7 @@ def _fetch_latest_commit_in_submodule(
         if os.getenv("GIMERA_FORCE") != "1":
             _raise_error(
                 f"Directory {repo_yml.path} contains modified "
-                "files. Please commit or purge before!"
+                "files. Please commit or purge before or migrate changes with -M flag!"
             )
     sha = repo_yml.sha if not update else None
 
