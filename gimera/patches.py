@@ -93,10 +93,6 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
 
 
 def _ask_user_to_create_path_directory(repo_yml):
-    import pudb
-
-    pudb.set_trace()
-
     def validation(answers, current):
         if current and current.startswith("/"):
             raise errors.ValidationError(
@@ -104,9 +100,6 @@ def _ask_user_to_create_path_directory(repo_yml):
             )
         return True
 
-    import pudb
-
-    pudb.set_trace()
     questions = [
         inquirer.Text(
             "path",
@@ -120,9 +113,6 @@ def _ask_user_to_create_path_directory(repo_yml):
     answers = inquirer.prompt(questions, theme=inquirer_theme)
     path = answers["path"]
 
-    import pudb
-
-    pudb.set_trace()
     repo_yml.config._store(repo_yml, {"patches": [path]})
     repo_yml.config.load_config()
     repo_yml = [x for x in repo_yml.config.repos if x.path == repo_yml.path][0]
