@@ -94,7 +94,7 @@ def _fetch_latest_commit_in_submodule(
     else:
         try:
             subrepo.X(*(git + ["checkout", "-f", repo_yml.branch]))
-            subrepo.X(*(git + ["pull"]))
+            subrepo.X(*(git + ["pull", "--rebase", "--autostash"]))
         except Exception:  # pylint: disable=broad-except
             _raise_error(f"Failed to checkout {repo_yml.branch} in {path}")
         else:
