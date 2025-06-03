@@ -48,8 +48,6 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         ):
             if not changed_files:
                 return
-            if not is_temp_path:
-                return
             if is_temp_path and changed_files:
                 if  os.getenv("GIMERA_FORCE") == "1":
                     return
