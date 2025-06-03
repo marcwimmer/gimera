@@ -1,3 +1,6 @@
+# 0.7.95
+  * removed: Deliver Patches with reused submodules. - too complicated; githubworkflow used for branching
+  * patchdirs: allows chdir - if you get patchfiles from third parties to make them compatible
 # 0.7.61
   * [IMP] stronger force mode at ignored paths and turning submodule to integrated
 

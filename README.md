@@ -34,7 +34,13 @@ repos:
     - url: "https://github.com/foo/bar"
       branch: branch1_${VERSION}
       path: roles/sub1
-      patches: []
+      patches:
+        - patches/foo/bar
+      # patches can also be configures as dictionaries with extra infos:
+      patches:
+        - path: patches/foo/bar
+          chdir: foo  # if you get patch files from others you can switch the executing
+                      # current working directory
       type: submodule
 
       # default True
@@ -127,34 +133,6 @@ You should call update to pull the latest version.
 
 ```bash
 gimera apply <path> -I --update
-```
-
-## Deliver Patches with reused submodules.
-
-In the submodule:
-```yaml
-gimera.yml
-
-common:
-  patches:
-    - patches/${VERSION}
-
-```
-
-The main gimera which integrates the submodule should be:
-```yaml
-common:
-  vars:
-    VERSION: 15.0
-repos:
-  type: integrated
-  url: .....
-  path: sub1
-```
-
-After that a recursive gimera is required.
-```
-gimera apply -r
 ```
 
 ### Note:

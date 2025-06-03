@@ -20,7 +20,7 @@ def gimera_commit(*args, **kwargs):
 
 
 @contextmanager
-def clone_and_commit(repopath, branch, checkout_options=None):
+def clone_and_commit(repopath, branch, checkout_options=None, commit=True):
     path = Path(tempfile.mktemp(suffix="."))
     if path.exists():
         shutil.rmtree(path)
@@ -30,9 +30,10 @@ def clone_and_commit(repopath, branch, checkout_options=None):
     )
     try:
         yield path
-        subprocess.check_call(
-            git + ["push", "--set-upstream", "origin", branch], cwd=path
-        )
+        if commit:
+            subprocess.check_call(
+                git + ["push", "--set-upstream", "origin", branch], cwd=path
+            )
     finally:
         shutil.rmtree(path)
 

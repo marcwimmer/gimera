@@ -48,8 +48,6 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         ):
             if not changed_files:
                 return
-            if not is_temp_path:
-                return
             if is_temp_path and changed_files:
                 if  os.getenv("GIMERA_FORCE") == "1":
                     return
@@ -69,12 +67,12 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
                 subdir_path = Path(main_repo.path) / repo_yml.path
                 patch_content = _technically_make_patch(main_repo, subdir_path)
 
-                if not repo_yml.all_patch_dirs(rel_or_abs="relative"):
+                if not repo_yml.patches:
                     if os.getenv("GIMERA_FORCE") == "1":
                         return
                     if os.getenv("GIMERA_NON_INTERACTIVE") != "1" and not is_temp_path:
                         repo_yml = _ask_user_to_create_path_directory(repo_yml)
-                    if not repo_yml.all_patch_dirs:
+                    if not repo_yml.patches:
                         _raise_error(
                             "Please define at least one directory, "
                             f"where patches are stored for {repo_yml.path}"
@@ -112,8 +110,9 @@ def _ask_user_to_create_path_directory(repo_yml):
     ]
     answers = inquirer.prompt(questions, theme=inquirer_theme)
     path = answers["path"]
+    from .config import PatchDir
 
-    repo_yml.config._store(repo_yml, {"patches": [path]})
+    repo_yml.config._store(repo_yml, {"patches": [PatchDir(repo_yml, path, None)]})
     repo_yml.config.load_config()
     repo_yml = [x for x in repo_yml.config.repos if x.path == repo_yml.path][0]
     return repo_yml
@@ -200,15 +199,15 @@ def _update_edited_patchfile(repo_yml):
         raise NotImplementedError(ttype)
     patch_dir = [
         x
-        for x in repo_yml.all_patch_dirs("absolute")
-        if x._path == edit_patchfile.parent
+        for x in repo_yml.patches
+        if x.path_absolute == edit_patchfile.parent
     ][0]
     patch_filename = Path(repo_yml.edit_patchfile).name
     return patch_dir, patch_filename
 
 
 def _get_new_patchfilename(repo_yml):
-    patchdirs = repo_yml.all_patch_dirs(rel_or_abs="absolute")
+    patchdirs = repo_yml.patches
     if len(patchdirs) == 1:
         patch_dir = patchdirs[0]
     else:
@@ -443,11 +442,11 @@ def _technically_make_patch(repo, path):
 def _apply_patches(repo_yml):
     verbose(f"Applying patches for {repo_yml.path}")
     relevant_patch_files = set()
-    for patchdir in repo_yml.all_patch_dirs(rel_or_abs="absolute") or []:
+    for patchdir in repo_yml.patches:
         # with patchdir.path as dir:
-        if not patchdir._path.exists():
-            patchdir._path.mkdir(parents=True)
-        for file in sorted(patchdir._path.rglob("*.patch")):
+        if not patchdir.path_absolute.exists():
+            patchdir.path_absolute.mkdir(parents=True)
+        for file in sorted(patchdir.path_absolute.rglob("*.patch")):
             if repo_yml.ignore_patchfile(file):
                 continue
             element = (patchdir, file)
@@ -598,11 +597,11 @@ def _get_repo_to_patchfiles(patchfiles):
             for repo in config.repos:
                 if not repo.enabled:
                     continue
-                patch_dirs = repo.all_patch_dirs(rel_or_abs="absolute")
-                if not patch_dirs:
+                patches = repo.patches
+                if not patches:
                     continue
-                for patchdir in patch_dirs:
-                    path = patchdir._path
+                for patchdir in patches:
+                    path = patchdir.path_absolute
                     for file in path.glob("*.patch"):
                         if file == patchfile:
                             return repo
@@ -646,10 +645,10 @@ def _get_available_patchfiles(ctx, param, incomplete):
     for repo in config.repos:
         if not repo.enabled:
             continue
-        for patchdir in repo.all_patch_dirs(rel_or_abs="absolute"):
-            if not patchdir._path.exists():
+        for patchdir in repo.patches:
+            if not patchdir.path_absolute.exists():
                 continue
-            for file in patchdir._path.glob("*.patch"):
+            for file in patchdir.path_absolute.glob("*.patch"):
                 patchfiles.append(file.relative_to(cwd))
     if incomplete:
         for file in patchfiles:

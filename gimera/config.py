@@ -8,25 +8,40 @@ from .repo import Repo, Remote
 from .consts import gitcmd as git
 from .tools import (
     _raise_error,
-    safe_relative_to,
-    is_empty_dir,
     _strip_paths,
     remember_cwd,
 )
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 
 
-class Patchdir(object):
-    def __init__(self, path, apply_from_here_dir):
+class PatchDir(object):
+    def __init__(self, repo_item, path, chdir):
         """
         Internal patches must be applied starting from subfolder.
         Patches from the main repo must be applied starting from parent main folder.
         """
+        self.repo_item = repo_item
+        self.config = repo_item.config
         self._path = Path(path)
-        self.apply_from_here_dir = apply_from_here_dir
+        self.chdir = chdir
+
+    @property
+    def apply_from_here_dir(self):
+        if self.chdir:
+            return self._get_absolute_path(self.chdir)
+        return self._get_absolute_path(self.repo_item.path)
 
     def __str__(self):
         return f"{self._path}"
+
+    def _get_absolute_path(self, path):
+        path = Path(path)
+        root = self.config.config_file.parent
+        return root / path
+
+    @property
+    def path_absolute(self):
+        return self._get_absolute_path(self._path)
 
     @property
     @contextmanager
@@ -37,6 +52,13 @@ class Patchdir(object):
                 path = self.apply_from_here_dir
             yield path
 
+    def as_dict(self):
+        d = {
+            "path": str(self._path),
+        }
+        if self.chdir:
+            d['chdir'] = str(self.chdir)
+        return d
 
 class Config(object):
     def __init__(
@@ -109,6 +131,11 @@ class Config(object):
         if main_repo.staged_files:
             _raise_error("There mustnt be any staged files when updating gimera.yml")
 
+        if 'patches' in value:
+            for path in value['patches']:
+                if isinstance(path, str):
+                    raise Exception("Please use PatchDir object now.")
+
         config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
         param_repo = repo
         for repo in config["repos"]:
@@ -116,11 +143,15 @@ class Config(object):
                 for k, v in value.items():
                     if k == "sha":
                         v = str(v)
+                    elif k == 'patches':
+                        v = [x.as_dict() for x in v]
                     repo[k] = v
                 break
         else:
             config["repos"].append(value)
         for k, v in value.items():
+            if k == 'patches':
+                continue
             try:
                 if getattr(param_repo, k) != v:
                     setattr(param_repo, k, v)
@@ -155,6 +186,18 @@ class Config(object):
         return res
 
     class RepoItem(object):
+        def parse_patches(self, patches_section):
+            result = []
+            for item in patches_section:
+                if isinstance(item, str):
+                    item = PatchDir(self, item, None)
+                elif isinstance(item, dict):
+                    item = PatchDir(self, Path(item["path"]), Path(item.get("chdir")) if item.get("chdir") else None)
+                else:
+                    _raise_error(f"Invalid patch definition: {item}")
+                result.append(item)
+            return result
+
         def __init__(self, config, config_section):
             """ """
             self.config = config
@@ -164,7 +207,7 @@ class Config(object):
             self.path = Path(config_section["path"])
             self.branch = self.eval(str(config_section["branch"]))
             self.merges = config_section.get("merges", [])
-            self.patches = config_section.get("patches", [])
+            self.patches = self.parse_patches(config_section.get("patches", []))
             self.ignored_patchfiles = config_section.get("ignored_patchfiles", [])
             self.edit_patchfile = config_section.get("edit_patchfile", "")
             self._type = config_section["type"]
@@ -240,7 +283,7 @@ class Config(object):
             return {
                 "path": self.path,
                 "branch": self.branch,
-                "patches": self.patches,
+                "patches": [x.as_dict() for x in self.patches],
                 "type": self._type,
                 "url": self._url,
                 "merges": self.merges,
@@ -270,51 +313,13 @@ class Config(object):
         def type(self, value):
             self._type = value
 
-        def all_patch_dirs(self, rel_or_abs=None):
-            if not rel_or_abs:
-                raise ValueError("Please define rel_or_abs")
-
-            def transform_outbound_patchdirs(dir):
-                patch_path = Path(dir)
-                apply_from_here = self.config.parent_path / self.path
-                if rel_or_abs == "absolute":
-                    root = self.config.config_file.parent
-                    patch_path = root / patch_path
-                    apply_from_here = root / apply_from_here
-                dir = Patchdir(patch_path, apply_from_here)
-                return dir
-
-            if isinstance(self.patches, str):
-                raise ValueError(
-                    f"Patches must be a list. But is {self.patches} for {self.url}"
-                )
-            res = list(map(transform_outbound_patchdirs, self.patches))
-
-            def transform_internal_patchdir(dir):
-                patch_path = Path(self.eval(str(dir)))
-                apply_from_here = self.path
-
-                if rel_or_abs == "absolute":
-                    root = self.config.config_file.parent
-                    patch_path = root / self.path / patch_path
-                    apply_from_here = root / apply_from_here
-                dir = Patchdir(patch_path, apply_from_here)
-                return dir
-
-            res += list(map(transform_internal_patchdir, self.internal_patch_dirs))
-            for test in res:
-                with test.path as testpath:
-                    if not (self.config.config_file.parent / testpath).exists():
-                        click.secho(f"Warning: not found: {test}", fg="yellow")
-            return res
-
         @property
         def fullpath(self):
             return self.config.config_file.parent / self.path
 
         def _get_type_of_patchfolder(self, path):
-            for test in self.patches:
-                if str(path).startswith(str(test)):
+            for patch_dir in self.patches:
+                if str(path).startswith(str(patch_dir._path)):
                     return "from_outside"
 
             for test in self.internal_patch_dirs:
