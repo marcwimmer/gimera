@@ -17,9 +17,6 @@ from .consts import inquirer_theme
 from .tools import (
     _raise_error,
     get_nearest_repo,
-    safe_relative_to,
-    is_empty_dir,
-    _strip_paths,
     temppath,
     rsync,
     wait_git_lock,
@@ -48,18 +45,6 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         ):
             if not changed_files:
                 return
-            if is_temp_path and changed_files:
-                if  os.getenv("GIMERA_FORCE") == "1":
-                    return
-                # hold on full stop: we are in an ignored directory and have changes
-                # They would be lost if we just continue
-                click.secho(
-                    f"Changed files detected in probably ignored directory.\nPlease analyze changes here: \n{main_repo.path}",
-                    fg="red",
-                )
-                main_repo.X(*(git + ["status"]))
-                main_repo.X(*(git + ["diff"]))
-                _raise_error("Halted to avoid data loss. Please check your changes or provide --force option to continue.")
             if not _start_question(repo_yml, changed_files):
                 return
 
@@ -150,16 +135,18 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
             )
             main_repo2 = Repo(path)
             for patchdir in repo_yml.patches:
-                dest_path = main_repo2.path / patchdir
+                dest_path = main_repo2.path / patchdir._path
                 dest_path.mkdir(exist_ok=True, parents=True)
-                patch_path = main_repo.path / patchdir
+                patch_path = main_repo.path / patchdir._path
                 if not patch_path.exists():
                     if os.getenv("GIMERA_NON_INTERACTIVE") != "1":
                         confirm(f"Path {patch_path} does not exist. Create?")
                         patch_path.mkdir(parents=True, exist_ok=True)
-                rsync(main_repo.path / patchdir, dest_path)
+                rsync(main_repo.path / patchdir._path, dest_path)
             main_repo2.simple_commit_all()
             with _temporarily_move_gimera(repo_yml, main_repo2.path):
+                if repo_yml.freeze_sha:
+                    raise NotImplementedError("FreezeSha - dont know which version")
                 _update_integrated_module(
                     main_repo2.path,
                     main_repo2,
@@ -178,7 +165,7 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
                 yield main_repo2, True
 
                 for patchdir in repo_yml.patches:
-                    rsync(main_repo2.path / patchdir, main_repo.path / patchdir)
+                    rsync(main_repo2.path / patchdir._path, main_repo.path / patchdir._path)
     else:
         yield main_repo, False
 
