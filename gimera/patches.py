@@ -145,8 +145,6 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
                 rsync(main_repo.path / patchdir._path, dest_path)
             main_repo2.simple_commit_all()
             with _temporarily_move_gimera(repo_yml, main_repo2.path):
-                if repo_yml.freeze_sha:
-                    raise NotImplementedError("FreezeSha - dont know which version")
                 _update_integrated_module(
                     main_repo2.path,
                     main_repo2,
