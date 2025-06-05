@@ -321,7 +321,7 @@ def _write_patch_content(
 
     else:
         # case: patch file is in main repo and can be committed there
-        (patch_dir._path / patch_filename).write_text(patch_content)
+        (patch_dir.path_absolute / patch_filename).write_text(patch_content)
 
         # commit the patches - do NOT - could lie in submodule - is hard to do
         subprocess.check_call((git + ["add", repo_yml.path]), cwd=main_repo.path)
