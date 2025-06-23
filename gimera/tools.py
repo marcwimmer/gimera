@@ -463,3 +463,12 @@ def split_every(n, iterable, piece_maker=tuple):
     while piece:
         yield piece
         piece = piece_maker(islice(iterator, n))
+
+@contextmanager
+def assert_exception_no_exit():
+    old_val = os.getenv("GIMERA_EXCEPTION_THAN_SYSEXIT", "0")
+    try:
+        os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+        yield
+    finally:
+        os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = old_val
