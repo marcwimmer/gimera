@@ -189,6 +189,12 @@ def _get_available_repos(ctx, param, incomplete):
     is_flag=True,
     help="Do not apply patches",
 )
+@click.option(
+    "-PC",
+    "--no-precommits",
+    is_flag=True,
+    help="No precommits",
+)
 def apply(
     repos,
     update,
@@ -208,7 +214,10 @@ def apply(
     migrate_changes,
     raise_exception,
     do_not_apply_patches,
+    no_precommits,
 ):
+    if no_precommits:
+        os.environ["GIMERA_NO_PRECOMMITS"] = "1"
     if verbose:
         os.environ["GIMERA_VERBOSE"] = "1"
     if no_sha_update:

@@ -50,5 +50,5 @@ def _commit(repo, branch, message, preview):
             doit = inquirer.confirm("Commit this?", default=True)
             if not doit:
                 return
-        gitrepo.X(*(git + ["commit", "-m", message]))
+        gitrepo.X(*(git + ["commit", "--no-verify", "-m", message]))
         gitrepo.X(*(git + ["push"]))

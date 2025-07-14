@@ -259,7 +259,7 @@ def _apply_subgimera(
             for f in dirty_files:
                 parent_repo.X(*(git + ["add", f]))
             parent_repo.X(
-                *(git + ["commit", "-m", f"gimera: updated sub path {repo.path}"])
+                *(git + ["commit", "--no-verify", "-m", f"gimera: updated sub path {repo.path}"])
             )
         # commit submodule updates or changed dirs
     finally:
