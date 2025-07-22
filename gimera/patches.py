@@ -327,7 +327,7 @@ def _write_patch_content(
         subprocess.check_call((git + ["add", repo_yml.path]), cwd=main_repo.path)
         subprocess.check_call((git + ["add", patch_dir._path]), cwd=main_repo.path)
         subprocess.check_call(
-            (git + ["commit", "-m", f"added patch {patch_filename}"]),
+            (git + ["commit", "-m", f"added patch {patch_filename}", "--no-verify"]),
             cwd=main_repo.path,
         )
 
@@ -415,7 +415,7 @@ def _clone_directory_and_add_patch_file(
 
 def _technically_make_patch(repo, path):
     repo.X(*(git + ["add", path]))
-    repo.X(*(git + ["commit", "-m", "for patch"]))
+    repo.X(*(git + ["commit", "-m", "for patch", "--no-verify"]))
 
     patch_content = Repo(path).out(
         *(git + ["format-patch", "HEAD~1", "--stdout", "--relative"])
