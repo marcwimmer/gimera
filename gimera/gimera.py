@@ -76,12 +76,23 @@ def combine_patches():
 def _get_available_repos(ctx, param, incomplete):
     repos = []
 
+    os.system(f"echo '{incomplete}' >> /tmp/gim")
+
     if "/" in incomplete:
         incomplete = incomplete.replace("/", "/*") + "*"
     else:
         incomplete = "*" + incomplete + "*"
 
     repos = list(_expand_repos([incomplete]))
+    os.system(f"echo '{repos}' >> /tmp/gim")
+    repos = list(map(str, repos))
+
+    # repos = list(map(lambda x: '/'.join(x.split("/")[1:]), repos))
+    def remove_parts(x):
+        count = incomplete.count("/")
+        x = x.split("/")[count:]
+        return '/'.join(x)
+    repos = list(map(remove_parts, repos))
 
     return sorted(repos)
 
