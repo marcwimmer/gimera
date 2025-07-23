@@ -414,7 +414,7 @@ def _clone_directory_and_add_patch_file(
 
 
 def _technically_make_patch(repo, path):
-    repo.X(*(git + ["add", path]))
+    repo.X(*(git + ["add", '-f', path]))
     repo.X(*(git + ["commit", "-m", "for patch", "--no-verify"]))
 
     patch_content = Repo(path).out(
