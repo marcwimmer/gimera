@@ -319,7 +319,8 @@ def _make_sure_hidden_gimera_dir(root_dir):
             if repo.staged_files:
                 _raise_error("No staged files allowed, when changing .gitignore")
             repo.X(*(git + ["add", ".gitignore"]))
-            repo.X(*(git + ["commit", "-m", "--no-verify", "add .gimera to .gitignore"]))
+            if repo.all_dirty_files:
+                repo.X(*(git + ["commit", "--no-verify", "-m", "add .gimera to .gitignore"]))
     return root_dir / ".gimera"
 
 
