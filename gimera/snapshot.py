@@ -138,7 +138,7 @@ def _snapshot_dir(root_dir, path, filter_paths=None):
         subprocess.check_call((git + ["reset"]), cwd=repo.path)
         subprocess.check_call((git + ["checkout", "."]), cwd=repo.path)
         for dirtyfile in repo.untracked_files_absolute:
-            if dirtyfile.is_dir():
+            if dirtyfile.is_dir() and not dirtyfile.is_symlink():
                 shutil.rmtree(dirtyfile)
             else:
                 dirtyfile.unlink()
