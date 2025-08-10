@@ -94,6 +94,8 @@ def _get_available_repos(ctx, param, incomplete):
         return '/'.join(x)
     repos = list(map(remove_parts, repos))
 
+    prefix = "/".join(incomplete.split("/")[:-1])
+    repos = list(map(lambda x: (prefix and prefix + "/" or "") + x, repos))
     return sorted(repos)
 
 
