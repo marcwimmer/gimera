@@ -49,9 +49,10 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         golden_path.parent.mkdir(exist_ok=True, parents=True)
 
         must_exist = ["HEAD", "refs", "objects", "config", "info"]
-        if golden_path.exists() and any(
+        if golden_path.exists() and (any(
             not (golden_path / x).exists() for x in must_exist
-        ):
+        ) or os.getenv("GIMERA_CLEAR_CACHE") == "1"):
+            import pudb;pudb.set_trace()
             rmtree(golden_path)
 
         just_cloned = False

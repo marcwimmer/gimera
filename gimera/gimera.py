@@ -208,6 +208,9 @@ def _get_available_repos(ctx, param, incomplete):
     is_flag=True,
     help="No precommits",
 )
+@click.option(
+    "--clear-cache", is_flag=True,
+)
 def apply(
     repos,
     update,
@@ -228,6 +231,7 @@ def apply(
     raise_exception,
     do_not_apply_patches,
     no_precommits,
+    clear_cache,
 ):
     if no_precommits:
         os.environ["GIMERA_NO_PRECOMMITS"] = "1"
@@ -244,6 +248,8 @@ def apply(
         os.environ['GIMERA_DO_NOT_APPLY_PATCHES'] = "1"
     if all_integrated and all_submodule:
         _raise_error("Please set either -I or -S")
+    if clear_cache:
+        os.environ['GIMERA_CLEAR_CACHE'] = "1"
     ttype = None
     ttype = REPO_TYPE_INT if all_integrated else ttype
     ttype = REPO_TYPE_SUB if all_submodule else ttype
