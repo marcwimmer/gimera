@@ -477,7 +477,7 @@ class Repo(GitCommands):
 
             gitcmd = ["commit", "-q", "--no-verify"]
             if ammend:
-                gitcmd += ["--amend", "--no-edit"]
+                gitcmd += ["--amend", "--no-edit", "--allow-empty"]
             else:
                 gitcmd += ["-m", f"pre-commit run for {rel_path}"]
 
