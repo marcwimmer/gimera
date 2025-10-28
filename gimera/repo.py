@@ -241,6 +241,30 @@ class Repo(GitCommands):
         else:
             return True
 
+    @contextmanager
+    def temporary_unignore(self, path):
+        backup_gitignore = None
+        gitignore_path = self.path / ".gitignore"
+        if gitignore_path.exists(): 
+            backup_gitignore = gitignore_path.read_text().splitlines()
+        
+        try:
+            # no index: if file is already committed, then there would be no output
+            ignored = self.X(*(git + ["check-ignore", "-v", "--no-index", path]), allow_error=False, output=True)
+        except subprocess.CalledProcessError:
+            ignored = False
+        if ignored and backup_gitignore:
+            except_lines = [int(x.split(":", 2)[1]) for x in ignored.splitlines()]
+            tempcontent = list(backup_gitignore)
+            for except_line in sorted(except_lines, reverse=True):
+                del tempcontent[except_line - 1]
+            gitignore_path.write_text("\n".join(tempcontent) + "\n")
+
+        yield
+
+        if backup_gitignore:
+            gitignore_path.write_text("\n".join(backup_gitignore) + "\n")
+
     def _fix_to_remove_subdirectories(self, config):
         # https://stackoverflow.com/questions/4185365/no-submodule-mapping-found-in-gitmodule-for-a-path-thats-not-a-submodule
         # commands may block

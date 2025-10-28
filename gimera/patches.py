@@ -50,18 +50,19 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
 
             with _temporarily_add_untracked_files(main_repo, untracked_files):
                 subdir_path = Path(main_repo.path) / repo_yml.path
-                patch_content = _technically_make_patch(main_repo, subdir_path)
+                with main_repo.temporary_unignore(subdir_path):
+                    patch_content = _technically_make_patch(main_repo, subdir_path)
 
-                if not repo_yml.patches:
-                    if os.getenv("GIMERA_FORCE") == "1":
-                        return
-                    if os.getenv("GIMERA_NON_INTERACTIVE") != "1" and not is_temp_path:
-                        repo_yml = _ask_user_to_create_path_directory(repo_yml)
                     if not repo_yml.patches:
-                        _raise_error(
-                            "Please define at least one directory, "
-                            f"where patches are stored for {repo_yml.path}"
-                        )
+                        if os.getenv("GIMERA_FORCE") == "1":
+                            return
+                        if os.getenv("GIMERA_NON_INTERACTIVE") != "1" and not is_temp_path:
+                            repo_yml = _ask_user_to_create_path_directory(repo_yml)
+                        if not repo_yml.patches:
+                            _raise_error(
+                                "Please define at least one directory, "
+                                f"where patches are stored for {repo_yml.path}"
+                            )
 
                 with _prepare_patchdir(repo_yml) as (patch_dir, patch_filename):
                     _write_patch_content(
@@ -120,6 +121,9 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
     """
     If directory is ignored then move to temporary path.
     Apply changes from local dir to get the diffs.
+
+    also transfer the parent .gitignore file, so that e.g. pyc files are 
+    ignored
     """
     from .cachedir import _get_cache_dir
     from .integrated import _update_integrated_module
@@ -128,7 +132,6 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
         main_repo.check_ignore(repo_yml.path)
         and (main_repo.path / repo_yml.path).exists()
     ):
-        # TODO perhaps faster when just copied .git into the hidden dir
         with temppath() as path:
             subprocess.check_call(
                 (git + ["init", "--initial-branch=main", "."]), cwd=path
@@ -160,6 +163,12 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
                     path / repo_yml.path,
                     exclude=[".git"],
                 )
+                gitignore_file = main_repo.path / ".gitignore"
+                if gitignore_file.exists():
+                    shutil.copy(
+                        gitignore_file,
+                        path / ".gitignore",
+                    )
                 yield main_repo2, True
 
                 for patchdir in repo_yml.patches:
@@ -324,7 +333,9 @@ def _write_patch_content(
         (patch_dir.path_absolute / patch_filename).write_text(patch_content)
 
         # commit the patches - do NOT - could lie in submodule - is hard to do
-        subprocess.check_call((git + ["add", repo_yml.path]), cwd=main_repo.path)
+        with main_repo.temporary_unignore(repo_yml.path):
+            # make sure by that, that e.g. pyc files are ignored
+            subprocess.check_call((git + ["add", repo_yml.path]), cwd=main_repo.path)
         subprocess.check_call((git + ["add", patch_dir._path]), cwd=main_repo.path)
         subprocess.check_call(
             (git + ["commit", "-m", f"added patch {patch_filename}", "--no-verify"]),
@@ -414,7 +425,7 @@ def _clone_directory_and_add_patch_file(
 
 
 def _technically_make_patch(repo, path):
-    repo.X(*(git + ["add", '-f', path]))
+    repo.X(*(git + ["add", path]))
     repo.X(*(git + ["commit", "-m", "for patch", "--no-verify"]))
 
     patch_content = Repo(path).out(
