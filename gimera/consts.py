@@ -1,6 +1,6 @@
 import os
 import inquirer
-gitcmd = ["git", "-c", "protocol.file.allow=always"]
+gitcmd = ["git", "-f", "-c", "protocol.file.allow=always"]
 try:
     inquirer_theme = inquirer.themes.GreenPassion()
 except:
