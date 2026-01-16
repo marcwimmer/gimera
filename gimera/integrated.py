@@ -1,3 +1,4 @@
+import time
 from contextlib import contextmanager
 import os
 import click
@@ -73,7 +74,18 @@ def _update_integrated_module(
         if any(
             str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
         ):
-            parent_repo.X(*(git + ["add", dest_path]))
+            try:
+                parent_repo.X(*(git + ["add", dest_path]))
+            except Exception as ex:
+                click.secho(
+                    f"During updating an integrated module, {len(parent_repo.all_dirty_files_absolute)} changed "
+                    "files were detected. Usually the files would be add automatically, but an error occurred. "
+                    "Usually this error means, that the folder belongs to .gitignore. Another reason is not known "
+                    "at the moment. So in general this information is no error but just an information and you may "
+                    "continue. An uncommon reason could also be, that disk space ran out. "
+                    "It can be, that we will remove this message. ", fg='yellow'
+                )
+                time.sleep(5)
 
         if parent_repo.staged_files:
             gitcmd = ["commit", "--no-verify", "-m", msg]
