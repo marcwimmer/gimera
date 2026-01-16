@@ -70,7 +70,9 @@ def _update_integrated_module(
             # so force add
             parent_repo.X(*(git + ["add", '-f', repo_yml.config.config_file]))
         parent_repo.commit_dir_if_dirty(dest_path, msg)
-        if any(
+        # for e.g. odoo.sh projects we need to not add odoo/enterprise repos as they are most likely in .gitignor
+        # configure those repos to local:true in gimery.yml, then they will still be pulled, but not added parent repo
+        if not repo_yml.local and any(
             str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
         ):
             parent_repo.X(*(git + ["add", dest_path]))
