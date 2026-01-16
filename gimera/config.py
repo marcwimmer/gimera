@@ -211,6 +211,8 @@ class Config(object):
             self.ignored_patchfiles = config_section.get("ignored_patchfiles", [])
             self.edit_patchfile = config_section.get("edit_patchfile", "")
             self._type = config_section["type"]
+            # TODO local is currently only implemented for repos of type 'integrated'
+            self.local = config_section.get("local", False)
             self._url = self.eval(config_section["url"])
             self._remotes = config_section.get("remotes", {})
             if self.path in [x.path for x in config.repos]:
