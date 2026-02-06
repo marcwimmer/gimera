@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import atexit
 import tempfile
 import re
 from contextlib import contextmanager
@@ -20,6 +21,8 @@ from .tools import _get_main_repo
 from .apply import _apply
 from .commit import _commit
 from .patches import _edit_patch
+from .tools import rmtree
+from . import runtime_state
 
 
 @click.group()
@@ -500,3 +503,12 @@ def snaprestore(repos):
             filter_repos.append(str(repo))
 
     snapshot_restore(main_repo.path, filter_repos, token=token)
+
+
+def cleanup():
+    for key, path in runtime_state['temppaths'].items():
+        try:
+            rmtree(path)
+        except:
+            click.secho(f"Could not wipe: {path}", fg='yellow')
+atexit.register(cleanup)

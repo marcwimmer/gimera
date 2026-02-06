@@ -12,6 +12,9 @@ import click
 import sys
 from curses import wrapper
 from contextlib import contextmanager
+from tempfile import TemporaryDirectory
+from . import runtime_state
+
 
 
 def is_forced():
@@ -212,21 +215,33 @@ def try_rm_tree(path):
 
 
 @contextmanager
-def temppath(mkdir=True):
-    path = Path(tempfile.mktemp(suffix="."))
+def temppath(mkdir=True, reuse_key=None):
+    """
+    reuse_key: keeps the directory - for reusability while gimera runs
+    """
+    if reuse_key in runtime_state['temppaths']:
+        yield runtime_state['temppaths'][reuse_key]
+        return
+
+    with TemporaryDirectory() as path:
+        path = Path(path)
+
     try:
         if mkdir:
             path.mkdir()
         yield path
     finally:
-        try_rm_tree(path)
+        if reuse_key is None:
+            try_rm_tree(path)
+        else:
+            runtime_state['temppaths'][reuse_key] = path
 
 
 def path1inpath2(path1, path2):
     try:
         path1.relative_to(path2)
         return True
-    except:
+    except Exception:
         return False
 
 
