@@ -43,6 +43,8 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         with temppath(mkdir=False, reuse_key=TEMP_KEY) as path:
             if not path.exists():
                 subprocess.run(["git", "clone", "--branch", repo_yml.branch, repo_yml.url, path], check=True)
+                if repo_yml.sha:
+                    subprocess.run(["git", "checkout", repo_yml.sha], check=True)
             yield path
             return
 
@@ -86,13 +88,16 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
             repo = Repo(effective_path)
             if not repo.contain_commit(repo_yml.sha):
                 # make a fetch quickly; sha is missing
-                repo.X(*(git + ["fetch", "--all"]))
+                # did not fetch all in a bare repo:
+                #repo.X(*(git + ["fetch", "--all", "--tags", "--prune"]))
+                repo.fetchall()
                 if not repo.contain_commit(repo_yml.sha):
                     if not update:
                         _raise_error(
                             (
                                 f"After fetching the commit {repo_yml.sha} "
-                                f"was not found for {repo_yml.path}"
+                                f"was not found for {repo_yml.path}.\n"
+                                f"All remote branches were checked."
                             )
                         )
 

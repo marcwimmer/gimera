@@ -318,7 +318,21 @@ class Repo(GitCommands):
         raise ValueError(f"Path not found: {path}")
 
     def fetch(self, remote=None, ref=None):
-        self.X(*(git + ["fetch", remote and remote.name or None, ref or None]))
+        if not isinstance(ref, (tuple, list)) and ref:
+            ref = [ref]
+        elif ref is None:
+            ref = []
+        if remote:
+            if isinstance(remote, str):
+                remote = remote
+            else:
+                remote = remote.name
+        else:
+            remote = None
+        self.X(*(git + ["fetch", remote] + ref + ["--prune"]))
+
+    def fetchall(self):
+        self.fetch(remote="origin",ref=["+refs/heads/*:refs/remotes/origin/*","+refs/tags/*:refs/tags/*", "--prune"])
 
     def get_remote(self, name):
         return [x for x in self.remotes if x.name == name][0]
