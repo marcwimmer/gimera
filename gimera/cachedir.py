@@ -1,4 +1,5 @@
 import os
+import time
 import uuid
 import click
 import json
@@ -25,6 +26,7 @@ from contextlib import contextmanager
 
 @contextmanager
 def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=None):
+    import pudb;pudb.set_trace()
     url = repo_yml.url
     if not url:
         click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
@@ -44,7 +46,7 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
             if not path.exists():
                 subprocess.run(["git", "clone", "--branch", repo_yml.branch, repo_yml.url, path], check=True)
                 if repo_yml.sha:
-                    subprocess.run(["git", "checkout", repo_yml.sha], check=True)
+                    Repo(path).X(*(git + ["checkout", repo_yml.sha]))
             yield path
             return
 
@@ -57,10 +59,12 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
     try:
         golden_path.parent.mkdir(exist_ok=True, parents=True)
 
-        must_exist = ["HEAD", "refs", "objects", "config", "info"]
+        must_exist = ["HEAD", "refs", "objects", "config"]
         if golden_path.exists() and (any(
             not (golden_path / x).exists() for x in must_exist
         ) or os.getenv("GIMERA_CLEAR_CACHE") == "1"):
+            click.secho(f"CAUTION: Removing possible corrupted cache directory:\n{golden_path}", fg="red")
+            time.sleep(3)
             rmtree(golden_path)
 
         just_cloned = False
@@ -103,6 +107,7 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
 
         yield effective_path
 
+        import pudb;pudb.set_trace()
         if just_cloned:
             replace_dir_with(possible_temp_path, golden_path)
 
@@ -127,5 +132,6 @@ def _make_tar_file(_path, tarfile):
 
 
 def _extract_tar_file(_path, tarfile):
+    import pudb;pudb.set_trace()
     click.secho(f"Extracting tar file {tarfile} to {_path}", fg="yellow")
     subprocess.check_call(["tar", "xfz", str(tarfile)], cwd=_path)
