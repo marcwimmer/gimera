@@ -277,7 +277,9 @@ def reformat_url(url, ttype):
     assert ttype in ["http", "git"]
 
     current = get_url_type(url)
-    if ttype == "http" and current == "git":
+    if ttype == current:
+        return url
+    elif ttype == "http" and current == "git":
         if url.startswith("git@"):
             url = url[4:]
         if ":" in url:
