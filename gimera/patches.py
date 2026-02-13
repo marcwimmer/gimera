@@ -136,6 +136,7 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
             subprocess.check_call(
                 (git + ["init", "--initial-branch=main", "."]), cwd=path
             )
+            Repo(path).X(*(git + ["commit", "-m", 'init', '--allow-empty']), output=True)
             main_repo2 = Repo(path)
             for patchdir in repo_yml.patches:
                 dest_path = main_repo2.path / patchdir._path
