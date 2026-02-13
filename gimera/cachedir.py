@@ -26,7 +26,6 @@ from contextlib import contextmanager
 
 @contextmanager
 def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=None):
-    import pudb;pudb.set_trace()
     url = repo_yml.url
     if not url:
         click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
@@ -44,8 +43,9 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         TEMP_KEY = f"{repo_yml.url}_{repo_yml.sha or repo_yml.branch}"
         with temppath(mkdir=False, reuse_key=TEMP_KEY) as path:
             if not path.exists():
-                subprocess.run(["git", "clone", "--branch", repo_yml.branch, repo_yml.url, path], check=True)
+                subprocess.run(["git", "clone", "--single-branch", "--depth=1", "--branch", repo_yml.branch, repo_yml.url, path], check=True)
                 if repo_yml.sha:
+                    Repo(path).X(*(git + ["fetch", "origin", repo_yml.sha]))
                     Repo(path).X(*(git + ["checkout", repo_yml.sha]))
             yield path
             return
@@ -107,7 +107,6 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
 
         yield effective_path
 
-        import pudb;pudb.set_trace()
         if just_cloned:
             replace_dir_with(possible_temp_path, golden_path)
 
@@ -132,6 +131,5 @@ def _make_tar_file(_path, tarfile):
 
 
 def _extract_tar_file(_path, tarfile):
-    import pudb;pudb.set_trace()
     click.secho(f"Extracting tar file {tarfile} to {_path}", fg="yellow")
     subprocess.check_call(["tar", "xfz", str(tarfile)], cwd=_path)
