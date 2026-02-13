@@ -34,9 +34,9 @@ class Repo(GitCommands):
 
     def contain_commit(self, commit):
         try:
-            self.X(*(git + ["cat-file", "-t", commit]))
+            self.X(*(git + ["cat-file", "-t", commit]), output=True)
             return True
-        except Exception as ex:
+        except Exception:
             return False
 
     def contains_branch(self, branch):
@@ -46,7 +46,7 @@ class Repo(GitCommands):
                 output=True,
             )
             return True
-        except Exception as ex:
+        except Exception:
             return False
 
     def get_branch(self):
