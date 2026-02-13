@@ -42,9 +42,7 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         TEMP_KEY = f"{repo_yml.url}_{repo_yml.sha or repo_yml.branch}"
         with temppath(mkdir=False, reuse_key=TEMP_KEY) as path:
             if not path.exists():
-                subprocess.run(["git", "clone", "--filter=blob:none", "--no-checkout", repo_yml.url, path], check=True)
-                subprocess.run(["git", "fetch", "origin", repo_yml.branch], check=True)
-                subprocess.run(["git", "checkout", repo_yml.branch], check=True)
+                subprocess.run(["git", "clone", "--branch", repo_yml.branch, repo_yml.url, path], check=True)
             yield path
             return
 
