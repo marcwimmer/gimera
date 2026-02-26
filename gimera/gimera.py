@@ -215,6 +215,9 @@ def _get_available_repos(ctx, param, incomplete):
     "--clear-cache", is_flag=True,
 )
 @click.option(
+    "--clear-zip-cache", is_flag=True,
+)
+@click.option(
     "--no-cache", is_flag=True,
 )
 def apply(
@@ -238,6 +241,7 @@ def apply(
     do_not_apply_patches,
     no_precommits,
     clear_cache,
+    clear_zip_cache,
     no_cache,
 ):
     if no_precommits:
@@ -257,6 +261,8 @@ def apply(
         _raise_error("Please set either -I or -S")
     if clear_cache:
         os.environ['GIMERA_CLEAR_CACHE'] = "1"
+    if clear_zip_cache:
+        os.environ['GIMERA_CLEAR_ZIP_CACHE'] = "1"
     if no_cache:
         os.environ['GIMERA_NO_CACHE'] = "1"
     ttype = None

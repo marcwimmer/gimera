@@ -63,9 +63,14 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
         if golden_path.exists() and (any(
             not (golden_path / x).exists() for x in must_exist
         ) or os.getenv("GIMERA_CLEAR_CACHE") == "1"):
-            click.secho(f"CAUTION: Removing possible corrupted cache directory:\n{golden_path}", fg="red")
-            time.sleep(3)
+            click.secho(f"Removing cache directory:\n{golden_path}", fg="red")
             rmtree(golden_path)
+
+        if os.getenv("GIMERA_CLEAR_ZIP_CACHE", "") == "1":
+            tarfile = _get_cache_dir_tarfile(golden_path)
+            if tarfile.exists():
+                click.secho(f"Removing cache tar file:\n{tarfile}", fg="red")
+                tarfile.unlink()
 
         just_cloned = False
         if not golden_path.exists():
@@ -79,9 +84,17 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
                     "/tmp"
                 ):  # called from other situations where path may not exist anymore
                     if tarfile.exists():
-                        _extract_tar_file(_path, tarfile)
-                        just_cloned = True
-                    else:
+                        try:
+                            _extract_tar_file(_path, tarfile)
+                            just_cloned = True
+                        except Exception:
+                            click.secho(
+                                f"Failed to extract tar file {tarfile} - will try to clone again.",
+                                fg="red",
+                            )
+                            tarfile.unlink()
+
+                    if not just_cloned:
                         Repo(main_repo.path).X(*(git + ["clone", "--bare", url, _path]))
                         _make_tar_file(_path, tarfile)
                         just_cloned = True
@@ -127,7 +140,9 @@ def _make_tar_file(_path, tarfile):
         f"Creating tar file {tarfile} from {_path} - might take some time on large repos.",
         fg="yellow",
     )
-    subprocess.check_call(["tar", "cfz", str(tarfile), "-C", str(_path), "."])
+    tempfilename = str(tarfile) + "." + str(uuid.uuid4())
+    subprocess.check_call(["tar", "cfz", str(tempfilename), "-C", str(_path), "."])
+    os.replace(tempfilename, tarfile)
 
 
 def _extract_tar_file(_path, tarfile):
