@@ -2,7 +2,6 @@ import os
 import time
 import uuid
 import click
-import json
 import shutil
 import sys
 import subprocess
@@ -28,7 +27,7 @@ from contextlib import contextmanager
 def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=None):
     url = repo_yml.url
     if not url:
-        click.secho(f"Missing url: {json.dumps(repo_yml, indent=4)}")
+        click.secho(f"Missing url for: {repo_yml.path}")
         sys.exit(-1)
     try:
         urlsafe = reformat_url(url, "git")
@@ -95,6 +94,8 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
                             tarfile.unlink()
 
                     if not just_cloned:
+                        rmtree(_path)
+                        _path.mkdir(parents=True)
                         Repo(main_repo.path).X(*(git + ["clone", "--bare", url, _path]))
                         _make_tar_file(_path, tarfile)
                         just_cloned = True
@@ -116,6 +117,12 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
                                 f"was not found for {repo_yml.path}.\n"
                                 f"All remote branches were checked."
                             )
+                        )
+                    else:
+                        click.secho(
+                            f"Warning: commit {repo_yml.sha} not found "
+                            f"for {repo_yml.path} - will retry after update.",
+                            fg="yellow",
                         )
 
         yield effective_path
