@@ -42,9 +42,10 @@ def test_recursive_gimeras_2_levels(temppath):
         repo_main = _make_remote_repo(temppath / "mainrepo")
         repo_sub = _make_remote_repo(temppath / "sub1")
         repo_subsub = _make_remote_repo(temppath / "subsub1")
-        path = Path(os.path.expanduser("~/.cache/gimera"))
+        path = Path(os.environ["GIMERA_CACHE_DIR"])
         if path.exists():
             shutil.rmtree(path)
+        path.mkdir(parents=True, exist_ok=True)
 
         # region gimera config
         gimera_main = {
@@ -173,9 +174,10 @@ def test_recursive_gimeras_3_levels(temppath):
         repo_sub1 = _make_remote_repo(temppath / "sub1")
         repo_sub2 = _make_remote_repo(temppath / "sub2")
         repo_sub3 = _make_remote_repo(temppath / "sub3")
-        path = Path(os.path.expanduser("~/.cache/gimera"))
+        path = Path(os.environ["GIMERA_CACHE_DIR"])
         if path.exists():
             shutil.rmtree(path)
+        path.mkdir(parents=True, exist_ok=True)
 
         # region gimera config
         gimera_main = {
@@ -297,9 +299,10 @@ def test_recursive_gimeras_5_levels(temppath):
         repo_sub3 = _make_remote_repo(temppath / "sub3")
         repo_sub4 = _make_remote_repo(temppath / "sub4")
         repo_sub5 = _make_remote_repo(temppath / "sub5")
-        path = Path(os.path.expanduser("~/.cache/gimera"))
+        path = Path(os.environ["GIMERA_CACHE_DIR"])
         if path.exists():
             shutil.rmtree(path)
+        path.mkdir(parents=True, exist_ok=True)
 
         # region gimera config
         gimera_main = {

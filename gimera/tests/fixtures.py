@@ -40,15 +40,11 @@ def temppath():
 
 
 @pytest.fixture(autouse=True)
-def cleangimera_cache():
-    cache_dir = Path(os.path.expanduser("~")) / ".cache/gimera"
-    backup_dir = cache_dir.parent / f"{cache_dir.name}_backup"
-    if cache_dir.exists():
-        if backup_dir.exists():
-            shutil.rmtree(backup_dir)
-        shutil.move(cache_dir, backup_dir)
+def cleangimera_cache(tmp_path):
+    cache_dir = tmp_path / "gimera_cache"
+    cache_dir.mkdir()
+    os.environ["GIMERA_CACHE_DIR"] = str(cache_dir)
     yield
+    os.environ.pop("GIMERA_CACHE_DIR", None)
     if cache_dir.exists():
         shutil.rmtree(cache_dir)
-    if backup_dir.exists():
-        shutil.move(backup_dir, cache_dir)

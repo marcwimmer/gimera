@@ -30,7 +30,8 @@ def _make_cache_path(url):
     for c in "?:+[]{}\\/\"'_":
         urlsafe = urlsafe.replace(c, "-")
     urlsafe = urlsafe.split("@")[-1]
-    return Path(os.path.expanduser("~/.cache/gimera")) / urlsafe
+    base = Path(os.environ.get("GIMERA_CACHE_DIR") or os.path.expanduser("~/.cache/gimera"))
+    return base / urlsafe
 
 
 def _invalidate_cache_if_needed(golden_path):
