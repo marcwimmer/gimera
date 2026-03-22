@@ -37,6 +37,7 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
             git
             + [
                 "commit",
+                "--no-verify",
                 "-m",
                 (
                     f"gimera: updated submodule at {subrepo.path.relative_to(main_repo.path)} "
@@ -211,6 +212,7 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
                         git
                         + [
                             "commit",
+                            "--no-verify",
                             "-m",
                             f"removed path {relpath} to insert submodule",
                         ]
@@ -241,7 +243,7 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
         repo.X(*(git + ["add", ".gitmodules"]))
         click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
         if repo.staged_files:
-            repo.X(*(git + ["commit", "-m", f"gimera added submodule: {relpath}"]))
+            repo.X(*(git + ["commit", "--no-verify", "-m", f"gimera added submodule: {relpath}"]))
 
     # check for success
     state = get_effective_state(

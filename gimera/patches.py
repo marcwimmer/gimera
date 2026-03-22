@@ -411,7 +411,7 @@ def _clone_directory_and_add_patch_file(
         patch_path.parent.mkdir(exist_ok=True, parents=True)
         patch_path.write_text(content)
         repo.X(*(git + ["add", patch_path.relative_to(path)]))
-        repo.X(*(git + ["commit", "-m", f"added patchfile: {patch_path}"]))
+        repo.X(*(git + ["commit", "--no-verify", "-m", f"added patchfile: {patch_path}"]))
         repo.X(*(git + ["push"]))
         del repo
         # also make sure that local cache is updated, because
