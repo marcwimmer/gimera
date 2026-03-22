@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import os
 from pathlib import Path
+import click
 from .repo import Repo
 from .fetch import _fetch_repos_in_parallel
 from .tools import _get_main_repo
@@ -18,6 +19,35 @@ from .submodule import __add_submodule
 from .tools import get_closest_gimera
 from .tools import get_effective_state
 from .tools import _make_sure_hidden_gimera_dir
+from .cachedir import _get_cache_dir
+
+
+def _check_sha_belongs_to_branch(main_repo, repo_yml):
+    if not repo_yml.sha:
+        return
+
+    with _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=True) as cache_dir:
+        if not cache_dir:
+            return
+        repo = Repo(cache_dir)
+        try:
+            repo.X(*(git + ["merge-base", "--is-ancestor", repo_yml.sha, repo_yml.branch]))
+        except Exception:
+            if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+                click.secho(
+                    f"SHA {repo_yml.sha} does not belong to branch "
+                    f"{repo_yml.branch}. Removing SHA.",
+                    fg="yellow",
+                )
+            else:
+                answer = click.prompt(
+                    f"SHA {repo_yml.sha} does not belong to branch "
+                    f"{repo_yml.branch}. Removing SHA? (ok or abort)",
+                    type=click.Choice(["ok", "abort"], case_sensitive=False),
+                )
+                if answer == "abort":
+                    _raise_error("Aborted by user.")
+            repo_yml._sha = None
 
 
 def _apply(
@@ -117,6 +147,8 @@ def _internal_apply(
         try:
             for repo in repos:
                 verbose(f"applying {repo.path}")
+                if not update:
+                    _check_sha_belongs_to_branch(main_repo, repo)
                 _turn_into_correct_repotype(
                     sub_path or main_repo.path,
                     main_repo,

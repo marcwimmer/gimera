@@ -111,7 +111,6 @@ def _get_available_repos(ctx, param, incomplete):
     help="If set, then latest versions are pulled from remotes.",
 )
 @click.option(
-    "-I",
     "--all-integrated",
     is_flag=True,
     help="Overrides setting in gimera.yml and sets 'integrated' for all.",

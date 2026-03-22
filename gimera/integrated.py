@@ -5,6 +5,7 @@ import click
 from pathlib import Path
 from .repo import Repo, Remote
 from .tools import _raise_error
+from .tools import is_forced
 from .consts import gitcmd as git
 from .tools import wait_git_lock
 from .tools import rmtree
@@ -44,6 +45,15 @@ def _update_integrated_module(
         # BTW: delete-after cannot remove unused directories - cool to know; is
         # just standarded out
         if dest_path.exists():
+            dirty_files = [
+                f for f in parent_repo.all_dirty_files_absolute
+                if str(f).startswith(str(dest_path))
+            ]
+            if dirty_files and not is_forced():
+                _raise_error(
+                    f"Directory {repo_yml.path} contains uncommitted changes. "
+                    "Please commit or purge before!"
+                )
             rmtree(dest_path)
 
         with wait_git_lock(cache_dir):
