@@ -205,10 +205,9 @@ def _get_available_repos(ctx, param, incomplete):
     help="Do not apply patches",
 )
 @click.option(
-    "-PC",
-    "--no-precommits",
+    "--run-pre-commits",
     is_flag=True,
-    help="No precommits",
+    help="Run pre-commit hooks at the end of apply",
 )
 @click.option(
     "--clear-cache", is_flag=True,
@@ -238,13 +237,15 @@ def apply(
     migrate_changes,
     raise_exception,
     do_not_apply_patches,
-    no_precommits,
+    run_pre_commits,
     clear_cache,
     clear_zip_cache,
     no_cache,
 ):
-    if no_precommits:
-        os.environ["GIMERA_NO_PRECOMMITS"] = "1"
+    import shutil
+
+    if not run_pre_commits:
+        os.environ["GIMERA_NO_PRECOMMIT"] = "1"
     if verbose:
         os.environ["GIMERA_VERBOSE"] = "1"
     if no_sha_update:
@@ -296,6 +297,14 @@ def apply(
 
         snapshot.cleanup()
         raise
+
+    if not run_pre_commits and repos and shutil.which("pre-commit"):
+        dirs = " ".join(repos)
+        click.secho(
+            f"\nYou may run pre-commit for the applied repos:\n\n"
+            f"  pre-commit run --files $(git ls-files {dirs})\n",
+            fg="yellow",
+        )
 
 
 def clean_branch_names(arr):

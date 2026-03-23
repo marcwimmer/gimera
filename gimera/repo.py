@@ -505,13 +505,14 @@ class Repo(GitCommands):
             return
         if self.is_precommit_used():
             if not shutil.which('pre-commit'):
-                print(f"Command 'pre-commit' not found in PATH")
-            self.X(
-                *tuple(
-                    ["pre-commit", "run", "--from-ref", "HEAD~1", "--to-ref", "HEAD"]
-                ),
-                allow_error=True,
-            )
+                click.secho(f"Command 'pre-commit' not found in PATH", fg='yellow')
+            else:
+                self.X(
+                    *tuple(
+                        ["pre-commit", "run", "--from-ref", "HEAD~1", "--to-ref", "HEAD"]
+                    ),
+                    allow_error=True,
+                )
 
             gitcmd = ["commit", "-q", "--no-verify"]
             if ammend:
