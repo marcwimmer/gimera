@@ -1,7 +1,10 @@
-name: Test and Upload Pypi
+name: CI
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
     branches:
       - main
 
@@ -11,8 +14,7 @@ permissions:
 
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
 
     concurrency:
@@ -32,44 +34,60 @@ jobs:
         pip install flake8 pytest click inquirer pyyaml
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    # - name: Lint with flake8
-    #   run: |
-    #     # stop the build if there are Python syntax errors or undefined names
-    #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-    #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-    #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
     - name: Test with pytest
       run: |
         git config --global user.email test@gimera.de
         git config --global user.name gimera
         pytest
 
-    - name: setup merge
+  check-changelog:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check for changelog fragment
       run: |
-        set -x
+        FRAGMENTS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'changes/*.md' | grep -v README.md || true)
+        if [ -z "$FRAGMENTS" ]; then
+          echo "::error::Kein Changelog-Fragment in changes/ gefunden."
+          echo ""
+          echo "Bitte eine Fragment-Datei in changes/ hinzufuegen:"
+          echo "  echo '* [IMP] Beschreibung' > changes/meine-aenderung.md"
+          echo ""
+          echo "Prefixes: [FIX], [IMP], [NEW], [REMOVE]"
+          exit 1
+        fi
+        echo "Changelog fragments found:"
+        echo "$FRAGMENTS"
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: setup git
+      run: |
         git config --global user.email 'github-action@github.com'
         git config --global user.name 'github-action@github.com'
         git fetch
 
-    - name: increment version
+    - name: increment version and compile changelog
       run: |
-        python3 << EOF
-        import re
-        from pathlib import Path
-        file = Path('setup.cfg')
-        lines = file.read_text()
-        find = re.findall(r'version = (.*)', lines)
-        old_version_string = find[-1]
-        old_version = f'version = {old_version_string}'
-        version = list(map(int, find[-1].split('.')))
-        version[-1] += 1
-        version_string = '.'.join(map(str, version))
-        new_version = 'version = ' + version_string
-        lines = lines.replace(old_version, new_version)
-        file.write_text(lines)
-        Path(".version").write_text(version_string)
-        EOF
+        python3 scripts/compile_changelog.py
 
     - name: commit and tag new version
       run: |
@@ -83,7 +101,7 @@ jobs:
         else
           git add .
           git commit -am "$COMMIT_MSG"
-          VERSION=$(cat .version)
+          VERSION=$(cat VERSION)
           git tag ${VERSION}
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
           git push origin --tags
