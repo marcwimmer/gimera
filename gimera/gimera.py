@@ -519,7 +519,10 @@ def snaprestore(repos):
 
 
 def cleanup():
-    from . import runtime_state
+    try:
+        from . import runtime_state
+    except ImportError:
+        return
     for key, path in runtime_state['temppaths'].items():
         try:
             rmtree(path)
