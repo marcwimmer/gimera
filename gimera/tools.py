@@ -372,7 +372,10 @@ def _get_missing_repos(config):
     for repo in config.repos:
         if not repo.enabled:
             continue
-        if not repo.path.exists():
+        path = repo.fullpath
+        if not path.exists():
+            yield repo
+        elif path.is_dir() and not any(path.iterdir()):
             yield repo
 
 
