@@ -22,7 +22,6 @@ from .apply import _apply
 from .commit import _commit
 from .patches import _edit_patch
 from .tools import rmtree
-from . import runtime_state
 
 
 @click.group()
@@ -520,6 +519,7 @@ def snaprestore(repos):
 
 
 def cleanup():
+    from . import runtime_state
     for key, path in runtime_state['temppaths'].items():
         try:
             rmtree(path)

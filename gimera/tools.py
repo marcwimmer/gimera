@@ -13,7 +13,6 @@ import sys
 from curses import wrapper
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
-from . import runtime_state
 
 
 
@@ -219,6 +218,8 @@ def temppath(mkdir=True, reuse_key=None):
     """
     reuse_key: keeps the directory - for reusability while gimera runs
     """
+    from . import runtime_state
+
     if reuse_key in runtime_state['temppaths']:
         yield runtime_state['temppaths'][reuse_key]
         return
