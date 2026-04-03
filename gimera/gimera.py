@@ -413,13 +413,18 @@ def abort():
 
 
 @cli.command()
-def status():
+@click.argument("repo_path", required=False, default=None)
+def status(repo_path):
     config = Config()
     repos = list(_get_missing_repos(config))
     for repo in repos:
+        if repo_path and str(repo.path) != repo_path:
+            continue
         click.secho(f"[{repo.type[0].upper()}] {repo.path}", fg="red")
     main_repo = _get_main_repo()
     for repo in config.get_repos(None):
+        if repo_path and str(repo.path) != repo_path:
+            continue
         full_path = main_repo.path / repo.path
         if not full_path.exists():
             continue
