@@ -13,6 +13,41 @@ from .tools import get_effective_state
 from .tools import verbose
 
 
+def _show_unpushed_diff(subrepo, branch):
+    """Show what would be lost: unpushed commits and diff stat."""
+    try:
+        log = subrepo.out(*(git + ["log", "--oneline", f"origin/{branch}..{branch}"]))
+        if log.strip():
+            click.secho("\nUnpushed commits:", fg="red")
+            for line in log.strip().splitlines():
+                click.secho(f"  {line}", fg="red")
+        stat = subrepo.out(*(git + ["diff", "--stat", f"origin/{branch}..{branch}"]))
+        if stat.strip():
+            click.secho("\nChanges that would be lost:", fg="red")
+            click.echo(stat)
+    except Exception:
+        pass
+
+
+def _check_no_unpushed_commits(subrepo, repo_yml):
+    """Raise error if submodule has local commits not pushed to origin."""
+    if subrepo.has_unpushed_commits(repo_yml.branch):
+        _show_unpushed_diff(subrepo, repo_yml.branch)
+        if os.getenv("GIMERA_FORCE") == "1":
+            click.secho(
+                f"\nWARNING: Submodule at {subrepo.path} has unpushed commits "
+                f"on branch {repo_yml.branch}. Continuing due to --force. "
+                f"These changes will be lost!",
+                fg="yellow",
+            )
+        else:
+            _raise_error(
+                f"\nSubmodule at {subrepo.path} has unpushed local commits "
+                f"on branch {repo_yml.branch}. These changes will be lost! "
+                f"Push them first, or use --force to override."
+            )
+
+
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
     """
     If the submodule is clean inside but is not committed to the parent
@@ -67,6 +102,7 @@ def _fetch_latest_commit_in_submodule(
                 f"Directory {repo_yml.path} contains modified "
                 "files. Please commit or purge before or migrate changes with -M flag!"
             )
+    _check_no_unpushed_commits(subrepo, repo_yml)
     sha = repo_yml.sha if not update else None
 
     def _commit_submodule():

@@ -83,6 +83,16 @@ class GitCommands(object):
             if modifier[0] == "M" or modifier[1] == "M" or modifier[1] == "D":
                 yield path
 
+    def has_unpushed_commits(self, branch=None):
+        """Check if there are local commits not pushed to origin."""
+        try:
+            if branch is None:
+                branch = self.get_branch()
+            output = self.out(*(git + ["log", "--oneline", f"origin/{branch}..{branch}"]))
+            return bool(output.strip())
+        except Exception:
+            return False
+
     @property
     @yieldlist
     def all_dirty_files(self):

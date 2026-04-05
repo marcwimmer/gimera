@@ -153,9 +153,9 @@ def _get_available_repos(ctx, param, incomplete):
 )
 @click.option(
     "-C",
-    "--no-auto-commit",
+    "--auto-commit",
     is_flag=True,
-    help="",
+    help="Automatically commit changes made by gimera",
 )
 @click.option(
     "-f",
@@ -222,7 +222,7 @@ def apply(
     missing,
     remove_invalid_branches,
     non_interactive,
-    no_auto_commit,
+    auto_commit,
     force,
     no_fetch,
     verbose,
@@ -280,7 +280,7 @@ def apply(
             recursive=recursive,
             no_patches=no_patches,
             remove_invalid_branches=remove_invalid_branches,
-            auto_commit=not no_auto_commit,
+            auto_commit=auto_commit,
             no_fetch=no_fetch,
             migrate_changes=migrate_changes,
             raise_exception=raise_exception,
