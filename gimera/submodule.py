@@ -164,6 +164,39 @@ def _has_repo_latest_commit(repo, branch):
     return result
 
 
+def _remove_existing_path_for_submodule(repo, config, relpath):
+    """Remove an existing non-submodule path to make room for a submodule."""
+    repo.output_status()
+    repo.please_no_staged_files()
+
+    dirty_files = [
+        x for x in repo.all_dirty_files_absolute
+        if safe_relative_to(x, repo.path / relpath)
+    ]
+    if dirty_files and not is_forced():
+        _raise_error(
+            f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
+        )
+
+    if repo.lsfiles(relpath):
+        repo.X(*(git + ["rm", "-f", "-r", relpath]))
+    if (repo.path / relpath).exists():
+        rmtree(repo.path / relpath)
+
+    repo.clear_empty_subpaths(config)
+    repo.output_status()
+    if not [
+        x for x in repo.all_dirty_files
+        if safe_relative_to(x, repo.path / relpath)
+    ]:
+        if relpath.exists():
+            repo.X(*(git + ["add", relpath]))
+    if repo.staged_files:
+        repo.X(*(git + ["commit", "--no-verify", "-m", f"removed path {relpath} to insert submodule"]))
+
+    repo.force_remove_submodule(relpath)
+
+
 def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars):
     if config.type != REPO_TYPE_SUB:
         return
@@ -171,59 +204,11 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
     path = working_dir / config.path
     relpath = path.relative_to(repo.path)
     if path.exists():
-        # if it is already a submodule, dont touch
         try:
             submodule = repo.get_submodule(relpath)
         except ValueError:
-            repo.output_status()
-            repo.please_no_staged_files()
-            # remove current path
-
-            dirty_files = [
-                x
-                for x in repo.all_dirty_files_absolute
-                if safe_relative_to(x, repo.path / relpath)
-            ]
-            if dirty_files:
-                if not is_forced():
-                    _raise_error(
-                        f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
-                    )
-
-            if repo.lsfiles(relpath):
-                repo.X(*(git + ["rm", "-f", "-r", relpath]))
-            if (repo.path / relpath).exists():
-                rmtree(repo.path / relpath)
-
-            repo.clear_empty_subpaths(config)
-            repo.output_status()
-            if not [
-                # x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)
-                x
-                for x in repo.all_dirty_files
-                if safe_relative_to(x, repo.path / relpath)
-            ]:
-                if relpath.exists():
-                    # in case of deletion it does not exist
-                    repo.X(*(git + ["add", relpath]))
-            if repo.staged_files:
-                repo.X(
-                    *(
-                        git
-                        + [
-                            "commit",
-                            "--no-verify",
-                            "-m",
-                            f"removed path {relpath} to insert submodule",
-                        ]
-                    )
-                )
-
-            # make sure does not exist; some leftovers sometimes
-            repo.force_remove_submodule(relpath)
-
+            _remove_existing_path_for_submodule(repo, config, relpath)
         else:
-            # if submodule points to another url, also remove
             if submodule.get_url(noerror=True) != config.url:
                 repo.force_remove_submodule(submodule.path.relative_to(repo.path))
             else:
@@ -233,7 +218,6 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
 
     repo._fix_to_remove_subdirectories(all_config)
     if (repo.path / relpath).exists():
-        # helped in a in the wild repo, where a submodule was hidden below
         repo.X(*(git + ["rm", "-rf", relpath]))
         rmtree(repo.path / relpath)
 
@@ -245,10 +229,5 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
         if repo.staged_files:
             repo.X(*(git + ["commit", "--no-verify", "-m", f"gimera added submodule: {relpath}"]))
 
-    # check for success
-    state = get_effective_state(
-        root_dir,
-        path,
-        common_vars,
-    )
+    state = get_effective_state(root_dir, path, common_vars)
     assert state["is_submodule"]

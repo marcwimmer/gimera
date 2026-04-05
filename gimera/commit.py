@@ -10,7 +10,6 @@ from .tools import prepare_dir
 from .config import Config
 from .patches import _apply_patchfile
 from .patches import _technically_make_patch
-from .patches import _apply_patchfile
 
 
 def _commit(repo, branch, message, preview):

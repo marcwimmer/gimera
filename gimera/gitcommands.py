@@ -108,10 +108,6 @@ class GitCommands(object):
         for file in self.untracked_files:
             yield self.path_absolute / file
 
-    @property
-    def dirty(self):
-        return bool(list(self._parse_git_status()))
-
     def is_submodule(self, path):
         path = self._combine(path)
         for line in X(

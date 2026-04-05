@@ -16,7 +16,6 @@ from .tools import _get_remotes
 from .tools import get_effective_state
 from .tools import get_nearest_repo
 from .tools import verbose
-from .patches import _apply_patchfile
 from .cachedir import _get_cache_dir
 
 
@@ -38,7 +37,6 @@ def _update_integrated_module(
         repo = Repo(cache_dir)
         verbose(f"Updating integrated module {repo_yml.path}")
 
-        parent_repo = main_repo
         dest_path = Path(working_dir) / repo_yml.path
         parent_repo = Repo(get_nearest_repo(main_repo.path, dest_path))
 

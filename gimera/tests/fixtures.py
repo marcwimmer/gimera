@@ -26,9 +26,7 @@ def python():
 
 @pytest.fixture(autouse=True)
 def temppath():
-    dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    path = Path(f"/tmp/gimeratest/{dt}{str(uuid.uuid4())[:5]}")
-    path = Path(f"/tmp/gimeratest")
+    path = Path(f"/tmp/gimeratest/{uuid.uuid4().hex[:8]}").resolve()
     if path.exists():
         shutil.rmtree(path)
     path.mkdir(exist_ok=True, parents=True)
