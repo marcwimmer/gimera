@@ -432,7 +432,39 @@ def status(repo_path):
         text = f"[{repo.type[0].upper()}] {repo.path}"
         if deviates:
             text += " IS NOW " + ("submodule" if eff_S else "integrated")
-        click.secho(text, fg="green" if not deviates else "yellow")
+
+        # show branch info for submodules
+        branch_info = ""
+        branch_warn = False
+        if eff_S and full_path.exists():
+            try:
+                sub = Repo(full_path)
+                current_branch = sub.get_branch()
+                configured_branch = repo.branch
+                if current_branch is None:
+                    # detached HEAD - show short SHA
+                    sha = sub.hex[:8]
+                    branch_info = f" (detached {sha})"
+                    branch_warn = True
+                elif current_branch == configured_branch:
+                    branch_info = f" ({current_branch})"
+                else:
+                    branch_info = (
+                        f" ({current_branch} != {configured_branch})"
+                    )
+                    branch_warn = True
+            except Exception:
+                pass
+
+        color = "green"
+        if deviates or branch_warn:
+            color = "yellow"
+        click.secho(text + branch_info, fg=color)
+        if branch_warn and branch_info:
+            click.secho(
+                f"  WARNING: checked out branch differs from gimera.yml ({configured_branch})",
+                fg="red",
+            )
 
 
 @cli.command(
