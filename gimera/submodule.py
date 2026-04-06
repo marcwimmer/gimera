@@ -103,6 +103,7 @@ def _fetch_latest_commit_in_submodule(
                 "files. Please commit or purge before or migrate changes with -M flag!"
             )
     _check_no_unpushed_commits(subrepo, repo_yml)
+    sha_before = subrepo.hex
     sha = repo_yml.sha if not update else None
 
     def _commit_submodule():
@@ -147,6 +148,24 @@ def _fetch_latest_commit_in_submodule(
         with _temporary_switch_remote_to_cachedir(repo, repo_yml, relpath):
             subrepo.pull(repo_yml=repo_yml)
         _commit_submodule()
+
+    # show new commits when updating
+    sha_after = subrepo.hex
+    if update and sha_before != sha_after:
+        try:
+            log = subrepo.out(
+                *(git + ["log", "--oneline", f"{sha_before}..{sha_after}"])
+            )
+            if log.strip():
+                lines = log.strip().splitlines()
+                click.secho(
+                    f"\n{repo_yml.path}: {len(lines)} new commit(s):",
+                    fg="green", bold=True,
+                )
+                for line in lines:
+                    click.secho(f"  {line}", fg="green")
+        except Exception:
+            pass
 
     # update gimera.yml on demand
     repo_yml.sha = subrepo.hex

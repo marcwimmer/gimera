@@ -31,6 +31,7 @@ def _update_integrated_module(
     Put contents of a git repository inside the main repository.
     """
     # use a cache directory for pulling the repository and updating it
+    sha_before = repo_yml.sha
     with _get_cache_dir(main_repo, repo_yml, update=update) as cache_dir:
         if not os.access(cache_dir, os.W_OK):
             _raise_error(f"No R/W rights on {cache_dir}")
@@ -68,6 +69,24 @@ def _update_integrated_module(
                 # Could also be that a subgimera sha was updated
                 parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
             del repo
+
+        # show new commits when updating
+        if update and sha_before and sha_before != new_sha:
+            try:
+                cache_repo = Repo(cache_dir)
+                log = cache_repo.out(
+                    *(git + ["log", "--oneline", f"{sha_before}..{new_sha}"])
+                )
+                if log.strip():
+                    lines = log.strip().splitlines()
+                    click.secho(
+                        f"\n{repo_yml.path}: {len(lines)} new commit(s):",
+                        fg="green", bold=True,
+                    )
+                    for line in lines:
+                        click.secho(f"  {line}", fg="green")
+            except Exception:
+                pass
 
         # apply patches:
         if os.getenv("GIMERA_DO_NOT_APPLY_PATCHES") != "1":
