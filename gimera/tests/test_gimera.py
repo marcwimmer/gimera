@@ -885,3 +885,66 @@ def test_2_submodules(temppath):
     submodule_repo2 = main_repo.get_submodule("repo2")
     assert submodule_repo1
     assert submodule_repo2
+
+
+def test_integrated_gitignored_repo_uses_fast_path(temppath):
+    """
+    When an integrated repo's path is listed in .gitignore,
+    gimera apply should still work correctly using the git archive
+    fast path. Verifies that:
+    - files are extracted correctly
+    - patches are applied
+    - sha is updated in gimera.yml
+    """
+    workspace = temppath / "workspace_gitignored_int"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    # Add extra files to the sub repo
+    with clone_and_commit(repo_sub, "branch1") as repopath:
+        (repopath / "module_file.txt").write_text("module content")
+        Repo(repopath).simple_commit_all()
+
+    repos_int = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    # sub1 is in .gitignore — this triggers the git archive fast path
+    (workspace_main / ".gitignore").write_text("sub1\n")
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+
+    os.chdir(workspace_main)
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+    gimera_apply([], None)
+
+    # Verify files were extracted
+    assert (workspace_main / "sub1" / "file1.txt").exists()
+    assert (workspace_main / "sub1" / "module_file.txt").exists()
+
+    # Verify sha was written to gimera.yml
+    gimera_content = yaml.safe_load(
+        (workspace_main / "gimera.yml").read_text()
+    )
+    assert gimera_content["repos"][0].get("sha"), "SHA should be set after apply"
+
+    # Run again — should be idempotent and still fast
+    gimera_apply([], None)
+    assert (workspace_main / "sub1" / "file1.txt").exists()
+    assert (workspace_main / "sub1" / "module_file.txt").exists()

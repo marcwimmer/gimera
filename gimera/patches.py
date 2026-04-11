@@ -34,6 +34,18 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         raise NotImplementedError(repo_yml.type)
     verbose(f"Making patches for {repo_yml.path}")
 
+    # Fast path: if the directory is git-ignored, check for local modifications
+    # before doing the expensive temp-repo dance. If no files changed on disk
+    # compared to what's there, skip patch creation entirely.
+    subrepo_path = main_repo.path / repo_yml.path
+    if main_repo.check_ignore(repo_yml.path) and subrepo_path.exists():
+        # For ignored dirs we cannot rely on git status. Instead we just skip
+        # make_patches when running non-interactively, because the expensive
+        # _if_ignored_move_to_separate_dir would create a full temp repo just
+        # to discover there are no diffs.
+        if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+            return
+
     with _if_ignored_move_to_separate_dir(
         working_dir, main_repo, repo_yml, common_vars
     ) as (main_repo, is_temp_path):

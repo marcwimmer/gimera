@@ -1,4 +1,5 @@
 import time
+import subprocess
 from contextlib import contextmanager
 import os
 import click
@@ -57,17 +58,37 @@ def _update_integrated_module(
 
         with wait_git_lock(cache_dir):
             commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
-            with repo.worktree(commit) as worktree:
-                new_sha = worktree.hex
-                msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
-                    worktree, repo_yml
+
+            has_merges = bool(repo_yml.merges)
+
+            if not has_merges:
+                # Fast path: use git archive instead of worktree for speed
+                # Avoids creating a worktree (31k+ file checkout) and shutil.move
+                new_sha = repo.out(*(git + ["rev-parse", commit]))
+                dest_path.mkdir(parents=True, exist_ok=True)
+                archive_proc = subprocess.Popen(
+                    ["git", "archive", commit],
+                    stdout=subprocess.PIPE,
+                    cwd=cache_dir,
                 )
-                worktree.move_worktree_content(dest_path)
-                # TODO perhaps not necessary as of line 63 -- seems to be necessary
-                # case: submodule is in .gitignore; updates the submodule
-                # then git add <path> needs to add the deleted files
-                # Could also be that a subgimera sha was updated
+                subprocess.check_call(
+                    ["tar", "x", "-C", str(dest_path)],
+                    stdin=archive_proc.stdout,
+                )
+                archive_proc.stdout.close()
+                rc = archive_proc.wait()
+                if rc != 0:
+                    _raise_error(f"git archive failed for {repo_yml.path}")
+                msgs = [f"Updating submodule {repo_yml.path}"]
                 parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
+            else:
+                with repo.worktree(commit) as worktree:
+                    new_sha = worktree.hex
+                    msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
+                        worktree, repo_yml
+                    )
+                    worktree.move_worktree_content(dest_path)
+                    parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
             del repo
 
         # show new commits when updating
