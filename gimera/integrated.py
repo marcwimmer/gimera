@@ -54,7 +54,6 @@ def _update_integrated_module(
                     f"Directory {repo_yml.path} contains uncommitted changes. "
                     "Please commit or purge before!"
                 )
-            rmtree(dest_path)
 
         with wait_git_lock(cache_dir):
             commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
@@ -62,23 +61,34 @@ def _update_integrated_module(
             has_merges = bool(repo_yml.merges)
 
             if not has_merges:
-                # Fast path: use git archive instead of worktree for speed
-                # Avoids creating a worktree (31k+ file checkout) and shutil.move
+                # Fast path: use git archive + rsync instead of worktree for speed.
+                # Extract to a temp dir, then rsync --delete to dest. This is much
+                # faster than rmtree+extract because rsync only transfers the diff.
                 new_sha = repo.out(*(git + ["rev-parse", commit]))
-                dest_path.mkdir(parents=True, exist_ok=True)
-                archive_proc = subprocess.Popen(
-                    ["git", "archive", commit],
-                    stdout=subprocess.PIPE,
-                    cwd=cache_dir,
-                )
-                subprocess.check_call(
-                    ["tar", "x", "-C", str(dest_path)],
-                    stdin=archive_proc.stdout,
-                )
-                archive_proc.stdout.close()
-                rc = archive_proc.wait()
-                if rc != 0:
-                    _raise_error(f"git archive failed for {repo_yml.path}")
+                import tempfile
+                tmpdir = Path(tempfile.mkdtemp())
+                try:
+                    archive_proc = subprocess.Popen(
+                        ["git", "archive", commit],
+                        stdout=subprocess.PIPE,
+                        cwd=cache_dir,
+                    )
+                    subprocess.check_call(
+                        ["tar", "x", "-C", str(tmpdir)],
+                        stdin=archive_proc.stdout,
+                    )
+                    archive_proc.stdout.close()
+                    rc = archive_proc.wait()
+                    if rc != 0:
+                        _raise_error(f"git archive failed for {repo_yml.path}")
+                    dest_path.mkdir(parents=True, exist_ok=True)
+                    subprocess.check_call([
+                        "rsync", "-a", "--delete",
+                        str(tmpdir) + "/", str(dest_path) + "/",
+                    ])
+                finally:
+                    # Clean up temp dir in background to avoid blocking
+                    subprocess.Popen(["rm", "-rf", str(tmpdir)])
                 msgs = [f"Updating submodule {repo_yml.path}"]
                 parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
             else:
