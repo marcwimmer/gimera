@@ -149,6 +149,7 @@ def _internal_apply(
     common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
     verbose(f"common vars: {common_vars}")
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
+        old_force = os.environ.get("GIMERA_FORCE", "0")
         if migrate_changes:
             relative_sub_path = (
                 sub_path and safe_relative_to(sub_path, main_repo.path) or Path(".")
@@ -157,6 +158,8 @@ def _internal_apply(
                 main_repo.path,
                 [main_repo.path / relative_sub_path / repo.path for repo in repos],
             )
+            # After snapshot, force is safe — changes are saved and will be restored
+            os.environ["GIMERA_FORCE"] = "1"
 
         try:
             for repo in repos:
@@ -207,6 +210,7 @@ def _internal_apply(
                         )
         finally:
             if migrate_changes:
+                os.environ["GIMERA_FORCE"] = old_force
                 snapshot_restore(
                     main_repo.path,
                     [main_repo.path / relative_sub_path / repo.path for repo in repos],
