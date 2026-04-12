@@ -189,6 +189,23 @@ How it works:
   * GIMERA_QUIET=1 - rsyncing quiet and git
   * GIMERA_NO_PRECOMMIT=1 - do not execute pre commits
 
+## Running tests
+
+Tests run in Docker to ensure a clean, isolated environment (no host cache interference, fast ext4 filesystem).
+
+```bash
+# full test suite
+make test
+
+# only core tests (fast, ~3 min)
+make test-quick
+
+# only snapshot tests (~15 min)
+make test-snapshots
+```
+
+Requires Docker. The image is built automatically on first run.
+
 ## Authors:
   * Marc Wimmer (marc@zebroo.de)
 

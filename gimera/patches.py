@@ -34,6 +34,18 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         raise NotImplementedError(repo_yml.type)
     verbose(f"Making patches for {repo_yml.path}")
 
+    # Fast path: if the directory is git-ignored, check for local modifications
+    # before doing the expensive temp-repo dance. If no files changed on disk
+    # compared to what's there, skip patch creation entirely.
+    subrepo_path = main_repo.path / repo_yml.path
+    if main_repo.check_ignore(repo_yml.path) and subrepo_path.exists():
+        # For ignored dirs we cannot rely on git status. Instead we just skip
+        # make_patches when running non-interactively, because the expensive
+        # _if_ignored_move_to_separate_dir would create a full temp repo just
+        # to discover there are no diffs.
+        if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+            return
+
     with _if_ignored_move_to_separate_dir(
         working_dir, main_repo, repo_yml, common_vars
     ) as (main_repo, is_temp_path):
@@ -45,7 +57,7 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         ):
             if not changed_files:
                 return
-            if not _start_question(repo_yml, changed_files):
+            if not _start_question(repo_yml, changed_files, main_repo=main_repo):
                 return
 
             with _temporarily_add_untracked_files(main_repo, untracked_files):
@@ -267,7 +279,7 @@ def _prepare_patchdir(repo_yml):
         )
 
 
-def _start_question(repo_yml, changed_files):
+def _start_question(repo_yml, changed_files, main_repo=None):
     files_in_lines = "\n".join(map(str, sorted(changed_files)))
     if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
         correct = True
@@ -279,20 +291,43 @@ def _start_question(repo_yml, changed_files):
         for file in files_in_lines.splitlines():
             click.secho(f"  * {file}")
 
-        questions = [
-            inquirer.List(
-                "correct",
-                message=f"Continue making patches for the lines above?",
-                default="no",
-                choices=[
-                    choice_yes,
-                    "Abort",
-                    "Ignore",
-                ],
-            )
-        ]
-        answers = inquirer.prompt(questions, theme=inquirer_theme)
-        correct = answers["correct"][0]
+        while True:
+            questions = [
+                inquirer.List(
+                    "correct",
+                    message=f"Continue making patches for the lines above?",
+                    default="no",
+                    choices=[
+                        choice_yes,
+                        "Show diff",
+                        "Abort",
+                        "Ignore",
+                    ],
+                )
+            ]
+            answers = inquirer.prompt(questions, theme=inquirer_theme)
+            correct = answers["correct"][0]
+            if correct == "S" and main_repo:
+                # Show diff --stat followed by full diff
+                subdir_path = Path(main_repo.path) / repo_yml.path
+                diff_stat = main_repo.out(
+                    *(git + ["diff", "--stat", "--", str(subdir_path)]),
+                    allow_error=True,
+                )
+                diff_full = main_repo.out(
+                    *(git + ["diff", "--", str(subdir_path)]),
+                    allow_error=True,
+                )
+                if diff_stat:
+                    click.secho("\n--- diff --stat ---", fg="cyan")
+                    click.echo(diff_stat)
+                if diff_full:
+                    click.secho("--- diff ---", fg="cyan")
+                    click.echo(diff_full)
+                    click.secho("--- end ---\n", fg="cyan")
+                continue
+            break
+
         if correct == "Y":
             correct = True
         elif correct == "A":

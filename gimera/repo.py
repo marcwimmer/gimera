@@ -137,6 +137,36 @@ class Repo(GitCommands):
         # https://github.com/jeremysears/scripts/blob/master/bin/git-submodule-rewrite
         self.please_no_staged_files()
 
+        # check for unpushed commits in the submodule
+        fullpath = self.path / path
+        if fullpath.exists() and (fullpath / ".git").exists():
+            try:
+                sub = Repo(fullpath)
+                has_unpushed = sub.has_unpushed_commits()
+            except Exception:
+                has_unpushed = False
+            if has_unpushed:
+                # show what would be lost
+                try:
+                    branch = sub.get_branch()
+                    log = sub.out(*(git + ["log", "--oneline", f"origin/{branch}..{branch}"]))
+                    if log.strip():
+                        click.secho("\nUnpushed commits:", fg="red")
+                        for line in log.strip().splitlines():
+                            click.secho(f"  {line}", fg="red")
+                    stat = sub.out(*(git + ["diff", "--stat", f"origin/{branch}..{branch}"]))
+                    if stat.strip():
+                        click.secho("\nChanges that would be lost:", fg="red")
+                        click.echo(stat)
+                except Exception:
+                    pass
+                if not is_forced():
+                    _raise_error(
+                        f"\nSubmodule at {path} has unpushed local commits. "
+                        f"These changes will be lost! "
+                        f"Push them first, or use --force to override."
+                    )
+
         # if there are dirty files, then abort to not destroy data
         dirty_files = list(
             filter_files_to_folders(
