@@ -1,3 +1,6 @@
+# 0.7.120
+  * [NEW] Town Crier Patch Notes: PRs erfordern Changelog-Fragmente in changes/, automatische Kompilierung beim Release, Pre-commit Hook Validierung, eigene VERSION Datei
+
 # 0.7.95
   * removed: Deliver Patches with reused submodules. - too complicated; githubworkflow used for branching
   * patchdirs: allows chdir - if you get patchfiles from third parties to make them compatible
