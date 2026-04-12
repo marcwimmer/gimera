@@ -95,12 +95,13 @@ jobs:
         git fetch --tags
 
         COMMIT_MSG='autocommit by github action'
-        if [ $(git log -n1 | grep -q "$COMMIT_MSG") ]; then
+        if git log -n1 --pretty=%s | grep -q "$COMMIT_MSG"; then
           echo "No new commit"
           echo "DO_PYPI=0" >> "$GITHUB_ENV"
         else
           git add .
-          git commit -am "$COMMIT_MSG"
+          git diff --cached --quiet && { echo "Nothing to commit"; echo "DO_PYPI=0" >> "$GITHUB_ENV"; exit 0; }
+          git commit -m "$COMMIT_MSG"
           VERSION=$(cat VERSION)
           git tag ${VERSION}
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
