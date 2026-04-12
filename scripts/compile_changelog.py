@@ -7,9 +7,33 @@ Reads all .md files from changes/ (except README.md), prepends them
 to CHANGELOG.md under the new version header, then removes the fragments.
 """
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _get_highest_tag():
+    """Find the highest existing semver tag (with or without v prefix)."""
+    try:
+        out = subprocess.check_output(
+            ["git", "tag", "--list"], cwd=ROOT, text=True
+        )
+    except subprocess.CalledProcessError:
+        return None
+    best = None
+    for tag in out.splitlines():
+        tag = tag.strip().lstrip("v")
+        parts = tag.split(".")
+        if len(parts) != 3:
+            continue
+        try:
+            nums = tuple(map(int, parts))
+        except ValueError:
+            continue
+        if best is None or nums > best:
+            best = nums
+    return best
 
 
 def increment_version():
@@ -17,7 +41,12 @@ def increment_version():
     content = setup_cfg.read_text()
     match = re.findall(r"version = (.*)", content)
     old_version = match[-1].strip()
-    parts = list(map(int, old_version.split(".")))
+
+    # Pick the higher of setup.cfg version and existing tags, then bump
+    cfg_parts = tuple(map(int, old_version.split(".")))
+    tag_parts = _get_highest_tag()
+    base = max(cfg_parts, tag_parts) if tag_parts else cfg_parts
+    parts = list(base)
     parts[-1] += 1
     new_version = ".".join(map(str, parts))
 

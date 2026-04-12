@@ -87,12 +87,12 @@ jobs:
 
     - name: increment version and compile changelog
       run: |
+        git fetch --tags
         python3 scripts/compile_changelog.py
 
     - name: commit and tag new version
       run: |
         set -x
-        git fetch --tags
 
         COMMIT_MSG='autocommit by github action'
         if git log -n1 --pretty=%s | grep -q "$COMMIT_MSG"; then
@@ -103,7 +103,7 @@ jobs:
           git diff --cached --quiet && { echo "Nothing to commit"; echo "DO_PYPI=0" >> "$GITHUB_ENV"; exit 0; }
           git commit -m "$COMMIT_MSG"
           VERSION=$(cat VERSION)
-          git tag ${VERSION}
+          git tag "${VERSION}"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
           git push origin --tags
           git push
