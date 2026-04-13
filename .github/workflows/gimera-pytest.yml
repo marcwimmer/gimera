@@ -16,7 +16,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    if: false  # temporarily disabled to test release pipeline
 
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
@@ -66,6 +65,7 @@ jobs:
         echo "$FRAGMENTS"
 
   release:
+    needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
@@ -99,22 +99,35 @@ jobs:
       run: |
         set -x
 
-        COMMIT_MSG='autocommit by github action'
-        if git log -n1 --pretty=%s | grep -q "$COMMIT_MSG"; then
-          echo "No new commit"
+        if git log -n1 --pretty=%s | grep -q "^chore(release):"; then
+          echo "No new commit (last commit is already a release)"
           echo "DO_PYPI=0" >> "$GITHUB_ENV"
-        else
-          git add .
-          git diff --cached --quiet && { echo "Nothing to commit"; echo "DO_PYPI=0" >> "$GITHUB_ENV"; exit 0; }
-          git commit -m "$COMMIT_MSG"
-          VERSION=$(cat VERSION)
-          git tag "${VERSION}"
-          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/$GITHUB_REPOSITORY
-          git push origin --tags
-          git push
-          python3 setup.py sdist
-          echo "DO_PYPI=1" >> "$GITHUB_ENV"
+          exit 0
         fi
+
+        git add .
+        git diff --cached --quiet && { echo "Nothing to commit"; echo "DO_PYPI=0" >> "$GITHUB_ENV"; exit 0; }
+
+        VERSION=$(cat VERSION)
+
+        # Extract the top section of CHANGELOG.md (entries for the release
+        # we just compiled) — everything after the first `# ` header up to
+        # the next `# ` header.
+        CHANGES=$(awk '/^# /{n++; if(n>1) exit; next} n==1 && NF {print}' CHANGELOG.md)
+
+        {
+          echo "chore(release): ${VERSION}"
+          echo ""
+          echo "${CHANGES}"
+        } > "$RUNNER_TEMP/commit_msg.txt"
+
+        git commit -F "$RUNNER_TEMP/commit_msg.txt"
+        git tag "${VERSION}"
+        git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/$GITHUB_REPOSITORY
+        git push origin --tags
+        git push
+        python3 setup.py sdist
+        echo "DO_PYPI=1" >> "$GITHUB_ENV"
 
     - name: Publish to PyPi
       uses: pypa/gh-action-pypi-publish@release/v1
