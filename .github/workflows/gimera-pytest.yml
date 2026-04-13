@@ -86,6 +86,11 @@ jobs:
         git config --global user.name 'github-action@github.com'
         git fetch
 
+    - name: install release deps
+      run: |
+        python -m pip install --upgrade pip
+        pip install towncrier
+
     - name: increment version and compile changelog
       run: |
         git fetch --tags

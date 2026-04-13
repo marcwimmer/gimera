@@ -1,0 +1,7 @@
+{% for section, _ in sections.items() %}
+{%- for category, val in definitions.items() if category in sections[section] %}
+{%- for text, values in sections[section][category].items() %}
+  * [{{ definitions[category]['name'] | upper }}] {{ text }}
+{% endfor %}
+{%- endfor %}
+{%- endfor %}
