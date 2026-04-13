@@ -1,3 +1,6 @@
+# 0.8.1
+
+  * [FIXED] Release workflow: re-enabled test job with `needs: test` guard; release commit now carries the version and compiled changelog entries in its message
 # 0.8.0
 
   * [NEW] Town Crier Patch Notes: PRs erfordern Changelog-Fragmente in changes/, automatische Kompilierung beim Release, Pre-commit Hook Validierung, eigene VERSION Datei
