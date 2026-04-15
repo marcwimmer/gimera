@@ -1,3 +1,6 @@
+# 0.8.2
+
+  * [FIXED] recognize uninitialized submodules + add CLI help texts
 # 0.8.1
 
   * [FIXED] Release workflow: re-enabled test job with `needs: test` guard; release commit now carries the version and compiled changelog entries in its message
