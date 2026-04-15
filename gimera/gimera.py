@@ -104,6 +104,7 @@ def _get_available_repos(ctx, param, incomplete):
     help="If set, then latest versions are pulled from remotes.",
 )
 @click.option(
+    "-G",
     "--all-integrated",
     is_flag=True,
     help="Overrides setting in gimera.yml and sets 'integrated' for all.",
@@ -133,6 +134,7 @@ def _get_available_repos(ctx, param, incomplete):
     "-P",
     "--no-patches",
     is_flag=True,
+    help="Skip applying patches from gimera.yml during apply.",
 )
 @click.option(
     "-m",
@@ -149,7 +151,7 @@ def _get_available_repos(ctx, param, incomplete):
     "-I",
     "--non-interactive",
     is_flag=True,
-    help="",
+    help="Run without prompting; do not ask the user any questions.",
 )
 @click.option(
     "-C",
@@ -161,19 +163,19 @@ def _get_available_repos(ctx, param, incomplete):
     "-f",
     "--force",
     is_flag=True,
-    help="",
+    help="Force operations: ignore dirty/unpushed checks and continue anyway.",
 )
 @click.option(
     "-n",
     "--no-fetch",
     is_flag=True,
-    help="",
+    help="Skip fetching from remotes; use local cache only.",
 )
 @click.option(
     "-v",
     "--verbose",
     is_flag=True,
-    help="",
+    help="Print verbose debug output while running.",
 )
 @click.option(
     "-SHA",
@@ -204,12 +206,15 @@ def _get_available_repos(ctx, param, incomplete):
 )
 @click.option(
     "--clear-cache", is_flag=True,
+    help="Clear the gimera cache before applying.",
 )
 @click.option(
     "--clear-zip-cache", is_flag=True,
+    help="Clear the zip download cache before applying.",
 )
 @click.option(
     "--no-cache", is_flag=True,
+    help="Disable the gimera cache for this run.",
 )
 def apply(
     repos,
@@ -248,10 +253,11 @@ def apply(
     if non_interactive:
         os.environ["GIMERA_NON_INTERACTIVE"] = "1"
         os.environ["GIT_TERMINAL_PROMPT"] = "0"
+        click.secho("Running gimera in non-interactive mode.", fg="yellow")
     if do_not_apply_patches:
         os.environ['GIMERA_DO_NOT_APPLY_PATCHES'] = "1"
     if all_integrated and all_submodule:
-        _raise_error("Please set either -I or -S")
+        _raise_error("Please set either -G/--all-integrated or -S/--all-submodule")
     if clear_cache:
         os.environ['GIMERA_CLEAR_CACHE'] = "1"
     if clear_zip_cache:
@@ -308,7 +314,7 @@ def clean_branch_names(arr):
         yield x
 
 
-@cli.command()
+@cli.command(help="Print (or install with -x) shell completion for gimera.")
 @click.option(
     "-x",
     "--execute",
@@ -338,11 +344,11 @@ def completion(execute):
     click.secho("\n\n" f"Insert into {rc_file}\n\n" f"echo 'line' >> {rc_file}" "\n\n")
 
 
-@cli.command()
-@click.option("-u", "--url", required=True)
-@click.option("-b", "--branch", required=True)
-@click.option("-p", "--path", required=True)
-@click.option("-t", "--type", required=True)
+@cli.command(help="Add a new repo entry to gimera.yml.")
+@click.option("-u", "--url", required=True, help="Git URL of the repo to add.")
+@click.option("-b", "--branch", required=True, help="Branch to track.")
+@click.option("-p", "--path", required=True, help="Target path inside the main repo.")
+@click.option("-t", "--type", required=True, help="Repo type: 'integrated' or 'submodule'.")
 def add(url, branch, path, type):
     data = {
         "url": url,
@@ -361,7 +367,7 @@ def add(url, branch, path, type):
         config._store(ri, data)
 
 
-@cli.command()
+@cli.command(help="Exit non-zero if any submodule is not initialized.")
 def check_all_submodules_initialized():
     if not _check_all_submodules_initialized():
         sys.exit(-1)
@@ -386,7 +392,7 @@ def _check_all_submodules_initialized():
     return not error
 
 
-@cli.command()
+@cli.command(help="Edit one or more patch files from integrated repos.")
 @click.argument(
     "patchfiles", nargs=-1, shell_complete=_get_available_patchfiles, required=True
 )
@@ -394,7 +400,7 @@ def edit_patch(patchfiles):
     _edit_patch(patchfiles)
 
 
-@cli.command
+@cli.command(help="Abort an in-progress patch edit session.")
 def abort():
     for repo in Config().repos:
         if repo.edit_patchfile:
@@ -406,7 +412,7 @@ def abort():
             )
 
 
-@cli.command()
+@cli.command(help="Show status of all repos: type, branch and deviations from gimera.yml.")
 @click.argument("repo_path", required=False, default=None)
 def status(repo_path):
     config = Config()
@@ -478,6 +484,7 @@ def status(repo_path):
     "-p",
     "--preview",
     is_flag=True,
+    help="Only show what would be committed, do not commit.",
 )
 @click.argument("branch", required=False)
 def commit(repo, branch, message, preview):
@@ -493,7 +500,7 @@ def purge():
         try_rm_tree(repo.path)
 
 
-@cli.command()
+@cli.command(help="List available snapshots stored by gimera.")
 def list_snapshots():
     from .snapshot import list_snapshots
 
@@ -503,7 +510,7 @@ def list_snapshots():
         click.secho(snap, fg="green")
 
 
-@cli.command()
+@cli.command(help="Create a named snapshot of the given repos (or all repos if none given).")
 @click.argument("name", required=True)
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
 def snap(name, repos):
@@ -522,7 +529,7 @@ def snap(name, repos):
     click.secho(f"Snapshot stored under token: {token}", fg="green")
 
 
-@cli.command()
+@cli.command(help="Restore a snapshot (interactive selection) for the given repos.")
 @click.argument("repos", nargs=-1, default=None, shell_complete=_get_available_repos)
 def snaprestore(repos):
     from .snapshot import snapshot_restore

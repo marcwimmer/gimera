@@ -255,11 +255,12 @@ class Repo(GitCommands):
     @yieldlist
     def get_submodules(self):
         submodules = self.out(*(git + ["submodule", "status"])).splitlines()
-        # no entry found for x in .gitmodules
+        # Lines starting with "-" mean the submodule is not initialized —
+        # still a registered submodule in .gitmodules/gitlinks, just uninitialized.
+        # Only skip lines where the path itself is invalid ("./").
         for line in submodules:
             splitted = line.strip().split(" ")
-            if line.startswith("-") or splitted[1] == "./":
-                # means, that path does not exist right now; path info is misleading ./
+            if splitted[1] == "./":
                 continue
             yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
 
