@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write  # for PyPI Trusted Publisher (OIDC)
 
 
 jobs:
@@ -69,10 +70,16 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
+    # Serialise releases — never run two at once, never cancel an in-flight release.
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Set up Python 3.10
       uses: actions/setup-python@v5
@@ -81,38 +88,67 @@ jobs:
 
     - name: setup git
       run: |
+        set -euo pipefail
         git config --global user.email 'github-action@github.com'
         git config --global user.name 'github-action@github.com'
-        git fetch
+        git fetch --tags
 
     - name: install release deps
       run: |
+        set -euo pipefail
         python -m pip install --upgrade pip
-        pip install towncrier
+        # Pin towncrier + build to avoid surprise breakage from upstream releases.
+        pip install 'towncrier==25.8.0' 'build==1.2.2'
 
     - name: increment version and compile changelog
       run: |
-        git fetch --tags
+        set -euo pipefail
         python3 scripts/compile_changelog.py
 
-    - name: commit and tag new version
+    - name: build sdist BEFORE commit/tag
+      # Build first — if the build is broken we want to fail before touching git/PyPI.
       run: |
-        set -x
-
+        set -euo pipefail
+        if [ ! -f VERSION ]; then
+          echo "VERSION missing — nothing to release"
+          echo "DO_PYPI=0" >> "$GITHUB_ENV"
+          exit 0
+        fi
+        VERSION=$(cat VERSION)
+        # If last commit is already a release commit, skip — guard early.
         if git log -n1 --pretty=%s | grep -q "^chore(release):"; then
           echo "No new commit (last commit is already a release)"
           echo "DO_PYPI=0" >> "$GITHUB_ENV"
           exit 0
         fi
+        # If compile_changelog produced no diff, nothing to release.
+        if git diff --quiet && git diff --cached --quiet; then
+          echo "No changes from compile_changelog — skipping release"
+          echo "DO_PYPI=0" >> "$GITHUB_ENV"
+          exit 0
+        fi
+        rm -rf dist
+        python -m build --sdist
+        # sanity-check: dist must contain exactly the version we just bumped to
+        ls dist/gimera-${VERSION}.tar.gz
+        echo "DO_PYPI=1" >> "$GITHUB_ENV"
+        echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
-        git add .
-        git diff --cached --quiet && { echo "Nothing to commit"; echo "DO_PYPI=0" >> "$GITHUB_ENV"; exit 0; }
+    - name: commit, tag and push
+      if: env.DO_PYPI == '1'
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+      run: |
+        set -euo pipefail
+        VERSION="${RELEASE_VERSION}"
 
-        VERSION=$(cat VERSION)
+        # Refuse to overwrite an existing tag.
+        if git rev-parse "refs/tags/${VERSION}" >/dev/null 2>&1; then
+          echo "::error::Tag ${VERSION} already exists — aborting to avoid overwrite"
+          exit 1
+        fi
 
-        # Extract the top section of CHANGELOG.md (entries for the release
-        # we just compiled) — everything after the first `# ` header up to
-        # the next `# ` header.
+        # Top section of CHANGELOG.md (just-compiled entries).
         CHANGES=$(awk '/^# /{n++; if(n>1) exit; next} n==1 && NF {print}' CHANGELOG.md)
 
         {
@@ -121,16 +157,23 @@ jobs:
           echo "${CHANGES}"
         } > "$RUNNER_TEMP/commit_msg.txt"
 
+        git add .
         git commit -F "$RUNNER_TEMP/commit_msg.txt"
-        git tag "${VERSION}"
-        git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/$GITHUB_REPOSITORY
-        git push origin --tags
-        git push
-        python3 setup.py sdist
-        echo "DO_PYPI=1" >> "$GITHUB_ENV"
+        git tag -a "${VERSION}" -m "Release ${VERSION}"
+
+        # Atomic push: branch + tag together. If either ref fails the whole push
+        # is rolled back, so we never end up with a tag and no code (or vice versa).
+        git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}"
+        git push --atomic --follow-tags origin HEAD:main "refs/tags/${VERSION}"
 
     - name: Publish to PyPi
+      if: env.DO_PYPI == '1'
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
+        # Falls Trusted Publisher auf pypi.org konfiguriert ist, kann der
+        # password-Parameter weggelassen werden (OIDC via id-token: write).
+        # Solange das nicht eingerichtet ist, bleibt der API-Token aktiv.
         password: ${{ secrets.PYPI_API_TOKEN }}
-      if: env.DO_PYPI == '1'
+        packages-dir: dist
+        skip-existing: true
+        verbose: true
