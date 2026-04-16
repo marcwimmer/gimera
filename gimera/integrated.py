@@ -64,35 +64,42 @@ def _update_integrated_module(
                 # Fast path: use git archive + rsync instead of worktree for speed.
                 # Extract to a temp dir, then rsync --delete to dest. This is much
                 # faster than rmtree+extract because rsync only transfers the diff.
-                click.secho(f"  extracting {repo_yml.path} ...", fg="cyan")
                 new_sha = repo.out(*(git + ["rev-parse", commit]))
-                import tempfile
-                tmpdir = Path(tempfile.mkdtemp())
-                try:
-                    archive_proc = subprocess.Popen(
-                        ["git", "archive", commit],
-                        stdout=subprocess.PIPE,
-                        cwd=cache_dir,
+                has_patches = bool(repo_yml.patches)
+                if sha_before == new_sha and dest_path.exists() and not update and not has_patches:
+                    click.secho(
+                        f"  {repo_yml.path} already at {new_sha[:10]} — skipping extract",
+                        fg="green",
                     )
-                    subprocess.check_call(
-                        ["tar", "x", "-C", str(tmpdir)],
-                        stdin=archive_proc.stdout,
-                    )
-                    archive_proc.stdout.close()
-                    rc = archive_proc.wait()
-                    if rc != 0:
-                        _raise_error(f"git archive failed for {repo_yml.path}")
-                    dest_path.mkdir(parents=True, exist_ok=True)
-                    subprocess.check_call([
-                        "rsync", "-a", "--delete",
-                        str(tmpdir) + "/", str(dest_path) + "/",
-                    ])
-                finally:
-                    # Clean up temp dir in background to avoid blocking
-                    subprocess.Popen(["rm", "-rf", str(tmpdir)])
-                msgs = [f"Updating submodule {repo_yml.path}"]
-                click.secho(f"  committing {repo_yml.path} ...", fg="cyan")
-                parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
+                else:
+                    click.secho(f"  extracting {repo_yml.path} ...", fg="cyan")
+                    import tempfile
+                    tmpdir = Path(tempfile.mkdtemp())
+                    try:
+                        archive_proc = subprocess.Popen(
+                            ["git", "archive", commit],
+                            stdout=subprocess.PIPE,
+                            cwd=cache_dir,
+                        )
+                        subprocess.check_call(
+                            ["tar", "x", "-C", str(tmpdir)],
+                            stdin=archive_proc.stdout,
+                        )
+                        archive_proc.stdout.close()
+                        rc = archive_proc.wait()
+                        if rc != 0:
+                            _raise_error(f"git archive failed for {repo_yml.path}")
+                        dest_path.mkdir(parents=True, exist_ok=True)
+                        subprocess.check_call([
+                            "rsync", "-a", "--delete",
+                            str(tmpdir) + "/", str(dest_path) + "/",
+                        ])
+                    finally:
+                        # Clean up temp dir in background to avoid blocking
+                        subprocess.Popen(["rm", "-rf", str(tmpdir)])
+                    msgs = [f"Updating submodule {repo_yml.path}"]
+                    click.secho(f"  committing {repo_yml.path} ...", fg="cyan")
+                    parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
             else:
                 with repo.worktree(commit) as worktree:
                     new_sha = worktree.hex
