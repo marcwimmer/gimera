@@ -96,14 +96,19 @@ class GitCommands(object):
     @property
     @yieldlist
     def all_dirty_files(self):
-        return self.untracked_files + self.dirty_existing_files
+        # Single git-status parse instead of calling untracked_files +
+        # dirty_existing_files which would each run git status separately.
+        for modifier, path in self._parse_git_status():
+            if modifier == "??" or modifier[0] == "A":
+                yield path
+            elif modifier[0] == "M" or modifier[1] == "M" or modifier[1] == "D":
+                yield path
 
     @property
     @yieldlist
     def all_dirty_files_absolute(self):
-        res = self.untracked_files + self.dirty_existing_files
-        res = list(map(lambda x: self.path_absolute / x, res))
-        return res
+        for f in self.all_dirty_files:
+            yield self.path_absolute / f
 
     @property
     @yieldlist

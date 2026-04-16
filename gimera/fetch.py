@@ -133,19 +133,23 @@ def _set_url_and_fetch(
     with wait_git_lock(repo.path):
         try:
             repo.out(*(git + ["fetch", remote_name] + todo_branches))
+            # FETCH_HEAD contains the sha we just fetched — no need for
+            # another network round-trip via git ls-remote.
+            fetched_sha = repo.out(
+                *(git + ["rev-parse", "FETCH_HEAD"])
+            ).strip()
             for branch in todo_branches:
-                remote_sha = (
-                    repo.X(*(git + ["ls-remote", "origin", branch]), output=True)
-                    .strip()
-                    .split("\t")[0]
-                )
-                repo.X(*(git + ["update-ref", f"refs/heads/{branch}", remote_sha]))
+                repo.X(*(git + ["update-ref", f"refs/heads/{branch}", fetched_sha]))
             success = True
         except subprocess.CalledProcessError as ex:
             click.secho(ex.stderr, fg="red")
 
     if success:
-        if not _has_repo_latest_commit(repo, repo_yml.branch):
+        # Verify the local branch now points to the fetched sha (local check only)
+        local_sha = repo.out(
+            *(git + ["rev-parse", repo_yml.branch]), allow_error=True,
+        ).strip()
+        if local_sha != fetched_sha:
             success = False
 
     if not success:

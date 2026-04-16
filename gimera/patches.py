@@ -34,6 +34,12 @@ def make_patches(working_dir, main_repo, repo_yml, common_vars):
         raise NotImplementedError(repo_yml.type)
     verbose(f"Making patches for {repo_yml.path}")
 
+    # Fast path: no patch dirs configured and non-interactive → nothing to
+    # save and nowhere to save it.  Skip the expensive git-status / prepare
+    # dance entirely.
+    if not repo_yml.patches and os.getenv("GIMERA_NON_INTERACTIVE") == "1":
+        return
+
     # Fast path: if the directory is git-ignored, check for local modifications
     # before doing the expensive temp-repo dance. If no files changed on disk
     # compared to what's there, skip patch creation entirely.
