@@ -254,7 +254,29 @@ class Repo(GitCommands):
 
     @yieldlist
     def get_submodules(self):
-        submodules = self.out(*(git + ["submodule", "status"])).splitlines()
+        try:
+            submodules = self.out(*(git + ["submodule", "status"])).splitlines()
+        except subprocess.CalledProcessError as ex:
+            # "no submodule mapping found in .gitmodules for path '...'"
+            # happens when gitlinks (160000) exist in the index but
+            # .gitmodules has no matching entry — e.g. after an
+            # interrupted submodule→integrated conversion.  Fall back to
+            # reading gitlinks directly from the index so callers (like
+            # _turn_into_correct_repotype) can still detect and clean up
+            # orphaned submodules.
+            if "no submodule mapping found" not in (ex.stderr or ""):
+                raise
+            output = self.out(
+                *(git + ["ls-files", "--stage"]), allow_error=True,
+            )
+            for line in (output or "").splitlines():
+                parts = line.split()
+                if parts[0] == "160000":
+                    yield Submodule(
+                        self.next_module_root / parts[3],
+                        self.next_module_root,
+                    )
+            return
         # Lines starting with "-" mean the submodule is not initialized —
         # still a registered submodule in .gitmodules/gitlinks, just uninitialized.
         # Only skip lines where the path itself is invalid ("./").

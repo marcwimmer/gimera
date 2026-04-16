@@ -288,13 +288,29 @@ def _turn_into_correct_repotype(
 
     """
     verbose(f"turn into correct repotype: {repo_config.path}")
+
+    # A previous interrupted conversion may have left staged files
+    # (e.g. gitlink deletion + new integrated files, or .gitmodules edits).
+    # Commit them to get a clean slate before proceeding — the conversion
+    # will redo the work anyway.
+    parent_repo = Repo(main_repo.path)
+    if parent_repo.staged_files:
+        click.secho(
+            f"Recovering staged files from a previous incomplete "
+            f"conversion of {repo_config.path}",
+            fg="yellow",
+        )
+        parent_repo.X(*(git + [
+            "commit", "-q", "--no-verify", "-m",
+            f"gimera: recover incomplete conversion for {repo_config.path}",
+        ]))
+
     state = get_effective_state(
         main_repo.path, working_dir / repo_config.path, common_vars
     )
     repo = Repo(state["parent_repo"])
     if repo_config.type == REPO_TYPE_INT:
         if state["is_submodule"]:
-            # always delete
             repo.force_remove_submodule(state["parent_repo_relpath"])
     else:
         __add_submodule(
