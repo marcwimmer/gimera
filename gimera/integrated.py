@@ -37,7 +37,7 @@ def _update_integrated_module(
         if not os.access(cache_dir, os.W_OK):
             _raise_error(f"No R/W rights on {cache_dir}")
         repo = Repo(cache_dir)
-        verbose(f"Updating integrated module {repo_yml.path}")
+        click.secho(f"Updating integrated module {repo_yml.path}", fg="cyan")
 
         dest_path = Path(working_dir) / repo_yml.path
         parent_repo = Repo(get_nearest_repo(main_repo.path, dest_path))
@@ -64,6 +64,7 @@ def _update_integrated_module(
                 # Fast path: use git archive + rsync instead of worktree for speed.
                 # Extract to a temp dir, then rsync --delete to dest. This is much
                 # faster than rmtree+extract because rsync only transfers the diff.
+                click.secho(f"  extracting {repo_yml.path} ...", fg="cyan")
                 new_sha = repo.out(*(git + ["rev-parse", commit]))
                 import tempfile
                 tmpdir = Path(tempfile.mkdtemp())
@@ -90,6 +91,7 @@ def _update_integrated_module(
                     # Clean up temp dir in background to avoid blocking
                     subprocess.Popen(["rm", "-rf", str(tmpdir)])
                 msgs = [f"Updating submodule {repo_yml.path}"]
+                click.secho(f"  committing {repo_yml.path} ...", fg="cyan")
                 parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
             else:
                 with repo.worktree(commit) as worktree:

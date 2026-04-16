@@ -32,7 +32,7 @@ def _fetch_repos_in_parallel(
         try:
             if repo_yml.url in results["urls"]:
                 return
-            verbose(f"Fetching {repo_yml.url}")
+            click.secho(f"Fetching {repo_yml.url}", fg="cyan")
             results["urls"].add(repo_yml.url)
             with _get_cache_dir(
                 main_repo, repo_yml, no_action_if_not_exist=True

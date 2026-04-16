@@ -163,7 +163,7 @@ def _internal_apply(
 
         try:
             for repo in repos:
-                verbose(f"applying {repo.path}")
+                click.secho(f"Applying {repo.path} ({repo.type}) ...", fg="cyan")
                 if not update:
                     _check_sha_belongs_to_branch(main_repo, repo)
                 _turn_into_correct_repotype(
