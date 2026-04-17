@@ -1,3 +1,10 @@
+# 0.9.0
+
+  * [IMPROVED] show per-repo progress during `gimera apply` (Fetching, Applying, extracting, committing) so long-running operations aren't silent
+  * [IMPROVED] ~3x faster `gimera apply`: consolidate `all_dirty_files` into a single git-status parse, replace redundant `git ls-remote` with `FETCH_HEAD`, and skip `make_patches` when no patch dirs are configured
+  * [IMPROVED] skip git-archive + rsync extraction for integrated modules when the configured sha already matches the working tree (huge speedup for large repos like odoo)
+  * [IMPROVED] add unit test suite covering filelock, tools, gitcommands, repo, config, cachedir, snapshot, patches helpers and CLI commands
+  * [FIXED] recover from interrupted submodule→integrated conversions: handle orphaned gitlinks (no .gitmodules entry) and leftover staged files from crashed runs
 # 0.8.2
 
   * [FIXED] recognize uninitialized submodules + add CLI help texts
