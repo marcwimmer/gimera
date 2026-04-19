@@ -1,3 +1,6 @@
+# 0.8.3
+
+  * [FIXED] test: guard against deleted-cwd fixture failures in parallel xdist workers
 # 0.9.0
 
   * [IMPROVED] show per-repo progress during `gimera apply` (Fetching, Applying, extracting, committing) so long-running operations aren't silent
