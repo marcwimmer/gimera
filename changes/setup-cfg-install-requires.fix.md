@@ -1,0 +1,1 @@
+* [FIX] setup.cfg: install_requires war fälschlich unter [options.packages.find] statt [options], dadurch wurden Abhängigkeiten (click, inquirer, pyyaml, pudb, urwid) seit 0.8.0 nicht mehr mitinstalliert.
