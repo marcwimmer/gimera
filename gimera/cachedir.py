@@ -84,17 +84,47 @@ def _ensure_sha(repo_yml, effective_path, update):
     repo = Repo(effective_path)
     if repo.contain_commit(repo_yml.sha):
         return
+    # fetch configured branch first (faster than fetchall for large repos;
+    # bare cache repos may have no refspec so --all only fetches HEAD)
+    if repo_yml.branch:
+        try:
+            repo.fetch(remote="origin", ref=repo_yml.branch)
+        except Exception:
+            pass
+    if repo.contain_commit(repo_yml.sha):
+        return
     repo.fetchall()
     if repo.contain_commit(repo_yml.sha):
         return
     if not update:
-        _raise_error(
-            (
-                f"After fetching the commit {repo_yml.sha} "
-                f"was not found for {repo_yml.path}.\n"
-                f"All remote branches were checked."
+        # check whether the SHA exists on a different branch
+        try:
+            branches_with_sha = repo.X(
+                *(git + ["branch", "-r", "--contains", repo_yml.sha]),
+                output=True,
+            ).strip()
+        except Exception:
+            branches_with_sha = ""
+        if branches_with_sha:
+            non_interactive = os.getenv("GIMERA_NON_INTERACTIVE") == "1"
+            msg = (
+                f"SHA {repo_yml.sha} for '{repo_yml.path}' was not found on "
+                f"configured branch '{repo_yml.branch}' but exists on:\n"
+                f"  {branches_with_sha}\n"
+                f"Switching to HEAD of '{repo_yml.branch}'."
             )
-        )
+            click.secho(msg, fg="yellow")
+            if not non_interactive:
+                click.pause()
+            repo_yml.sha = None
+        else:
+            _raise_error(
+                (
+                    f"After fetching the commit {repo_yml.sha} "
+                    f"was not found for {repo_yml.path}.\n"
+                    f"All remote branches were checked."
+                )
+            )
     else:
         click.secho(
             f"Warning: commit {repo_yml.sha} not found "
