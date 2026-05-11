@@ -109,18 +109,24 @@ jobs:
       # Build first — if the build is broken we want to fail before touching git/PyPI.
       run: |
         set -euo pipefail
-        if [ ! -f VERSION ]; then
-          echo "VERSION missing — nothing to release"
-          echo "DO_PYPI=0" >> "$GITHUB_ENV"
-          exit 0
-        fi
-        VERSION=$(cat VERSION)
-        # If last commit is already a release commit, skip — guard early.
+        # If last commit is already a release commit, skip — legitimate guard
+        # against an infinite release loop. Must be checked BEFORE the VERSION
+        # check below, since on a release commit compile_changelog produces no
+        # fragments and thus no VERSION file.
         if git log -n1 --pretty=%s | grep -q "^chore(release):"; then
           echo "No new commit (last commit is already a release)"
           echo "DO_PYPI=0" >> "$GITHUB_ENV"
           exit 0
         fi
+        # No VERSION here means compile_changelog found no fragments. A code
+        # commit on main without a fragment must not silently skip the release.
+        if [ ! -f VERSION ]; then
+          echo "::error::Kein Changelog-Fragment in changes/ gefunden — keine neue Version erzeugt."
+          echo "::error::Push auf main ohne Fragment ist nicht erlaubt."
+          echo "::error::Bitte anlegen, z.B.: echo 'beschreibung' > changes/foo.fix.md"
+          exit 1
+        fi
+        VERSION=$(cat VERSION)
         # If compile_changelog produced no diff, nothing to release.
         if git diff --quiet && git diff --cached --quiet; then
           echo "No changes from compile_changelog — skipping release"
