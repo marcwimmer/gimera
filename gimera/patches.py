@@ -498,6 +498,102 @@ def _apply_patches(repo_yml):
         _apply_patchfile(file, patchdir.apply_from_here_dir, error_ok=False)
 
 
+MAX_PATCH_STRIP_LEVEL = 4
+
+
+def _dry_run_patch(patch_file, cwd, strip):
+    cmd = [
+        "patch",
+        f"-p{strip}",
+        "--dry-run",
+        "--force",
+        "-s",
+        "-i",
+        str(patch_file),
+    ]
+    try:
+        subprocess.check_output(
+            cmd, cwd=cwd, encoding="utf-8", stderr=subprocess.STDOUT,
+        )
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def _extract_patch_target_paths(patch_file):
+    """Pull file paths referenced in `--- a/...` / `+++ b/...` lines.
+    Used to relocate the working directory when a patch was authored from a
+    deeper directory than gimera expects.
+    """
+    paths = []
+    seen = set()
+    try:
+        content = Path(patch_file).read_text(errors="replace")
+    except OSError:
+        return paths
+    for line in content.splitlines():
+        prefix = None
+        if line.startswith("--- a/"):
+            prefix = "--- a/"
+        elif line.startswith("+++ b/"):
+            prefix = "+++ b/"
+        if not prefix:
+            continue
+        rel = line[len(prefix):].split("\t")[0].strip()
+        if rel and rel != "/dev/null" and rel not in seen:
+            seen.add(rel)
+            paths.append(rel)
+    return paths
+
+
+def _find_working_patch_args(patch_file, cwd, max_levels=MAX_PATCH_STRIP_LEVEL):
+    """Probe `patch --dry-run` to locate (strip_level, cwd) that applies.
+
+    Phase 1 — vary `-p<N>` in the originally requested cwd. Handles patches
+    authored either inside the sub-repo (no prefix) or from the parent
+    repo's root (sub-repo prefix in paths).
+
+    Phase 2 — if every strip level failed, the patch was likely authored
+    from a directory deeper than gimera's cwd (e.g. `odoo/odoo/`, not
+    `odoo/`). Locate every subdirectory whose relative layout matches the
+    paths referenced inside the patch and retry there.
+
+    Returns (strip_level, working_dir) or None.
+    """
+    cwd = Path(cwd)
+    for p in range(1, max_levels + 1):
+        if _dry_run_patch(patch_file, cwd, p):
+            return (p, cwd)
+
+    paths = _extract_patch_target_paths(patch_file)
+    if not paths:
+        return None
+    first = paths[0]
+    depth = len(Path(first).parts)
+    candidates = []
+    seen_cwd = set()
+    for hit in cwd.rglob(first):
+        if ".git" in hit.parts:
+            continue
+        candidate_cwd = hit
+        for _ in range(depth):
+            candidate_cwd = candidate_cwd.parent
+        if not candidate_cwd.is_dir() or candidate_cwd == cwd:
+            continue
+        if candidate_cwd in seen_cwd:
+            continue
+        seen_cwd.add(candidate_cwd)
+        if not all((candidate_cwd / pp).exists() for pp in paths):
+            continue
+        candidates.append(candidate_cwd)
+
+    for candidate_cwd in candidates:
+        for p in range(1, max_levels + 1):
+            if _dry_run_patch(patch_file, candidate_cwd, p):
+                return (p, candidate_cwd)
+    return None
+
+
 def _apply_patchfile(file, working_dir, error_ok=False, just_check=False):
     verbose(f"Applying patchfile {file} in working dir {working_dir}")
     cwd = Path(working_dir)
@@ -516,21 +612,68 @@ def _apply_patchfile(file, working_dir, error_ok=False, just_check=False):
     1 out of 1 hunk ignored -- saving rejects to file file1.txt.rej
     """
     file = Path(file)
+    args = _find_working_patch_args(file, cwd)
+    if args is None:
+        # Surface a synthetic failure through the same channel as a real
+        # patch error so the existing error-handling / interactive prompt
+        # path stays intact.
+        try:
+            subprocess.check_output(
+                ["patch", "-p1", "--dry-run", "--force", "-i", str(file)],
+                cwd=cwd,
+                encoding="utf-8",
+                stderr=subprocess.STDOUT,
+            )
+        except subprocess.CalledProcessError as ex:
+            click.secho(
+                (
+                    f"\n\nFailed to apply patch — tried -p1..-p{MAX_PATCH_STRIP_LEVEL} "
+                    "and relocated cwds, none matched:\n\n"
+                ),
+                fg="yellow",
+            )
+            click.secho(
+                (
+                    f"{file}\n"
+                    "============================================================================================="
+                ),
+                fg="red",
+                bold=True,
+            )
+            click.secho((f"{ex.stdout or ''}\n" f"{ex.stderr or ''}\n"), fg="yellow")
+            click.secho(file.read_text(), fg="cyan")
+            if os.getenv("GIMERA_NON_INTERACTIVE") == "1" or not inquirer.confirm(
+                f"Patchfile failed ''{file}'' - continue with next file?",
+                default=True,
+            ):
+                if not error_ok:
+                    _raise_error(f"Error applying patch: {file}")
+            return False
+        return False
+    strip, real_cwd = args
+    if just_check:
+        return True
     try:
         cmd = [
             "patch",
-            "-p1",
+            f"-p{strip}",
             "--no-backup-if-mismatch",
             "--force",
             "-s",
             "-i",
             str(file),
         ]
-        if just_check:
-            cmd += ["--dry-run"]
-        subprocess.check_output(cmd, cwd=cwd, encoding="utf-8")
+        subprocess.check_output(cmd, cwd=real_cwd, encoding="utf-8")
+        if real_cwd != cwd:
+            try:
+                rel = real_cwd.relative_to(cwd)
+                suffix = f"-p{strip}, cwd=./{rel}"
+            except ValueError:
+                suffix = f"-p{strip}, cwd={real_cwd}"
+        else:
+            suffix = f"-p{strip}"
         click.secho(
-            (f"Applied patch {file}"),
+            (f"Applied patch {file} ({suffix})"),
             fg="blue",
         )
     except subprocess.CalledProcessError as ex:
