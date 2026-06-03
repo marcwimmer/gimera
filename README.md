@@ -95,6 +95,14 @@ gimera apply
 
 Then a patch file is created as suggestion in roles2/sub1_patches which you may commit and push.
 
+> **Note:** gimera auto-applies **unified diffs** only (as produced by `git
+> diff` / `git format-patch`). The strip level (`-p1`..`-p4`) and working
+> directory are detected from the patch headers. Context diffs, ed scripts,
+> binary patches and rename-/mode-only diffs (no unified body) are refused
+> rather than applied, as are patches referencing absolute, `..` or paths
+> that resolve outside the sub-repo through a symlink, that write into
+> `.git/`, or that create a symlink.
+
 ### Re-Edit patch file:
 
 ```bash
