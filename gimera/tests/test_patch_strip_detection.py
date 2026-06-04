@@ -452,7 +452,7 @@ def test_rename_patch_warns(tmp_path, capsys):
 
 def test_gitignore_not_refused(tmp_path):
     # `.gitignore` / `.github` are not the `.git` dir and must apply
-    (tmp_path / ".gitignore").write_text("old\n")
+    (tmp_path / ".gitignore").write_text("hello\n")
     patch = tmp_path / "x.patch"
     _write_mod_patch(patch, "a/.gitignore", "b/.gitignore")
     assert _apply_patchfile(patch, tmp_path)

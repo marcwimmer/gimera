@@ -839,7 +839,7 @@ def _find_relocation_candidates(pairs, cwd, max_levels):
     anchor_effectives = []
     seen_eff = set()
     for raw in anchor_raws:
-        for p in range(1, max_levels + 1):
+        for p in range(0, max_levels + 1):
             eff = _effective_path(raw, p, strict=True)
             if eff is not None and (p, eff) not in seen_eff:
                 seen_eff.add((p, eff))
@@ -926,12 +926,13 @@ def _find_working_patch_args(patch_file, cwd, max_levels=MAX_PATCH_STRIP_LEVEL):
         )
         return _PATCH_REFUSED
 
-    # One candidate level per distinct resolved target set — `patch`
-    # collapses too-short names to their basename, so several -p levels can
-    # touch the same files; only genuinely different targets are ambiguous.
+    # Try -p0 too: a no-prefix patch (`--- foo.txt`, no `a/`) needs -p0 on
+    # GNU patch, which — unlike BSD/Apple patch — does NOT fall back to the
+    # basename when a strip level over-strips. One candidate per distinct
+    # resolved target set; only genuinely different targets are ambiguous.
     seen_targets = set()
     fitting = []
-    for p in range(1, max_levels + 1):
+    for p in range(0, max_levels + 1):
         if not _strip_level_fits(pairs, cwd, p):
             continue
         sig = _resolved_target_signature(pairs, cwd, p)
@@ -1032,7 +1033,7 @@ def _apply_patchfile(file, working_dir, error_ok=False):
             file,
             output,
             error_ok,
-            f"Failed to apply patch — tried -p1..-p{MAX_PATCH_STRIP_LEVEL} "
+            f"Failed to apply patch — tried -p0..-p{MAX_PATCH_STRIP_LEVEL} "
             "and relocated cwds, none matched:",
         )
     strip, real_cwd, pairs = args
