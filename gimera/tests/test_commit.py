@@ -143,7 +143,79 @@ def test_commit_gitignored_path(temppath):
 
     gimera_commit("sub1", "branch1", "fix from main repo", False)
 
-    # upstream must now contain exactly those changes
+    # upstream must now contain exactly those changes — full equality, so a
+    # wrong-diff-base whole-file patch (clobbering the original first line)
+    # would be caught
     with clone_and_commit(remote_sub_repo, "branch1", commit=False) as subpath:
-        assert "a local fix!" in (subpath / "file1.txt").read_text()
+        assert (
+            subpath / "file1.txt"
+        ).read_text() == "random repo on branch1\na local fix!"
         assert (subpath / "file_new.txt").read_text() == "brand new"
+        log = subprocess.check_output(
+            git + ["log", "-1", "--format=%s"], cwd=subpath, encoding="utf8"
+        )
+        assert log.strip() == "fix from main repo"
+
+
+def test_commit_untracked_not_ignored_path(temppath):
+    """
+    The integrated path exists in the workspace but is neither tracked nor
+    gitignored (e.g. the ignore entry was removed after apply). Previously
+    `git add` recorded every file as new (diff base = main repo index), which
+    produced unappliable whole-file-is-new patches. The untracked branch of
+    _needs_separate_dir must route this through the temp repo, too.
+    """
+    workspace = temppath / "workspace"
+
+    remote_main_repo = _make_remote_repo(temppath / "mainrepo")
+    remote_sub_repo = _make_remote_repo(temppath / "sub1")
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(remote_main_repo), workspace.name],
+        cwd=workspace.parent,
+    )
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+
+    repos = {
+        "repos": [
+            {
+                "url": f"file://{remote_sub_repo}",
+                "branch": "branch1",
+                "path": "sub1",
+                "type": "integrated",
+            },
+        ]
+    }
+    (workspace / "gimera.yml").write_text(yaml.dump(repos))
+    (workspace / ".gitignore").write_text("/sub1\n")
+    subprocess.check_call(git + ["add", "."], cwd=workspace)
+    subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
+    subprocess.check_call(git + ["push"], cwd=workspace)
+    os.chdir(workspace)
+    gimera_apply([], None)
+
+    # drop the ignore entry — sub1 is now untracked but NOT ignored
+    (workspace / ".gitignore").write_text("")
+    subprocess.check_call(git + ["commit", "-am", "unignore sub1"], cwd=workspace)
+    tracked = subprocess.check_output(
+        git + ["ls-files", "--", "sub1"], cwd=workspace, encoding="utf8"
+    )
+    assert not tracked.strip()
+    rc = subprocess.run(
+        git + ["check-ignore", "-q", "sub1"], cwd=workspace
+    ).returncode
+    assert rc != 0, "sub1 must not be ignored in this scenario"
+
+    # modification only — exactly the case where a whole-file-is-new patch
+    # cannot apply upstream
+    (workspace / "sub1" / "file1.txt").write_text(
+        "random repo on branch1\na local fix!"
+    )
+
+    gimera_commit("sub1", "branch1", "fix from main repo", False)
+
+    with clone_and_commit(remote_sub_repo, "branch1", commit=False) as subpath:
+        assert (
+            subpath / "file1.txt"
+        ).read_text() == "random repo on branch1\na local fix!"

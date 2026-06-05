@@ -130,9 +130,12 @@ def _temporarily_move_gimera(repo_yml, to_path):
     repo_yml.config.config_file.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy(remember_config_path, repo_yml.config.config_file)
 
-    yield
-
-    repo_yml.config.config_file = remember_config_path
+    try:
+        yield
+    finally:
+        # always restore — otherwise an exception leaves the config pointing
+        # at a temp gimera.yml that gets deleted with the temp dir
+        repo_yml.config.config_file = remember_config_path
 
 
 @contextmanager
@@ -188,6 +191,10 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
                 main_repo2.simple_commit_all()
 
                 # now transfer the latest changes:
+                # NOTE: ordering matters — the local content must be rsynced
+                # AFTER _update_integrated_module, otherwise its dirty-files
+                # guard ("contains uncommitted changes") fires on the not yet
+                # committed local files in the temp repo
                 rsync(
                     main_repo.path / repo_yml.path,
                     path / repo_yml.path,
