@@ -1,3 +1,6 @@
+# 0.10.1
+
+  * [FIXED] `gimera commit` now works when the integrated path is gitignored or untracked in the main repo: the patch is built against the upstream state via a temporary repo instead of the main repo's index (previously `git add` crashed on ignored paths, and untracked paths produced unappliable whole-file-is-new patches)
 # 0.10.0
 
   * [NEW] auto-detect patch strip level so patches from any source apply
