@@ -1,3 +1,6 @@
+# 0.10.2
+
+  * [FIXED] harden `_temporarily_move_gimera` against exceptions (config file pointer is now always restored) and strengthen `gimera commit` test coverage (untracked-not-ignored path, exact-content assertions)
 # 0.10.1
 
   * [FIXED] `gimera commit` now works when the integrated path is gitignored or untracked in the main repo: the patch is built against the upstream state via a temporary repo instead of the main repo's index (previously `git add` crashed on ignored paths, and untracked paths produced unappliable whole-file-is-new patches)
