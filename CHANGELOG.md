@@ -1,3 +1,8 @@
+# 0.10.3
+
+  * [FIXED] `gimera commit --preview` now shows the staged diff (`git diff --cached`) — the preview was always empty because everything was already staged
+  * [FIXED] apply patches with `patch -E` so file deletions actually remove the file — without it GNU patch left an empty file behind for every deletion hunk
+  * [FIXED] restore in-memory sha and `.gitignore` reliably even when temp-repo patch creation fails (`temporary_unignore` now uses try/finally and skips the no-op rewrite); treat a failing `ls-files` probe as untracked
 # 0.10.2
 
   * [FIXED] harden `_temporarily_move_gimera` against exceptions (config file pointer is now always restored) and strengthen `gimera commit` test coverage (untracked-not-ignored path, exact-content assertions)
