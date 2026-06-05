@@ -57,7 +57,9 @@ def _commit(repo, branch, message, preview):
         patchfile.unlink()
         gitrepo.X(*(git + ["add", "."]))
         if preview:
-            gitrepo.X(*(git + ["diff"]))
+            # everything is staged at this point — plain `git diff` would
+            # show nothing
+            gitrepo.X(*(git + ["diff", "--cached"]))
             doit = inquirer.confirm("Commit this?", default=True)
             if not doit:
                 return
