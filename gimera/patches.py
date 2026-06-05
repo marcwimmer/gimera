@@ -147,10 +147,20 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
     from .cachedir import _get_cache_dir
     from .integrated import _update_integrated_module
 
-    if (
-        main_repo.check_ignore(repo_yml.path)
-        and (main_repo.path / repo_yml.path).exists()
-    ):
+    def _needs_separate_dir():
+        if not (main_repo.path / repo_yml.path).exists():
+            return False
+        if main_repo.check_ignore(repo_yml.path):
+            return True
+        # untracked (never committed to the main repo) — same problem as
+        # ignored: the main repo offers no diff base, `git add` would record
+        # every file as new instead of the delta against upstream
+        tracked = main_repo.out(
+            *(git + ["ls-files", "--", str(repo_yml.path)])
+        ).strip()
+        return not tracked
+
+    if _needs_separate_dir():
         with temppath() as path:
             subprocess.check_call(
                 (git + ["init", "--initial-branch=main", "."]), cwd=path

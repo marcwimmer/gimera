@@ -10,11 +10,13 @@ from .tools import prepare_dir
 from .config import Config
 from .patches import _apply_patchfile
 from .patches import _technically_make_patch
+from .patches import _if_ignored_move_to_separate_dir
 
 
 def _commit(repo, branch, message, preview):
     config = Config()
     repo = config.get_repos(Path(repo))
+    common_vars = config.yaml_config.get("common", {}).get("vars", {})
     path2 = Path(tempfile.mktemp(suffix="."))
     main_repo = _get_main_repo()
     assert len(repo) == 1
@@ -34,8 +36,18 @@ def _commit(repo, branch, message, preview):
             branch = repo.branch
 
         gitrepo.X(*(git + ["checkout", "-f", branch]))
-        src_path = main_repo.path / repo.path
-        patch_content = _technically_make_patch(main_repo, src_path)
+
+        # If the repo path is gitignored/untracked in the main repo, the main
+        # repo offers no diff base — _if_ignored_move_to_separate_dir builds a
+        # temp repo at the configured upstream state and rsyncs the local
+        # changes over it, so the patch is the actual delta against upstream.
+        with _if_ignored_move_to_separate_dir(
+            None, main_repo, repo, common_vars
+        ) as (patch_repo, _is_temp_path):
+            src_path = patch_repo.path / repo.path
+            # the temp repo received a copy of the main .gitignore
+            with patch_repo.temporary_unignore(src_path):
+                patch_content = _technically_make_patch(patch_repo, src_path)
 
         patchfile = gitrepo.path / "1.patch"
         patchfile.write_text(patch_content)

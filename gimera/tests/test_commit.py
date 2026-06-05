@@ -20,7 +20,8 @@ from ..consts import gitcmd as git
 
 def test_commit(temppath):
     """
-    * if odoo path is ignored, it is cool to make a patch for it, too
+    Standard case: the integrated path is tracked in the main repo.
+    (For the gitignored path see test_commit_gitignored_path.)
     """
     workspace = temppath / "workspace"
 
@@ -87,3 +88,62 @@ def test_commit(temppath):
     subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
     gimera_apply([], update=True)
     assert "a change!" in (workspace / "sub1" / "file1.txt").read_text()
+
+
+def test_commit_gitignored_path(temppath):
+    """
+    The integrated path is gitignored in the main repo (never tracked there).
+    gimera commit must build the patch against the upstream state, not the
+    main repo's index — previously this crashed because `git add` refuses
+    ignored paths (or, for untracked paths, produced unappliable
+    whole-file-is-new patches).
+    """
+    workspace = temppath / "workspace"
+
+    remote_main_repo = _make_remote_repo(temppath / "mainrepo")
+    remote_sub_repo = _make_remote_repo(temppath / "sub1")
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(remote_main_repo), workspace.name],
+        cwd=workspace.parent,
+    )
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+
+    repos = {
+        "repos": [
+            {
+                "url": f"file://{remote_sub_repo}",
+                "branch": "branch1",
+                "path": "sub1",
+                "type": "integrated",
+            },
+        ]
+    }
+    (workspace / "gimera.yml").write_text(yaml.dump(repos))
+    # the zync situation: integrated path is gitignored in the main repo
+    (workspace / ".gitignore").write_text("/sub1\n")
+    subprocess.check_call(git + ["add", "."], cwd=workspace)
+    subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
+    subprocess.check_call(git + ["push"], cwd=workspace)
+    os.chdir(workspace)
+    gimera_apply([], None)
+
+    # sub1 must not be tracked in the main repo
+    tracked = subprocess.check_output(
+        git + ["ls-files", "--", "sub1"], cwd=workspace, encoding="utf8"
+    )
+    assert not tracked.strip()
+
+    # change a tracked file and add a new one inside the ignored dir
+    (workspace / "sub1" / "file1.txt").write_text(
+        "random repo on branch1\na local fix!"
+    )
+    (workspace / "sub1" / "file_new.txt").write_text("brand new")
+
+    gimera_commit("sub1", "branch1", "fix from main repo", False)
+
+    # upstream must now contain exactly those changes
+    with clone_and_commit(remote_sub_repo, "branch1", commit=False) as subpath:
+        assert "a local fix!" in (subpath / "file1.txt").read_text()
+        assert (subpath / "file_new.txt").read_text() == "brand new"
