@@ -18,7 +18,7 @@ from .tools import gimera_commit
 from ..consts import gitcmd as git
 
 
-def test_commit(temppath):
+def test_commit(temppath, monkeypatch):
     """
     Standard case: the integrated path is tracked in the main repo.
     (For the gitignored path see test_commit_gitignored_path.)
@@ -32,7 +32,7 @@ def test_commit(temppath):
         git + ["clone", "file://" + str(remote_main_repo), workspace.name],
         cwd=workspace.parent,
     )
-    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+    monkeypatch.setenv("GIMERA_NON_INTERACTIVE", "1")
 
     # region gimera config
     repos = {
@@ -53,7 +53,7 @@ def test_commit(temppath):
     subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
     subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(git + ["push"], cwd=workspace)
-    os.chdir(workspace)
+    monkeypatch.chdir(workspace)
     gimera_apply([], None)
     Repo(workspace).simple_commit_all()
     assert not Repo(workspace).staged_files
@@ -62,20 +62,17 @@ def test_commit(temppath):
         "Now we have a repo with integrated and gitignored sub"
         "\nWe change something and check if a patch is made."
     )
-    os.chdir(workspace)
-    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
-    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+    monkeypatch.setenv("GIMERA_EXCEPTION_THAN_SYSEXIT", "1")
 
-    os.chdir(workspace)
     gimera_apply([], update=False)
 
     (workspace / "sub1" / "file2.txt").write_text("a new file!")
 
     gimera_commit("sub1", "branch1", "i committed", False)
-    os.environ["GIMERA_FORCE"] = "1"
+    monkeypatch.setenv("GIMERA_FORCE", "1")
     os.unlink(workspace / "sub1" / "file2.txt")
     subprocess.check_output(git + ["checkout", "sub1/file1.txt"])
-    os.environ["GIMERA_NON_THREADED"] = "1"
+    monkeypatch.setenv("GIMERA_NON_THREADED", "1")
     gimera_apply([], update=True)
     assert (
         workspace / "sub1" / "file2.txt"
@@ -90,7 +87,7 @@ def test_commit(temppath):
     assert "a change!" in (workspace / "sub1" / "file1.txt").read_text()
 
 
-def test_commit_gitignored_path(temppath):
+def test_commit_gitignored_path(temppath, monkeypatch):
     """
     The integrated path is gitignored in the main repo (never tracked there).
     gimera commit must build the patch against the upstream state, not the
@@ -107,8 +104,8 @@ def test_commit_gitignored_path(temppath):
         git + ["clone", "file://" + str(remote_main_repo), workspace.name],
         cwd=workspace.parent,
     )
-    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
-    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+    monkeypatch.setenv("GIMERA_NON_INTERACTIVE", "1")
+    monkeypatch.setenv("GIMERA_EXCEPTION_THAN_SYSEXIT", "1")
 
     repos = {
         "repos": [
@@ -126,7 +123,7 @@ def test_commit_gitignored_path(temppath):
     subprocess.check_call(git + ["add", "."], cwd=workspace)
     subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(git + ["push"], cwd=workspace)
-    os.chdir(workspace)
+    monkeypatch.chdir(workspace)
     gimera_apply([], None)
 
     # sub1 must not be tracked in the main repo
@@ -156,8 +153,23 @@ def test_commit_gitignored_path(temppath):
         )
         assert log.strip() == "fix from main repo"
 
+    # round 2: pull the new upstream state, then commit a file DELETION —
+    # rsync into the temp repo must run with --delete so removals are part
+    # of the patch
+    gimera_apply([], update=True)
+    assert (workspace / "sub1" / "file_new.txt").exists()
+    (workspace / "sub1" / "file_new.txt").unlink()
 
-def test_commit_untracked_not_ignored_path(temppath):
+    gimera_commit("sub1", "branch1", "remove file_new", False)
+
+    with clone_and_commit(remote_sub_repo, "branch1", commit=False) as subpath:
+        assert not (subpath / "file_new.txt").exists()
+        assert (
+            subpath / "file1.txt"
+        ).read_text() == "random repo on branch1\na local fix!"
+
+
+def test_commit_untracked_not_ignored_path(temppath, monkeypatch):
     """
     The integrated path exists in the workspace but is neither tracked nor
     gitignored (e.g. the ignore entry was removed after apply). Previously
@@ -174,8 +186,8 @@ def test_commit_untracked_not_ignored_path(temppath):
         git + ["clone", "file://" + str(remote_main_repo), workspace.name],
         cwd=workspace.parent,
     )
-    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
-    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
+    monkeypatch.setenv("GIMERA_NON_INTERACTIVE", "1")
+    monkeypatch.setenv("GIMERA_EXCEPTION_THAN_SYSEXIT", "1")
 
     repos = {
         "repos": [
@@ -192,7 +204,7 @@ def test_commit_untracked_not_ignored_path(temppath):
     subprocess.check_call(git + ["add", "."], cwd=workspace)
     subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(git + ["push"], cwd=workspace)
-    os.chdir(workspace)
+    monkeypatch.chdir(workspace)
     gimera_apply([], None)
 
     # drop the ignore entry — sub1 is now untracked but NOT ignored

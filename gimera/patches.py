@@ -130,12 +130,17 @@ def _temporarily_move_gimera(repo_yml, to_path):
     repo_yml.config.config_file.parent.mkdir(exist_ok=True, parents=True)
     shutil.copy(remember_config_path, repo_yml.config.config_file)
 
+    remember_sha = repo_yml._sha
     try:
         yield
     finally:
         # always restore — otherwise an exception leaves the config pointing
         # at a temp gimera.yml that gets deleted with the temp dir
         repo_yml.config.config_file = remember_config_path
+        # _update_integrated_module may have assigned repo_yml.sha while the
+        # config was redirected; the write went to the temp copy, but the
+        # in-memory value must not leak back into the real config either
+        repo_yml._sha = remember_sha
 
 
 @contextmanager
@@ -158,8 +163,10 @@ def _if_ignored_move_to_separate_dir(working_dir, main_repo, repo_yml, common_va
         # untracked (never committed to the main repo) — same problem as
         # ignored: the main repo offers no diff base, `git add` would record
         # every file as new instead of the delta against upstream
+        # allow_error: a failing ls-files just means "treat as untracked",
+        # which routes through the (always correct) temp-repo path
         tracked = main_repo.out(
-            *(git + ["ls-files", "--", str(repo_yml.path)])
+            *(git + ["ls-files", "--", str(repo_yml.path)]), allow_error=True
         ).strip()
         return not tracked
 
@@ -1091,6 +1098,9 @@ def _apply_patchfile(file, working_dir, error_ok=False):
             "--no-backup-if-mismatch",
             "--force",
             "-s",
+            # -E: a deletion hunk (`+++ /dev/null`) must remove the file —
+            # without it GNU patch leaves an empty file behind
+            "-E",
             "-i",
             str(file),
         ]

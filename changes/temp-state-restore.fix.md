@@ -1,0 +1,1 @@
+restore in-memory sha and `.gitignore` reliably even when temp-repo patch creation fails (`temporary_unignore` now uses try/finally and skips the no-op rewrite); treat a failing `ls-files` probe as untracked
