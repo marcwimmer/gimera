@@ -14,6 +14,8 @@ from .tools import _raise_error
 from .tools import rmtree
 from .tools import replace_dir_with
 from .tools import temppath
+from .userconfig import explain_no_cache
+from .userconfig import is_no_cache
 
 # store big repos in tar file and try to restore from there;
 # otherwise lot of downloads have to be done
@@ -141,7 +143,12 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
 
     golden_path = _make_cache_path(url)
 
-    if os.getenv("GIMERA_NO_CACHE", "") == "1":
+    # Kein Cache fuer dieses Repo: flacher Checkout genau des gebrauchten
+    # Standes statt der kompletten Historie im Golden Cache. Fuer odoo/odoo
+    # ist das der Unterschied zwischen ein paar hundert MB und ~18 GB -- auf
+    # einer Kundenmaschine will die Historie niemand.
+    if is_no_cache(url):
+        explain_no_cache(url)
         TEMP_KEY = f"{repo_yml.url}_{repo_yml.sha or repo_yml.branch}"
         with temppath(mkdir=False, reuse_key=TEMP_KEY) as path:
             if not path.exists():

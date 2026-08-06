@@ -189,6 +189,33 @@ How it works:
   * patch file is applied
   * if something conflicts, then it is reported and you have to decide what to do
 
+## Machine settings: ~/.gimera
+
+Settings that belong to the machine, not to a project. JSON, so it stays easy
+to extend:
+
+```json
+{
+  "no_cache": ["odoo/odoo", "github.com/odoo/enterprise"]
+}
+```
+
+  * `no_cache` - repos that never go into the golden cache. Gimera fetches
+    exactly the needed state instead (`--single-branch --depth=1`). For
+    odoo/odoo that is the difference between a few hundred MB and ~18 GB of
+    history - worth it on build servers and hosting instances, while a
+    developer machine usually wants the cache.
+
+    A short `owner/repo` matches on any host; write `host/owner/repo` if the
+    same name exists on two hosts. Both URL spellings (`git@github.com:...`
+    and `https://github.com/...`) match the same entry.
+
+Unknown keys are ignored, so an older gimera keeps working with a config
+written by a newer one. A broken config aborts instead of being skipped -
+a setting that silently does nothing is worse than none.
+
+The path can be overridden with `GIMERA_CONFIG`.
+
 ## Some environment variables
 
   * GIMERA_NON_THREADED=1 - non threaded fetch
@@ -196,6 +223,8 @@ How it works:
   * GIMERA_NO_SHA_UPDATE=1 - no shas updated in gimera file
   * GIMERA_QUIET=1 - rsyncing quiet and git
   * GIMERA_NO_PRECOMMIT=1 - do not execute pre commits
+  * GIMERA_NO_CACHE=1 - no golden cache at all (like listing every repo in `no_cache`)
+  * GIMERA_CONFIG=/path/to/config - use another file instead of ~/.gimera
 
 ## Running tests
 
