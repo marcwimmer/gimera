@@ -1,1 +1,0 @@
-`~/.gimera` (JSON) can now list repos under `no_cache` that never go into the golden cache — gimera fetches exactly the needed state instead (`--single-branch --depth=1`). For odoo/odoo that is ~1.1 GB instead of ~18 GB of history, which matters on build servers and hosting instances where nobody ever looks at the past. `GIMERA_NO_CACHE=1` still turns it on for every repo.

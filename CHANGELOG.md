@@ -1,3 +1,7 @@
+# 0.11.0
+
+  * [NEW] `~/.gimera` (JSON) can now list repos under `no_cache` that never go into the golden cache — gimera fetches exactly the needed state instead (`--single-branch --depth=1`). For odoo/odoo that is ~1.1 GB instead of ~18 GB of history, which matters on build servers and hosting instances where nobody ever looks at the past. `GIMERA_NO_CACHE=1` still turns it on for every repo.
+  * [FIXED] CI: `actions/checkout` und `actions/setup-python` auf die Node-24-Majors (v7) angehoben. Die bisher genutzten v4/v5 laufen auf Node 20, das ab 16.09.2026 von den GitHub-Runnern entfernt wird — die Workflows wären danach kaputt gegangen.
 # 0.10.3
 
   * [FIXED] `gimera commit --preview` now shows the staged diff (`git diff --cached`) — the preview was always empty because everything was already staged

@@ -1,1 +1,0 @@
-CI: `actions/checkout` und `actions/setup-python` auf die Node-24-Majors (v7) angehoben. Die bisher genutzten v4/v5 laufen auf Node 20, das ab 16.09.2026 von den GitHub-Runnern entfernt wird — die Workflows wären danach kaputt gegangen.
