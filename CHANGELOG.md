@@ -1,3 +1,6 @@
+# 0.11.2
+
+  * [FIXED] CI: Die Concurrency-Gruppe des Test-Jobs bricht laufende Release-Laeufe nicht mehr ab. Bisher teilten sich alle Laeufe eines Branches eine Gruppe mit `cancel-in-progress`, wodurch ein schnell nachgeschobener Push (oder ein manueller Start) den Test-Job eines Pushes auf main abwuergen konnte — und mit ihm das daran haengende Release. Ab jetzt loesen sich nur noch PR-Laeufe gegenseitig ab; Pushes auf main und manuelle Laeufe bekommen eine eigene Gruppe je Run.
 # 0.11.1
 
   * [FIXED] CI: Der Workflow laesst sich jetzt manuell starten (`workflow_dispatch`, Button „Run workflow" im Actions-Tab bzw. `gh workflow run CI --ref main`). Hilfreich, wenn ein Push-Event verloren geht — etwa waehrend einer GitHub-Actions-Stoerung — und bisher nur ein leerer Commit als Ersatz-Trigger blieb. Der Release-Job bleibt absichtlich an `push` gebunden und laeuft bei manuellem Start nicht mit.
