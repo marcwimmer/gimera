@@ -22,9 +22,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # Nur PR-Laeufe duerfen sich gegenseitig abloesen — dort zaehlt schnelles
+    # Feedback und ein ueberholter Lauf ist wertlos. Pushes auf main und
+    # manuelle Laeufe bekommen dagegen eine eigene Gruppe pro Run: ein Push auf
+    # main fuehrt zum Release, der darf weder abgebrochen werden noch einen
+    # bereits laufenden Release-Test abschiessen.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
+      group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
     steps:
     - uses: actions/checkout@v7
