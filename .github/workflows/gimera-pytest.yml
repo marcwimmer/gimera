@@ -7,6 +7,10 @@ on:
   pull_request:
     branches:
       - main
+  # Manueller Start ueber den Actions-Tab bzw. `gh workflow run CI --ref main`.
+  # Bewusst nur fuer die Tests: der release-Job bleibt an event_name == 'push'
+  # gebunden, damit ein Klick nie ungewollt nach PyPI veroeffentlicht.
+  workflow_dispatch:
 
 permissions:
   contents: write
