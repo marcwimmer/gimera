@@ -1,3 +1,6 @@
+# 0.11.1
+
+  * [FIXED] CI: Der Workflow laesst sich jetzt manuell starten (`workflow_dispatch`, Button „Run workflow" im Actions-Tab bzw. `gh workflow run CI --ref main`). Hilfreich, wenn ein Push-Event verloren geht — etwa waehrend einer GitHub-Actions-Stoerung — und bisher nur ein leerer Commit als Ersatz-Trigger blieb. Der Release-Job bleibt absichtlich an `push` gebunden und laeuft bei manuellem Start nicht mit.
 # 0.11.0
 
   * [NEW] `~/.gimera` (JSON) can now list repos under `no_cache` that never go into the golden cache — gimera fetches exactly the needed state instead (`--single-branch --depth=1`). For odoo/odoo that is ~1.1 GB instead of ~18 GB of history, which matters on build servers and hosting instances where nobody ever looks at the past. `GIMERA_NO_CACHE=1` still turns it on for every repo.
