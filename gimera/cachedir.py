@@ -18,8 +18,8 @@ from .tools import temppath
 from .userconfig import explain_no_cache
 from .userconfig import is_no_cache
 
-# store big repos in tar file and try to restore from there;
-# otherwise lot of downloads have to be done
+# The golden cache is a bare clone, kept once. An older gimera also wrote a
+# gzipped tarball of the same packfile next to it - see _drop_legacy_tarfile.
 
 
 from contextlib import contextmanager
@@ -45,11 +45,11 @@ def _invalidate_cache_if_needed(golden_path):
         click.secho(f"Removing cache directory:\n{golden_path}", fg="red")
         rmtree(golden_path)
 
-    if os.getenv("GIMERA_CLEAR_ZIP_CACHE", "") == "1":
-        tar = _get_cache_dir_tarfile(golden_path)
-        if tar.exists():
-            click.secho(f"Removing cache tar file:\n{tar}", fg="red")
-            tar.unlink()
+    # No GIMERA_CLEAR_ZIP_CACHE any more: there is no second copy to clear.
+    # It used to be a separate switch, which is why GIMERA_CLEAR_CACHE=1 alone
+    # emptied the directory but left the tarball - and the next run restored
+    # the very state the user wanted gone.
+    _drop_legacy_tarfile(golden_path)
 
 
 def _wants_partial_clone(repo_yml):
@@ -150,28 +150,13 @@ def _clone_or_restore(main_repo, url, golden_path, possible_temp_path, partial=F
         f"Caching the repository {url} for quicker reuse",
         fg="yellow",
     )
-    tar = _get_cache_dir_tarfile(golden_path)
     with prepare_dir(possible_temp_path) as _path:
         with remember_cwd(
             "/tmp"
         ):  # called from other situations where path may not exist anymore
-            restored = False
-            if tar.exists():
-                try:
-                    _extract_tar_file(_path, tar)
-                    restored = True
-                except Exception:
-                    click.secho(
-                        f"Failed to extract tar file {tar} - will try to clone again.",
-                        fg="red",
-                    )
-                    tar.unlink()
-
-            if not restored:
-                rmtree(_path)
-                _path.mkdir(parents=True)
-                _bare_clone(main_repo, url, _path, partial)
-                _make_tar_file(_path, tar)
+            rmtree(_path)
+            _path.mkdir(parents=True)
+            _bare_clone(main_repo, url, _path, partial)
 
 
 def _ensure_sha(repo_yml, effective_path, update):
@@ -287,22 +272,32 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
             rmtree(possible_temp_path)
 
 
-def _get_cache_dir_tarfile(_path):
+def _legacy_tarfile(_path):
+    """Where gimera <= 0.12.x kept a second copy of the golden cache."""
     return Path(str(_path) + ".tar.gz")
 
 
-def _make_tar_file(_path, tarfile):
-    if tarfile.exists():
-        tarfile.unlink()
+def _drop_legacy_tarfile(golden_path):
+    """Remove the tarball an older gimera left next to the cache.
+
+    It is never read again, so keeping it would just occupy the disk it was
+    supposed to save - on odoo/odoo that was 16 GB. Reported rather than
+    done silently, because the number is large enough that someone watching
+    `du` should know where it went.
+    """
+    tar = _legacy_tarfile(golden_path)
+    if not tar.exists():
+        return
+    try:
+        size = tar.stat().st_size
+    except OSError:
+        size = 0
     click.secho(
-        f"Creating tar file {tarfile} from {_path} - might take some time on large repos.",
+        f"Removing tar file left by an older gimera "
+        f"({size / 1024 / 1024 / 1024:.1f} GB):\n{tar}",
         fg="yellow",
     )
-    tempfilename = str(tarfile) + "." + str(uuid.uuid4())
-    subprocess.check_call(["tar", "cfz", str(tempfilename), "-C", str(_path), "."])
-    os.replace(tempfilename, tarfile)
-
-
-def _extract_tar_file(_path, tarfile):
-    click.secho(f"Extracting tar file {tarfile} to {_path}", fg="yellow")
-    subprocess.check_call(["tar", "xfz", str(tarfile)], cwd=_path)
+    try:
+        tar.unlink()
+    except OSError as ex:
+        click.secho(f"Could not remove {tar}: {ex}", fg="red")

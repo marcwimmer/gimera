@@ -210,7 +210,8 @@ def _get_available_repos(ctx, param, incomplete):
 )
 @click.option(
     "--clear-zip-cache", is_flag=True,
-    help="Clear the zip download cache before applying.",
+    help="Deprecated, does nothing. There is no second cache copy any more; "
+         "a tarball left by an older gimera is removed automatically.",
 )
 @click.option(
     "--no-cache", is_flag=True,
@@ -261,7 +262,13 @@ def apply(
     if clear_cache:
         os.environ['GIMERA_CLEAR_CACHE'] = "1"
     if clear_zip_cache:
-        os.environ['GIMERA_CLEAR_ZIP_CACHE'] = "1"
+        # Kept so existing scripts and habits do not break; the tarball it
+        # used to clear is not written any more and a leftover one is removed
+        # on its own (cachedir._drop_legacy_tarfile).
+        click.secho(
+            "--clear-zip-cache no longer does anything and can be dropped.",
+            fg="yellow",
+        )
     if no_cache:
         os.environ['GIMERA_NO_CACHE'] = "1"
     ttype = None
