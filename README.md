@@ -61,6 +61,13 @@ repos:
         - file1.patch
         - roles2/sub1_patches/file1.patch
 
+    # keep the vendored files out of the parent repository
+    - url: "https://github.com/odoo/enterprise"
+      branch: '16.0'
+      path: odoo/enterprise
+      type: integrated
+      dont_commit: True
+
     # apply patches from another remote repository
     #
     - url: "https://github.com/foo/bar"
@@ -111,6 +118,40 @@ gimera edit-patch file1.patch file2.patch
 
   * by this, you can combine several patch files into one again
 
+
+## Integrated repos that must not land in the parent repository
+
+Some paths have to be there for running the project, but must never be
+committed - odoo.sh projects are the typical case, they carry
+`odoo/enterprise` in their `.gitignore`.
+
+You do not need to configure anything for that: if the path of an integrated
+repo is gitignored and not tracked yet, `gimera apply` pulls the files as usual
+and leaves them untracked. It says so while applying.
+
+Deliberately, this looks at the index as well - a path that is **tracked** in
+the parent repository today counts as not ignored, and updates keep being
+committed. Otherwise a `.gitignore` entry added later would silently stop
+updating the copy in the repository, and everybody pulling it would keep stale
+content without a hint.
+
+So for the case "the path is tracked today and shall stop being tracked",
+say it explicitly:
+
+```yaml
+repos:
+    - url: "https://github.com/odoo/enterprise"
+      branch: '16.0'
+      path: odoo/enterprise
+      type: integrated
+      dont_commit: True
+```
+
+The files then stay out of any commit gimera makes. Removing them from the
+index is up to you (`git rm -r --cached odoo/enterprise`), gimera does not
+delete other people's history for them. `dont_commit` only applies to
+`type: integrated`; a submodule is a gitlink in the parent repository by
+definition.
 
 ## How to fetch only one or more repo:
 

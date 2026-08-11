@@ -211,6 +211,15 @@ class Config(object):
             self.ignored_patchfiles = config_section.get("ignored_patchfiles", [])
             self.edit_patchfile = config_section.get("edit_patchfile", "")
             self._type = config_section["type"]
+            # Keep the vendored files out of the parent repository - they are
+            # pulled as usual, but never staged or committed. Needed when the
+            # path is tracked in the parent repo today and should stop being
+            # tracked (a gitignore rule alone does not help then, see
+            # _keep_out_of_parent_repo). "local" is the name this option was
+            # proposed under and stays accepted.
+            self.dont_commit = config_section.get(
+                "dont_commit", config_section.get("local", False)
+            )
             self._url = self.eval(config_section["url"])
             self._remotes = config_section.get("remotes", {})
             if self.path in [x.path for x in config.repos]:
@@ -231,6 +240,15 @@ class Config(object):
                 _raise_error(
                     "Please provide type for repo "
                     f"{self.path}: either '{REPO_TYPE_INT}' or '{REPO_TYPE_SUB}'"
+                )
+
+            if self.dont_commit and self.type != REPO_TYPE_INT:
+                # A submodule is a gitlink in the parent repo by definition -
+                # not committing it means not having a submodule. Better to say
+                # so than to accept the option and ignore it.
+                _raise_error(
+                    f"dont_commit is only supported for repos of type "
+                    f"'{REPO_TYPE_INT}': {self.path}"
                 )
 
         def ignore_patchfile(self, path):
