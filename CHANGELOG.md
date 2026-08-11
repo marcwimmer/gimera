@@ -1,3 +1,6 @@
+# 0.12.1
+
+  * [FIXED] Der Test fuer eine kaputte ~/.gimera erwartete einen SystemExit, obwohl die Testumgebung Abbrueche als Exception meldet (GIMERA_EXCEPTION_THAN_SYSEXIT). Er schlug dadurch in der CI fehl und blockierte das Release.
 # 0.12.0
 
   * [IMPROVED] Golden cache of integrated repos is cloned with `--filter=blob:none`, so it holds the history but only the file contents of the snapshots actually used. On odoo/odoo that is 1.4 GB instead of ~17 GB, and a pin bump of 300 commits adds ~100 MB. Submodule repos keep a full cache (a partial clone cannot serve `git submodule update`), existing caches are left alone, and `GIMERA_FULL_CLONE=1` turns the filter off.
