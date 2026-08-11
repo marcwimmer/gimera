@@ -1,3 +1,7 @@
+# 0.12.0
+
+  * [IMPROVED] Golden cache of integrated repos is cloned with `--filter=blob:none`, so it holds the history but only the file contents of the snapshots actually used. On odoo/odoo that is 1.4 GB instead of ~17 GB, and a pin bump of 300 commits adds ~100 MB. Submodule repos keep a full cache (a partial clone cannot serve `git submodule update`), existing caches are left alone, and `GIMERA_FULL_CLONE=1` turns the filter off.
+  * [FIXED] Test fixtures no longer leak `GIMERA_EXCEPTION_THAN_SYSEXIT` (and the other `GIMERA_*` switches) into the rest of the pytest process. Setting them via plain `os.environ` assignment made `test_broken_json_aborts_loudly` pass or fail depending on how pytest-xdist happened to shard the run — it expects the default `sys.exit` behaviour, which the leaked flag replaces with a plain exception. That is why CI went green on a pull request and red on `main`, which in turn skipped the release job and held back the previous version bump.
 # 0.11.2
 
   * [FIXED] CI: Die Concurrency-Gruppe des Test-Jobs bricht laufende Release-Laeufe nicht mehr ab. Bisher teilten sich alle Laeufe eines Branches eine Gruppe mit `cancel-in-progress`, wodurch ein schnell nachgeschobener Push (oder ein manueller Start) den Test-Job eines Pushes auf main abwuergen konnte — und mit ihm das daran haengende Release. Ab jetzt loesen sich nur noch PR-Laeufe gegenseitig ab; Pushes auf main und manuelle Laeufe bekommen eine eigene Gruppe je Run.
