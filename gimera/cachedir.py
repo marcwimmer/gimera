@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from .consts import gitcmd as git
+from .consts import REPO_TYPE_INT
 from .repo import Repo
 from .tools import prepare_dir
 from .tools import remember_cwd
@@ -51,7 +52,100 @@ def _invalidate_cache_if_needed(golden_path):
             tar.unlink()
 
 
-def _clone_or_restore(main_repo, url, golden_path, possible_temp_path):
+def _wants_partial_clone(repo_yml):
+    """Whether this repo's cache may omit file contents (blobs).
+
+    Integrated repos are materialized with `git archive <sha>` (see
+    integrated.py), which pulls exactly the blobs of that one snapshot from
+    the promisor remote and keeps them. So the cache grows along the snapshots
+    we actually use instead of along the full history: measured on odoo/odoo
+    that is 1.4 GB instead of ~17 GB, and a pin bump of 300 commits adds
+    ~100 MB.
+
+    Submodule repos are excluded: `git submodule update` clones *out of* the
+    cache over file://, and upload-pack cannot serve objects it does not have
+    - it aborts with "could not fetch ... from promisor remote". Those repos
+    are small anyway (ansible roles here), so there is nothing to win.
+
+    GIMERA_FULL_CLONE=1 turns the filter off everywhere, for a server that
+    cannot filter or a repo where partial clone misbehaves.
+    """
+    if os.getenv("GIMERA_FULL_CLONE", "") == "1":
+        return False
+    return repo_yml.type == REPO_TYPE_INT
+
+
+def is_partial_clone(path):
+    """True if `path` is a partial clone and thus cannot be cloned *from*.
+
+    Git marks the promisor remote in the repo config; that flag is what makes
+    a repo unable to serve a full clone to somebody else.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(path), "config", "--get", "remote.origin.promisor"],
+            capture_output=True,
+            encoding="utf8",
+        )
+    except Exception:
+        return False
+    return out.stdout.strip() == "true"
+
+
+def _warn_if_filter_was_ignored(path, url):
+    """A server without uploadpack.allowFilter silently sends everything.
+
+    Nothing breaks then - the cache is just as big as before. Say so, because
+    otherwise the disk fills up for a reason nobody can see.
+    """
+    if is_partial_clone(path):
+        return
+    click.secho(
+        f"{url}: the server ignored --filter=blob:none, so the cache holds "
+        "the complete history. Set uploadpack.allowFilter on that server, or "
+        "GIMERA_FULL_CLONE=1 to stop asking.",
+        fg="yellow",
+    )
+
+
+def _bare_clone(main_repo, url, dest, partial):
+    """Clone the cache, filtered when allowed, and never fail because of that.
+
+    Most servers that cannot filter just send everything and warn
+    (_warn_if_filter_was_ignored reports that). A server that rejects the
+    request outright would take the whole apply down over an optimization, so
+    fall back to a plain clone once. A second failure is a real one and is
+    left to the caller.
+    """
+    base = ["clone", "--bare"]
+    if not partial:
+        Repo(main_repo.path).X(*(git + base + [url, dest]))
+        return
+
+    try:
+        Repo(main_repo.path).X(
+            *(git + base + ["--filter=blob:none", url, dest])
+        )
+    except Exception as ex:
+        click.secho(
+            f"{url}: clone with --filter=blob:none failed ({ex}).\n"
+            "Retrying without the filter - the cache will hold the complete "
+            "history.",
+            fg="yellow",
+        )
+        # git removes the target itself when a clone fails, and rmtree() on a
+        # missing path exits the process - so check before clearing whatever
+        # the failed attempt left behind.
+        if dest.exists():
+            rmtree(dest)
+        dest.mkdir(parents=True, exist_ok=True)
+        Repo(main_repo.path).X(*(git + base + [url, dest]))
+        return
+
+    _warn_if_filter_was_ignored(dest, url)
+
+
+def _clone_or_restore(main_repo, url, golden_path, possible_temp_path, partial=False):
     click.secho(
         f"Caching the repository {url} for quicker reuse",
         fg="yellow",
@@ -76,7 +170,7 @@ def _clone_or_restore(main_repo, url, golden_path, possible_temp_path):
             if not restored:
                 rmtree(_path)
                 _path.mkdir(parents=True)
-                Repo(main_repo.path).X(*(git + ["clone", "--bare", url, _path]))
+                _bare_clone(main_repo, url, _path, partial)
                 _make_tar_file(_path, tar)
 
 
@@ -170,7 +264,13 @@ def _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=False, update=Non
 
         just_cloned = False
         if not golden_path.exists():
-            _clone_or_restore(main_repo, url, golden_path, possible_temp_path)
+            _clone_or_restore(
+                main_repo,
+                url,
+                golden_path,
+                possible_temp_path,
+                partial=_wants_partial_clone(repo_yml),
+            )
             just_cloned = True
 
         effective_path = possible_temp_path if just_cloned else golden_path

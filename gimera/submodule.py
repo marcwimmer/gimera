@@ -5,6 +5,7 @@ from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .repo import Repo
 from contextlib import contextmanager
 from .cachedir import _get_cache_dir
+from .cachedir import is_partial_clone
 from .consts import REPO_TYPE_SUB
 import click
 from .tools import rmtree
@@ -174,6 +175,15 @@ def _fetch_latest_commit_in_submodule(
 @contextmanager
 def _temporary_switch_remote_to_cachedir(main_repo, repo_yml, relpath):
     with _get_cache_dir(main_repo, repo_yml) as cache_dir:
+        # A partial clone cannot serve a clone: its upload-pack aborts with
+        # "could not fetch ... from promisor remote" because it does not hold
+        # the blobs. Submodule repos never get a filtered cache themselves,
+        # but the same URL may be integrated in another project and share the
+        # cache directory. Then we fetch from the real remote - slower than
+        # the local cache, and it works.
+        if is_partial_clone(cache_dir):
+            yield
+            return
         main_repo.X(*(git + ["submodule", "set-url", relpath, f"file://{cache_dir}"]))
         try:
             yield
