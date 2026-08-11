@@ -225,6 +225,32 @@ The path can be overridden with `GIMERA_CONFIG`.
   * GIMERA_NO_PRECOMMIT=1 - do not execute pre commits
   * GIMERA_NO_CACHE=1 - no golden cache at all (like listing every repo in `no_cache`)
   * GIMERA_CONFIG=/path/to/config - use another file instead of ~/.gimera
+  * GIMERA_FULL_CLONE=1 - cache the file contents of the whole history too (see below)
+
+## The golden cache holds no old file contents
+
+The cache of an `integrated` repo is cloned with `--filter=blob:none`: gimera
+gets every commit and every tree, but file contents only for the snapshots it
+actually checks out. `git archive <sha>` fetches those on the fly and keeps
+them, so the cache grows along the pins you use instead of along the history.
+
+Measured on odoo/odoo (all branches, bare): **1.2 GB** for the clone and 1.4 GB
+after the first checkout, against ~17 GB unfiltered. A pin bump of 300 commits
+adds about 100 MB. Once a snapshot is in, it needs no network again.
+
+Two things it does not apply to:
+
+  * `submodule` repos keep the complete cache. `git submodule update` clones
+    *out of* the cache, and a partial clone cannot serve that - its upload-pack
+    aborts with "could not fetch ... from promisor remote".
+  * caches that already exist stay as they are. Only new ones are filtered, so
+    nothing gets re-downloaded because of an upgrade. Delete a cache directory
+    to have it come back small.
+
+The remote must allow it (`uploadpack.allowFilter`, on by default at GitHub and
+GitLab). A remote that does not simply sends everything; gimera says so rather
+than letting the disk fill up unexplained. `GIMERA_FULL_CLONE=1` turns the
+filter off everywhere.
 
 ## Running tests
 
