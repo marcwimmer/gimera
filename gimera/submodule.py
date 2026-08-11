@@ -5,12 +5,48 @@ from .tools import _raise_error, safe_relative_to, is_empty_dir
 from .repo import Repo
 from contextlib import contextmanager
 from .cachedir import _get_cache_dir
+from .cachedir import is_partial_clone
 from .consts import REPO_TYPE_SUB
 import click
 from .tools import rmtree
 from .tools import is_forced
 from .tools import get_effective_state
 from .tools import verbose
+
+
+def _show_unpushed_diff(subrepo, branch):
+    """Show what would be lost: unpushed commits and diff stat."""
+    try:
+        log = subrepo.out(*(git + ["log", "--oneline", f"origin/{branch}..{branch}"]))
+        if log.strip():
+            click.secho("\nUnpushed commits:", fg="red")
+            for line in log.strip().splitlines():
+                click.secho(f"  {line}", fg="red")
+        stat = subrepo.out(*(git + ["diff", "--stat", f"origin/{branch}..{branch}"]))
+        if stat.strip():
+            click.secho("\nChanges that would be lost:", fg="red")
+            click.echo(stat)
+    except Exception:
+        pass
+
+
+def _check_no_unpushed_commits(subrepo, repo_yml):
+    """Raise error if submodule has local commits not pushed to origin."""
+    if subrepo.has_unpushed_commits(repo_yml.branch):
+        _show_unpushed_diff(subrepo, repo_yml.branch)
+        if os.getenv("GIMERA_FORCE") == "1":
+            click.secho(
+                f"\nWARNING: Submodule at {subrepo.path} has unpushed commits "
+                f"on branch {repo_yml.branch}. Continuing due to --force. "
+                f"These changes will be lost!",
+                fg="yellow",
+            )
+        else:
+            _raise_error(
+                f"\nSubmodule at {subrepo.path} has unpushed local commits "
+                f"on branch {repo_yml.branch}. These changes will be lost! "
+                f"Push them first, or use --force to override."
+            )
 
 
 def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
@@ -37,6 +73,7 @@ def _commit_submodule_inside_clean_but_not_linked_to_parent(main_repo, subrepo):
             git
             + [
                 "commit",
+                "--no-verify",
                 "-m",
                 (
                     f"gimera: updated submodule at {subrepo.path.relative_to(main_repo.path)} "
@@ -66,6 +103,8 @@ def _fetch_latest_commit_in_submodule(
                 f"Directory {repo_yml.path} contains modified "
                 "files. Please commit or purge before or migrate changes with -M flag!"
             )
+    _check_no_unpushed_commits(subrepo, repo_yml)
+    sha_before = subrepo.hex
     sha = repo_yml.sha if not update else None
 
     def _commit_submodule():
@@ -111,6 +150,24 @@ def _fetch_latest_commit_in_submodule(
             subrepo.pull(repo_yml=repo_yml)
         _commit_submodule()
 
+    # show new commits when updating
+    sha_after = subrepo.hex
+    if update and sha_before != sha_after:
+        try:
+            log = subrepo.out(
+                *(git + ["log", "--oneline", f"{sha_before}..{sha_after}"])
+            )
+            if log.strip():
+                lines = log.strip().splitlines()
+                click.secho(
+                    f"\n{repo_yml.path}: {len(lines)} new commit(s):",
+                    fg="green", bold=True,
+                )
+                for line in lines:
+                    click.secho(f"  {line}", fg="green")
+        except Exception:
+            pass
+
     # update gimera.yml on demand
     repo_yml.sha = subrepo.hex
 
@@ -118,6 +175,15 @@ def _fetch_latest_commit_in_submodule(
 @contextmanager
 def _temporary_switch_remote_to_cachedir(main_repo, repo_yml, relpath):
     with _get_cache_dir(main_repo, repo_yml) as cache_dir:
+        # A partial clone cannot serve a clone: its upload-pack aborts with
+        # "could not fetch ... from promisor remote" because it does not hold
+        # the blobs. Submodule repos never get a filtered cache themselves,
+        # but the same URL may be integrated in another project and share the
+        # cache directory. Then we fetch from the real remote - slower than
+        # the local cache, and it works.
+        if is_partial_clone(cache_dir):
+            yield
+            return
         main_repo.X(*(git + ["submodule", "set-url", relpath, f"file://{cache_dir}"]))
         try:
             yield
@@ -163,6 +229,39 @@ def _has_repo_latest_commit(repo, branch):
     return result
 
 
+def _remove_existing_path_for_submodule(repo, config, relpath):
+    """Remove an existing non-submodule path to make room for a submodule."""
+    repo.output_status()
+    repo.please_no_staged_files()
+
+    dirty_files = [
+        x for x in repo.all_dirty_files_absolute
+        if safe_relative_to(x, repo.path / relpath)
+    ]
+    if dirty_files and not is_forced():
+        _raise_error(
+            f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
+        )
+
+    if repo.lsfiles(relpath):
+        repo.X(*(git + ["rm", "-f", "-r", relpath]))
+    if (repo.path / relpath).exists():
+        rmtree(repo.path / relpath)
+
+    repo.clear_empty_subpaths(config)
+    repo.output_status()
+    if not [
+        x for x in repo.all_dirty_files
+        if safe_relative_to(x, repo.path / relpath)
+    ]:
+        if relpath.exists():
+            repo.X(*(git + ["add", relpath]))
+    if repo.staged_files:
+        repo.X(*(git + ["commit", "--no-verify", "-m", f"removed path {relpath} to insert submodule"]))
+
+    repo.force_remove_submodule(relpath)
+
+
 def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars):
     if config.type != REPO_TYPE_SUB:
         return
@@ -170,58 +269,11 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
     path = working_dir / config.path
     relpath = path.relative_to(repo.path)
     if path.exists():
-        # if it is already a submodule, dont touch
         try:
             submodule = repo.get_submodule(relpath)
         except ValueError:
-            repo.output_status()
-            repo.please_no_staged_files()
-            # remove current path
-
-            dirty_files = [
-                x
-                for x in repo.all_dirty_files_absolute
-                if safe_relative_to(x, repo.path / relpath)
-            ]
-            if dirty_files:
-                if not is_forced():
-                    _raise_error(
-                        f"Dirty files exist in {repo.path / relpath}. Changes would be lost."
-                    )
-
-            if repo.lsfiles(relpath):
-                repo.X(*(git + ["rm", "-f", "-r", relpath]))
-            if (repo.path / relpath).exists():
-                rmtree(repo.path / relpath)
-
-            repo.clear_empty_subpaths(config)
-            repo.output_status()
-            if not [
-                # x for x in repo.staged_files if safe_relative_to(x, repo.path / relpath)
-                x
-                for x in repo.all_dirty_files
-                if safe_relative_to(x, repo.path / relpath)
-            ]:
-                if relpath.exists():
-                    # in case of deletion it does not exist
-                    repo.X(*(git + ["add", relpath]))
-            if repo.staged_files:
-                repo.X(
-                    *(
-                        git
-                        + [
-                            "commit",
-                            "-m",
-                            f"removed path {relpath} to insert submodule",
-                        ]
-                    )
-                )
-
-            # make sure does not exist; some leftovers sometimes
-            repo.force_remove_submodule(relpath)
-
+            _remove_existing_path_for_submodule(repo, config, relpath)
         else:
-            # if submodule points to another url, also remove
             if submodule.get_url(noerror=True) != config.url:
                 repo.force_remove_submodule(submodule.path.relative_to(repo.path))
             else:
@@ -231,7 +283,6 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
 
     repo._fix_to_remove_subdirectories(all_config)
     if (repo.path / relpath).exists():
-        # helped in a in the wild repo, where a submodule was hidden below
         repo.X(*(git + ["rm", "-rf", relpath]))
         rmtree(repo.path / relpath)
 
@@ -241,12 +292,7 @@ def __add_submodule(root_dir, working_dir, repo, config, all_config, common_vars
         repo.X(*(git + ["add", ".gitmodules"]))
         click.secho(f"Added submodule {relpath} pointing to {config.url}", fg="yellow")
         if repo.staged_files:
-            repo.X(*(git + ["commit", "-m", f"gimera added submodule: {relpath}"]))
+            repo.X(*(git + ["commit", "--no-verify", "-m", f"gimera added submodule: {relpath}"]))
 
-    # check for success
-    state = get_effective_state(
-        root_dir,
-        path,
-        common_vars,
-    )
+    state = get_effective_state(root_dir, path, common_vars)
     assert state["is_submodule"]

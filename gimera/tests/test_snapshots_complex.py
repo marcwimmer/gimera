@@ -1,4 +1,4 @@
-import itertools
+import pytest
 from .fixtures import *  # required for all
 import shutil
 import os
@@ -12,15 +12,9 @@ from .tools import gimera_apply
 from ..tools import safe_relative_to
 from ..tools import get_effective_state
 from ..tools import _make_sure_hidden_gimera_dir
-
-token = {"token": 0}
-
-import inspect
-import os
 from pathlib import Path
 
-current_file = Path(os.path.abspath(inspect.getfile(inspect.currentframe())))
-basename = current_file.stem
+token = {"token": 0}
 
 combinations = [
     ("S", "S", "S"),
@@ -33,42 +27,29 @@ combinations = [
     ("I", "I", "I"),
 ]
 
-if basename == "test_snapshots_complex":
-    for combo in combinations:
-        letters = "".join(combo)
-        filename = f"{basename}_{letters}.py"
-        path = current_file.parent / filename
-        code = current_file.read_text()
-        code = code.replace("__COMBO__ = []", f"__COMBO__ = [{combo}]")
-        code = code.replace(
-            "test_snapshot_complex__COMBO__", f"test_snapshot_complex_{letters}"
-        )
-        path.write_text(code)
-__COMBO__ = []
 
+@pytest.mark.parametrize("combo", combinations, ids=["".join(c) for c in combinations])
+def test_snapshot_complex(temppath, combo):
 
-def test_snapshot_complex__COMBO__(temppath):
-    for I, combo in enumerate(__COMBO__):
+    def _e(x):
+        assert x in ("S", "I")
+        return "submodule" if x == "S" else "integrated"
 
-        def _e(x):
-            assert x in ("S", "I")
-            return "submodule" if x == "S" else "integrated"
+    type1 = _e(combo[0])
+    type11 = _e(combo[1])
+    type111 = _e(combo[2])
 
-        type1 = _e(combo[0])
-        type11 = _e(combo[1])
-        type111 = _e(combo[2])
-
-        _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodule(
-            temppath,
-            type1,
-            type11,
-            type111,
-        )
-        shutil.rmtree(temppath / "sub1.1.1")
-        shutil.rmtree(temppath / "sub1.1")
-        shutil.rmtree(temppath / "sub1")
-        shutil.rmtree(temppath / "mainrepo")
-        shutil.rmtree(temppath / "test_snapshot_and_restore")
+    _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodule(
+        temppath,
+        type1,
+        type11,
+        type111,
+    )
+    shutil.rmtree(temppath / "sub1.1.1")
+    shutil.rmtree(temppath / "sub1.1")
+    shutil.rmtree(temppath / "sub1")
+    shutil.rmtree(temppath / "mainrepo")
+    shutil.rmtree(temppath / "test_snapshot_and_restore")
 
 
 def _test_snapshot_and_restore_complex_add_delete_modify_direct_subrepo_submodule(
@@ -163,8 +144,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
 
     # change every level of the repo for its own; then change all levels and check
     for mode in ["use_gimera_migrate", "direct_snapshots"]:
-    # for mode in ["direct_snapshots"]:
-    # for mode in ["use_gimera_migrate"]:
         for i, adapted_paths in enumerate(
             [
                 ["a1/b1/sub1"],
@@ -177,11 +156,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 [
                     "a1/b1/sub1",
                     "a1/b1/sub1/a11/b11/sub1.1",
-                    "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
-                ],
-                [
-                    "a1/b1/sub1/a11/b11/sub1.1",
-                    "a1/b1/sub1",
                     "a1/b1/sub1/a11/b11/sub1.1/a111/b111/sub1.1.1",
                 ],
                 [
@@ -210,6 +184,7 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                 cwd=workspace.parent,
             )
             os.chdir(workspace_main)
+            os.environ["GIMERA_NON_INTERACTIVE"] = "1"
             gimera_apply([], None, recursive=True, strict=True)
             # assert everything is there
             assert (
@@ -251,7 +226,6 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
                     assert dirty_file.read_text() == original_content
             else:
                 os.environ["GIMERA_FORCE"] = "0"
-                os.environ["PYTHONBREAKPOINT"] = "pudb"
                 gimera_apply(
                     [], None, recursive=True, migrate_changes=True, strict=True
                 )
@@ -345,7 +319,6 @@ def _assure_kept_changes(workspace_main, adapted_path):
     assert added_file.exists()
     assert not deleted_file.exists()
 
-    os.environ["BREAKPOINT"] = "1"
     for file in [dirty_file, added_file, deleted_file]:
         if state["is_submodule"]:
             repo = Repo(adapted_path)

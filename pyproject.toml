@@ -4,3 +4,32 @@ requires = [
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.towncrier]
+name = "gimera"
+filename = "CHANGELOG.md"
+directory = "changes"
+template = "changes/_template.md.jinja"
+title_format = "# {version}"
+issue_format = ""
+underlines = ["", "", ""]
+
+[[tool.towncrier.type]]
+directory = "remove"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "new"
+name = "New"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "imp"
+name = "Improved"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fix"
+name = "Fixed"
+showcontent = true

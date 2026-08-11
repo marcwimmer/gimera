@@ -1,3 +1,61 @@
+# 0.12.1
+
+  * [FIXED] Der Test fuer eine kaputte ~/.gimera erwartete einen SystemExit, obwohl die Testumgebung Abbrueche als Exception meldet (GIMERA_EXCEPTION_THAN_SYSEXIT). Er schlug dadurch in der CI fehl und blockierte das Release.
+# 0.12.0
+
+  * [IMPROVED] Golden cache of integrated repos is cloned with `--filter=blob:none`, so it holds the history but only the file contents of the snapshots actually used. On odoo/odoo that is 1.4 GB instead of ~17 GB, and a pin bump of 300 commits adds ~100 MB. Submodule repos keep a full cache (a partial clone cannot serve `git submodule update`), existing caches are left alone, and `GIMERA_FULL_CLONE=1` turns the filter off.
+  * [FIXED] Test fixtures no longer leak `GIMERA_EXCEPTION_THAN_SYSEXIT` (and the other `GIMERA_*` switches) into the rest of the pytest process. Setting them via plain `os.environ` assignment made `test_broken_json_aborts_loudly` pass or fail depending on how pytest-xdist happened to shard the run — it expects the default `sys.exit` behaviour, which the leaked flag replaces with a plain exception. That is why CI went green on a pull request and red on `main`, which in turn skipped the release job and held back the previous version bump.
+# 0.11.2
+
+  * [FIXED] CI: Die Concurrency-Gruppe des Test-Jobs bricht laufende Release-Laeufe nicht mehr ab. Bisher teilten sich alle Laeufe eines Branches eine Gruppe mit `cancel-in-progress`, wodurch ein schnell nachgeschobener Push (oder ein manueller Start) den Test-Job eines Pushes auf main abwuergen konnte — und mit ihm das daran haengende Release. Ab jetzt loesen sich nur noch PR-Laeufe gegenseitig ab; Pushes auf main und manuelle Laeufe bekommen eine eigene Gruppe je Run.
+# 0.11.1
+
+  * [FIXED] CI: Der Workflow laesst sich jetzt manuell starten (`workflow_dispatch`, Button „Run workflow" im Actions-Tab bzw. `gh workflow run CI --ref main`). Hilfreich, wenn ein Push-Event verloren geht — etwa waehrend einer GitHub-Actions-Stoerung — und bisher nur ein leerer Commit als Ersatz-Trigger blieb. Der Release-Job bleibt absichtlich an `push` gebunden und laeuft bei manuellem Start nicht mit.
+# 0.11.0
+
+  * [NEW] `~/.gimera` (JSON) can now list repos under `no_cache` that never go into the golden cache — gimera fetches exactly the needed state instead (`--single-branch --depth=1`). For odoo/odoo that is ~1.1 GB instead of ~18 GB of history, which matters on build servers and hosting instances where nobody ever looks at the past. `GIMERA_NO_CACHE=1` still turns it on for every repo.
+  * [FIXED] CI: `actions/checkout` und `actions/setup-python` auf die Node-24-Majors (v7) angehoben. Die bisher genutzten v4/v5 laufen auf Node 20, das ab 16.09.2026 von den GitHub-Runnern entfernt wird — die Workflows wären danach kaputt gegangen.
+# 0.10.3
+
+  * [FIXED] `gimera commit --preview` now shows the staged diff (`git diff --cached`) — the preview was always empty because everything was already staged
+  * [FIXED] apply patches with `patch -E` so file deletions actually remove the file — without it GNU patch left an empty file behind for every deletion hunk
+  * [FIXED] restore in-memory sha and `.gitignore` reliably even when temp-repo patch creation fails (`temporary_unignore` now uses try/finally and skips the no-op rewrite); treat a failing `ls-files` probe as untracked
+# 0.10.2
+
+  * [FIXED] harden `_temporarily_move_gimera` against exceptions (config file pointer is now always restored) and strengthen `gimera commit` test coverage (untracked-not-ignored path, exact-content assertions)
+# 0.10.1
+
+  * [FIXED] `gimera commit` now works when the integrated path is gitignored or untracked in the main repo: the patch is built against the upstream state via a temporary repo instead of the main repo's index (previously `git add` crashed on ignored paths, and untracked paths produced unappliable whole-file-is-new patches)
+# 0.10.0
+
+  * [NEW] auto-detect patch strip level so patches from any source apply
+  * [FIXED] harden patch strip-level/cwd auto-detection: derive strip level from a hunk-aware parse of the unified-diff headers (anchoring on whichever of the `---`/`+++` names exists, so rename and `.orig`-style diffs still apply; hunk bodies are consumed by their line counts so zero-context `-U0` diffs and patches that edit diff files are no longer misread), refuse patches with absolute/`..`/git-quoted-escaped paths in unified or git rename/copy headers, refuse non-unified patches (context diffs, ed scripts, binary/rename-only) instead of blindly running `patch -p1` on them, refuse targets that traverse an in-tree symlink out of the sub-repo with a final containment gate before the write, never relocate outside the sub-repo, try strip level -p0 too (no-prefix and `.orig`-style patches need it on GNU patch, which does not fall back to the basename like BSD/Apple patch), deterministic choice plus warning only on genuinely different ambiguous matches, support relocation of patches that create new files, refuse patches that write into `.git/` or create a symlink (which could escape the sub-repo or, via a `.git/hooks` write, run code), decode git-quoted (`core.quotepath`) non-ASCII paths instead of refusing them and emit unquoted UTF-8 paths when making patches, warn when a git rename is applied (`patch` changes content but cannot rename), prune node_modules/.venv during candidate search, emit verbose diagnostics at each decision point, raise a clear error when the `patch` binary is missing, and always report failures instead of silently returning
+# 0.8.5
+
+  * [FIXED] CI fails on push to main when no changelog fragment is present
+  * [FIXED] fetch configured branch explicitly before fetchall in _ensure_sha
+# 0.8.4
+
+  * [FIXED] * [FIX] setup.cfg: install_requires war fälschlich unter [options.packages.find] statt [options], dadurch wurden Abhängigkeiten (click, inquirer, pyyaml, pudb, urwid) seit 0.8.0 nicht mehr mitinstalliert.
+# 0.8.3
+
+  * [FIXED] test: guard against deleted-cwd fixture failures in parallel xdist workers
+# 0.9.0
+
+  * [IMPROVED] show per-repo progress during `gimera apply` (Fetching, Applying, extracting, committing) so long-running operations aren't silent
+  * [IMPROVED] ~3x faster `gimera apply`: consolidate `all_dirty_files` into a single git-status parse, replace redundant `git ls-remote` with `FETCH_HEAD`, and skip `make_patches` when no patch dirs are configured
+  * [IMPROVED] skip git-archive + rsync extraction for integrated modules when the configured sha already matches the working tree (huge speedup for large repos like odoo)
+  * [IMPROVED] add unit test suite covering filelock, tools, gitcommands, repo, config, cachedir, snapshot, patches helpers and CLI commands
+  * [FIXED] recover from interrupted submodule→integrated conversions: handle orphaned gitlinks (no .gitmodules entry) and leftover staged files from crashed runs
+# 0.8.2
+
+  * [FIXED] recognize uninitialized submodules + add CLI help texts
+# 0.8.1
+
+  * [FIXED] Release workflow: re-enabled test job with `needs: test` guard; release commit now carries the version and compiled changelog entries in its message
+# 0.8.0
+
+  * [NEW] Town Crier Patch Notes: PRs erfordern Changelog-Fragmente in changes/, automatische Kompilierung beim Release, Pre-commit Hook Validierung, eigene VERSION Datei
 # 0.7.95
   * removed: Deliver Patches with reused submodules. - too complicated; githubworkflow used for branching
   * patchdirs: allows chdir - if you get patchfiles from third parties to make them compatible

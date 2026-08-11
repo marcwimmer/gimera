@@ -1,9 +1,12 @@
+import time
+import subprocess
 from contextlib import contextmanager
 import os
 import click
 from pathlib import Path
 from .repo import Repo, Remote
 from .tools import _raise_error
+from .tools import is_forced
 from .consts import gitcmd as git
 from .tools import wait_git_lock
 from .tools import rmtree
@@ -14,7 +17,6 @@ from .tools import _get_remotes
 from .tools import get_effective_state
 from .tools import get_nearest_repo
 from .tools import verbose
-from .patches import _apply_patchfile
 from .cachedir import _get_cache_dir
 
 
@@ -30,35 +32,101 @@ def _update_integrated_module(
     Put contents of a git repository inside the main repository.
     """
     # use a cache directory for pulling the repository and updating it
+    sha_before = repo_yml.sha
     with _get_cache_dir(main_repo, repo_yml, update=update) as cache_dir:
         if not os.access(cache_dir, os.W_OK):
             _raise_error(f"No R/W rights on {cache_dir}")
         repo = Repo(cache_dir)
-        verbose(f"Updating integrated module {repo_yml.path}")
+        click.secho(f"Updating integrated module {repo_yml.path}", fg="cyan")
 
-        parent_repo = main_repo
         dest_path = Path(working_dir) / repo_yml.path
         parent_repo = Repo(get_nearest_repo(main_repo.path, dest_path))
 
         # BTW: delete-after cannot remove unused directories - cool to know; is
         # just standarded out
         if dest_path.exists():
-            rmtree(dest_path)
+            dirty_files = [
+                f for f in parent_repo.all_dirty_files_absolute
+                if str(f).startswith(str(dest_path))
+            ]
+            if dirty_files and not is_forced():
+                _raise_error(
+                    f"Directory {repo_yml.path} contains uncommitted changes. "
+                    "Please commit or purge before!"
+                )
 
         with wait_git_lock(cache_dir):
             commit = repo_yml.sha or repo_yml.branch if not update else repo_yml.branch
-            with repo.worktree(commit) as worktree:
-                new_sha = worktree.hex
-                msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
-                    worktree, repo_yml
-                )
-                worktree.move_worktree_content(dest_path)
-                # TODO perhaps not necessary as of line 63 -- seems to be necessary
-                # case: submodule is in .gitignore; updates the submodule
-                # then git add <path> needs to add the deleted files
-                # Could also be that a subgimera sha was updated
-                parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
+
+            has_merges = bool(repo_yml.merges)
+
+            if not has_merges:
+                # Fast path: use git archive + rsync instead of worktree for speed.
+                # Extract to a temp dir, then rsync --delete to dest. This is much
+                # faster than rmtree+extract because rsync only transfers the diff.
+                new_sha = repo.out(*(git + ["rev-parse", commit]))
+                has_patches = bool(repo_yml.patches)
+                if sha_before == new_sha and dest_path.exists() and not update and not has_patches:
+                    click.secho(
+                        f"  {repo_yml.path} already at {new_sha[:10]} — skipping extract",
+                        fg="green",
+                    )
+                else:
+                    click.secho(f"  extracting {repo_yml.path} ...", fg="cyan")
+                    import tempfile
+                    tmpdir = Path(tempfile.mkdtemp())
+                    try:
+                        archive_proc = subprocess.Popen(
+                            ["git", "archive", commit],
+                            stdout=subprocess.PIPE,
+                            cwd=cache_dir,
+                        )
+                        subprocess.check_call(
+                            ["tar", "x", "-C", str(tmpdir)],
+                            stdin=archive_proc.stdout,
+                        )
+                        archive_proc.stdout.close()
+                        rc = archive_proc.wait()
+                        if rc != 0:
+                            _raise_error(f"git archive failed for {repo_yml.path}")
+                        dest_path.mkdir(parents=True, exist_ok=True)
+                        subprocess.check_call([
+                            "rsync", "-a", "--delete",
+                            str(tmpdir) + "/", str(dest_path) + "/",
+                        ])
+                    finally:
+                        # Clean up temp dir in background to avoid blocking
+                        subprocess.Popen(["rm", "-rf", str(tmpdir)])
+                    msgs = [f"Updating submodule {repo_yml.path}"]
+                    click.secho(f"  committing {repo_yml.path} ...", fg="cyan")
+                    parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
+            else:
+                with repo.worktree(commit) as worktree:
+                    new_sha = worktree.hex
+                    msgs = [f"Updating submodule {repo_yml.path}"] + _apply_merges(
+                        worktree, repo_yml
+                    )
+                    worktree.move_worktree_content(dest_path)
+                    parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
             del repo
+
+        # show new commits when updating
+        if update and sha_before and sha_before != new_sha:
+            try:
+                cache_repo = Repo(cache_dir)
+                log = cache_repo.out(
+                    *(git + ["log", "--oneline", f"{sha_before}..{new_sha}"])
+                )
+                if log.strip():
+                    lines = log.strip().splitlines()
+                    click.secho(
+                        f"\n{repo_yml.path}: {len(lines)} new commit(s):",
+                        fg="green", bold=True,
+                    )
+                    for line in lines:
+                        click.secho(f"  {line}", fg="green")
+            except Exception:
+                pass
 
         # apply patches:
         if os.getenv("GIMERA_DO_NOT_APPLY_PATCHES") != "1":
@@ -75,7 +143,18 @@ def _update_integrated_module(
         if not repo_yml.local and any(
             str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
         ):
-            parent_repo.X(*(git + ["add", dest_path]))
+            try:
+                parent_repo.X(*(git + ["add", dest_path]))
+            except Exception as ex:
+                click.secho(
+                    f"During updating an integrated module, {len(parent_repo.all_dirty_files_absolute)} changed "
+                    "files were detected. Usually the files would be add automatically, but an error occurred. "
+                    "Usually this error means, that the folder belongs to .gitignore. Another reason is not known "
+                    "at the moment. So in general this information is no error but just an information and you may "
+                    "continue. An uncommon reason could also be, that disk space ran out. "
+                    "It can be, that we will remove this message. ", fg='yellow'
+                )
+                time.sleep(5)
 
         if parent_repo.staged_files:
             gitcmd = ["commit", "--no-verify", "-m", msg]

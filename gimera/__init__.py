@@ -1,5 +1,14 @@
 import click
 
+class RuntimeState:
+    mode = None
+    flags = {}
+
+runtime_state = {
+    'temppaths': {
+    }
+}
+
 from . import consts
 from . import gimera
 from . import repo
