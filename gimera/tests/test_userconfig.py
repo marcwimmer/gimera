@@ -12,6 +12,11 @@ from ..userconfig import load_user_config
 def _clean_env(monkeypatch, tmp_path):
     """Every test starts without a config and without the env override."""
     monkeypatch.delenv("GIMERA_NO_CACHE", raising=False)
+    # Pinned rather than assumed: _raise_error swaps sys.exit for a plain
+    # Exception when this is "1", and other test modules set it. Deleting it
+    # here makes this module independent of what ran before it in the same
+    # pytest-xdist worker.
+    monkeypatch.delenv("GIMERA_EXCEPTION_THAN_SYSEXIT", raising=False)
     monkeypatch.setenv("GIMERA_CONFIG", str(tmp_path / ".gimera"))
     load_user_config.cache_clear()
     yield
