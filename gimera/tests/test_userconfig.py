@@ -76,11 +76,21 @@ def test_unknown_keys_are_ignored():
     assert is_no_cache("git@github.com:odoo/odoo")
 
 
-def test_broken_json_aborts_loudly():
-    """Silently ignoring a typo would mean 18 GB land on the machine anyway."""
+def test_broken_json_aborts_loudly(monkeypatch):
+    """Silently ignoring a typo would mean 18 GB land on the machine anyway.
+
+    How the abort happens depends on the environment: normally _raise_error
+    calls sys.exit, but with GIMERA_EXCEPTION_THAN_SYSEXIT=1 it raises an
+    exception instead -- which is what the test suite runs with, so that an
+    abort does not end the whole test run. The test used to expect SystemExit
+    and therefore failed whenever that variable was set. What matters here is
+    that the broken config is not swallowed, so pin the mode and check the
+    message."""
     _write_config("{ no_cache: [")
-    with pytest.raises(SystemExit):
+    monkeypatch.setenv("GIMERA_EXCEPTION_THAN_SYSEXIT", "1")
+    with pytest.raises(Exception) as exc:
         load_user_config()
+    assert "not valid JSON" in str(exc.value)
 
 
 def test_normalize():

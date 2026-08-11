@@ -1,0 +1,1 @@
+Der Test fuer eine kaputte ~/.gimera erwartete einen SystemExit, obwohl die Testumgebung Abbrueche als Exception meldet (GIMERA_EXCEPTION_THAN_SYSEXIT). Er schlug dadurch in der CI fehl und blockierte das Release.
