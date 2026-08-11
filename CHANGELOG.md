@@ -1,3 +1,6 @@
+# 0.12.2
+
+  * [FIXED] A stale `gimera.lock` left behind by a killed process is recognised and removed again. `FileLock` appends `.lock` to the name it is given, so the file that actually appeared was `gimera.lock.lock`, while `wait_git_lock` watched and cleaned up `gimera.lock` — a name nothing ever creates. Recovery therefore never triggered: after a `SIGKILL` (which runs no `__del__`) the next run on that repository blocked the full hour and then failed with "Timeout occured.". Mutual exclusion itself was never affected, both sides derived the same doubled name. Also fixed: `FileLock.__init__` now sets its attributes before validating its arguments, so `__del__` no longer dies with `AttributeError` on a half-built object (Python swallows that, which on a lock-holding object would mean the lockfile stays behind), and `os.getcwd()` is only consulted for relative names — it raises once the current directory has been deleted.
 # 0.12.1
 
   * [FIXED] Der Test fuer eine kaputte ~/.gimera erwartete einen SystemExit, obwohl die Testumgebung Abbrueche als Exception meldet (GIMERA_EXCEPTION_THAN_SYSEXIT). Er schlug dadurch in der CI fehl und blockierte das Release.
