@@ -15,10 +15,26 @@ class FileLock(object):
         """ Prepare the file locker. Specify the file to lock and optionally
             the maximum timeout and the delay between each attempt to lock.
         """
+        # Set before the validation below, not after: a ValueError there
+        # leaves a half-built object, and __del__ -> release() then dies on
+        # AttributeError: 'FileLock' object has no attribute 'is_locked'.
+        # Python swallows exceptions raised in __del__, so that failure is
+        # invisible except as a warning — and on an object that *had* taken
+        # the lock it would mean the lockfile silently stays on disk.
+        self.is_locked = False
+        self.fd = None
         if timeout is not None and delay is None:
             raise ValueError("If timeout is not None, then delay must not be None.")
-        self.is_locked = False
-        self.lockfile = os.path.join(os.getcwd(), "%s.lock" % file_name)
+        # os.getcwd() only when the name is relative and we actually need it.
+        # It raises FileNotFoundError once the current directory has been
+        # deleted -- which happens in the recursive tests and in any
+        # long-running process whose cwd was a temp dir. Callers pass an
+        # absolute path anyway, and os.path.join would have discarded the cwd
+        # in that case, so asking for it was pure risk.
+        name = "%s.lock" % file_name
+        self.lockfile = (
+            name if os.path.isabs(name) else os.path.join(os.getcwd(), name)
+        )
         self.file_name = file_name
         self.timeout = timeout
         self.delay = delay
