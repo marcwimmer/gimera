@@ -20,6 +20,36 @@ from .tools import verbose
 from .cachedir import _get_cache_dir
 
 
+def _keep_out_of_parent_repo(parent_repo, repo_yml, dest_path):
+    """Must the vendored content stay out of the parent repository?
+
+    Two reasons for that. The obvious one is ``dont_commit: true`` in
+    gimera.yml. The everyday one is a gitignored path: odoo.sh projects ignore
+    odoo/enterprise, so the files have to be pulled but must not be committed.
+
+    Note that ``git check-ignore`` is asked *with* the index, and that is the
+    whole point: it reports an already tracked path as not ignored. So this
+    returns True only for paths that are gitignored **and** untracked. A path
+    that is tracked today keeps being committed, even when some ignore rule
+    happens to match it - silently stopping to commit updates would leave the
+    parent repo with stale content and nothing pointing at why. Turning a
+    tracked path into an untracked one is a decision with consequences (the
+    files vanish for everybody who pulls), so it needs ``dont_commit``.
+
+    Deciding this up front also replaces the guessing further down, where a
+    failing ``git add`` was reported as "usually this means the folder belongs
+    to .gitignore".
+    """
+    if repo_yml.dont_commit:
+        return True
+
+    # A pattern like "odoo/enterprise/" only matches directories, and git can
+    # only tell that a path is a directory if it exists. On a fresh checkout it
+    # does not yet, so ask for the path as a directory explicitly.
+    path = dest_path if dest_path.exists() else f"{dest_path}/"
+    return parent_repo.check_ignore(path)
+
+
 def _update_integrated_module(
     working_dir,
     main_repo,
@@ -41,6 +71,13 @@ def _update_integrated_module(
 
         dest_path = Path(working_dir) / repo_yml.path
         parent_repo = Repo(get_nearest_repo(main_repo.path, dest_path))
+        keep_out = _keep_out_of_parent_repo(parent_repo, repo_yml, dest_path)
+        if keep_out:
+            click.secho(
+                f"  {repo_yml.path} is not committed into "
+                f"{parent_repo.path} (gitignored or dont_commit)",
+                fg="yellow",
+            )
 
         # BTW: delete-after cannot remove unused directories - cool to know; is
         # just standarded out
@@ -98,8 +135,11 @@ def _update_integrated_module(
                         # Clean up temp dir in background to avoid blocking
                         subprocess.Popen(["rm", "-rf", str(tmpdir)])
                     msgs = [f"Updating submodule {repo_yml.path}"]
-                    click.secho(f"  committing {repo_yml.path} ...", fg="cyan")
-                    parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
+                    if not keep_out:
+                        click.secho(f"  committing {repo_yml.path} ...", fg="cyan")
+                        parent_repo.commit_dir_if_dirty(
+                            dest_path, "\n".join(msgs), force=True
+                        )
             else:
                 with repo.worktree(commit) as worktree:
                     new_sha = worktree.hex
@@ -107,7 +147,10 @@ def _update_integrated_module(
                         worktree, repo_yml
                     )
                     worktree.move_worktree_content(dest_path)
-                    parent_repo.commit_dir_if_dirty(dest_path, "\n".join(msgs), force=True)
+                    if not keep_out:
+                        parent_repo.commit_dir_if_dirty(
+                            dest_path, "\n".join(msgs), force=True
+                        )
             del repo
 
         # show new commits when updating
@@ -137,24 +180,28 @@ def _update_integrated_module(
             # could be, that the parent path of the gimera.yml belongs to gitignore
             # so force add
             parent_repo.X(*(git + ["add", '-f', repo_yml.config.config_file]))
-        parent_repo.commit_dir_if_dirty(dest_path, msg)
-        # for e.g. odoo.sh projects we need to not add odoo/enterprise repos as they are most likely in .gitignor
-        # configure those repos to local:true in gimery.yml, then they will still be pulled, but not added parent repo
-        if not repo_yml.local and any(
-            str(x).startswith(str(dest_path)) for x in parent_repo.all_dirty_files_absolute
-        ):
-            try:
-                parent_repo.X(*(git + ["add", dest_path]))
-            except Exception as ex:
-                click.secho(
-                    f"During updating an integrated module, {len(parent_repo.all_dirty_files_absolute)} changed "
-                    "files were detected. Usually the files would be add automatically, but an error occurred. "
-                    "Usually this error means, that the folder belongs to .gitignore. Another reason is not known "
-                    "at the moment. So in general this information is no error but just an information and you may "
-                    "continue. An uncommon reason could also be, that disk space ran out. "
-                    "It can be, that we will remove this message. ", fg='yellow'
-                )
-                time.sleep(5)
+        if not keep_out:
+            parent_repo.commit_dir_if_dirty(dest_path, msg)
+            if any(
+                str(x).startswith(str(dest_path))
+                for x in parent_repo.all_dirty_files_absolute
+            ):
+                try:
+                    parent_repo.X(*(git + ["add", dest_path]))
+                except Exception:
+                    # The gitignore case is handled above, so whatever lands
+                    # here is something else - out of disk space is the only
+                    # other cause we ever saw.
+                    click.secho(
+                        f"During updating an integrated module, "
+                        f"{len(parent_repo.all_dirty_files_absolute)} changed files "
+                        "were detected. Usually the files would be added "
+                        "automatically, but an error occurred. This is no error but "
+                        "just an information and you may continue. A possible reason "
+                        "is that disk space ran out.",
+                        fg="yellow",
+                    )
+                    time.sleep(5)
 
         if parent_repo.staged_files:
             gitcmd = ["commit", "--no-verify", "-m", msg]
