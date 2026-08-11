@@ -329,10 +329,10 @@ def test_make_cache_path_with_git_url(monkeypatch, tmp_path):
     assert str(p).startswith(str(tmp_path))
 
 
-def test_get_cache_dir_tarfile():
-    from ..cachedir import _get_cache_dir_tarfile
+def test_legacy_tarfile_name():
+    from ..cachedir import _legacy_tarfile
 
-    tf = _get_cache_dir_tarfile(Path("/tmp/x"))
+    tf = _legacy_tarfile(Path("/tmp/x"))
     assert str(tf).endswith(".tar.gz")
 
 
@@ -369,15 +369,45 @@ def test_invalidate_cache_clear_flag(tmp_path, monkeypatch):
     assert not valid.exists()
 
 
-def test_invalidate_zip_cache(tmp_path, monkeypatch):
-    from ..cachedir import _invalidate_cache_if_needed, _get_cache_dir_tarfile
+def test_legacy_tarball_is_removed_without_being_asked(tmp_path):
+    """It used to need GIMERA_CLEAR_ZIP_CACHE, which is why clearing the
+    cache alone restored the very state the user wanted gone."""
+    from ..cachedir import _invalidate_cache_if_needed, _legacy_tarfile
 
     path = tmp_path / "cache"
-    tar = _get_cache_dir_tarfile(path)
+    tar = _legacy_tarfile(path)
     tar.write_text("x")
-    monkeypatch.setenv("GIMERA_CLEAR_ZIP_CACHE", "1")
     _invalidate_cache_if_needed(path)
     assert not tar.exists()
+
+
+def test_clear_cache_takes_the_tarball_with_it(tmp_path, monkeypatch):
+    """The reported bug: GIMERA_CLEAR_CACHE=1 emptied the directory but left
+    the tarball behind, so the next run unpacked the old state again."""
+    from ..cachedir import _invalidate_cache_if_needed, _legacy_tarfile
+
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    for x in ("HEAD", "config"):
+        (cache / x).write_text("x")
+    for x in ("refs", "objects"):
+        (cache / x).mkdir()
+    tar = _legacy_tarfile(cache)
+    tar.write_text("x")
+
+    monkeypatch.setenv("GIMERA_CLEAR_CACHE", "1")
+    _invalidate_cache_if_needed(cache)
+
+    assert not cache.exists()
+    assert not tar.exists(), "clearing the cache must not leave a copy to restore from"
+
+
+def test_no_tarball_is_written_any_more():
+    """The second copy is gone for good, not just cleaned up afterwards."""
+    from .. import cachedir
+
+    assert not hasattr(cachedir, "_make_tar_file")
+    assert not hasattr(cachedir, "_extract_tar_file")
 
 
 # ------------------------------------------------------------------
