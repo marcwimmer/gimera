@@ -50,6 +50,55 @@ def _keep_out_of_parent_repo(parent_repo, repo_yml, dest_path):
     return parent_repo.check_ignore(path)
 
 
+def _dest_matches_commit(repo, parent_repo, dest_path, commit):
+    """Is the vendored directory already at the given commit?
+
+    The question cannot be answered from gimera.yml: the sha in there is the
+    state we *want*, not the state that is on disk. Comparing it against itself
+    made the fast path below skip every pin bump, so a bumped pin silently kept
+    the old content (and gimera.yml then claimed something untrue).
+
+    So compare the content instead. Git tree hashes are content addressed and
+    independent of the repository they live in, so the tree of the upstream
+    commit and the tree of the vendored directory as committed in the parent
+    repo are equal exactly when the files are identical.
+
+    Returns False whenever that cannot be established -- an unnecessary extract
+    costs a little time, a skipped one costs correctness.
+    """
+    try:
+        remote_tree = repo.out(*(git + ["rev-parse", f"{commit}^{{tree}}"])).strip()
+    except Exception:
+        return False
+
+    try:
+        relpath = dest_path.relative_to(parent_repo.path)
+    except ValueError:
+        return False
+
+    try:
+        local_tree = parent_repo.out(*(git + ["rev-parse", f"HEAD:{relpath}"])).strip()
+    except Exception:
+        # not committed yet (fresh checkout, renamed path, ...)
+        return False
+
+    if remote_tree != local_tree:
+        return False
+
+    # HEAD matching is not enough if somebody changed the vendored files in the
+    # working tree -- then what is on disk is not what we just compared.
+    try:
+        dirty = [
+            f
+            for f in parent_repo.all_dirty_files_absolute
+            if str(f).startswith(str(dest_path))
+        ]
+    except Exception:
+        return False
+
+    return not dirty
+
+
 def _update_integrated_module(
     working_dir,
     main_repo,
@@ -103,7 +152,8 @@ def _update_integrated_module(
                 # faster than rmtree+extract because rsync only transfers the diff.
                 new_sha = repo.out(*(git + ["rev-parse", commit]))
                 has_patches = bool(repo_yml.patches)
-                if sha_before == new_sha and dest_path.exists() and not update and not has_patches:
+                up_to_date = _dest_matches_commit(repo, parent_repo, dest_path, commit)
+                if up_to_date and dest_path.exists() and not update and not has_patches:
                     click.secho(
                         f"  {repo_yml.path} already at {new_sha[:10]} — skipping extract",
                         fg="green",
@@ -127,8 +177,19 @@ def _update_integrated_module(
                         if rc != 0:
                             _raise_error(f"git archive failed for {repo_yml.path}")
                         dest_path.mkdir(parents=True, exist_ok=True)
+                        # --checksum, not rsync's default quick check. That one
+                        # compares size and mtime, and both can be equal across
+                        # a pin bump: `git archive` stamps every file with the
+                        # commit time, so two commits made within the same
+                        # second produce identical mtimes, and a change that
+                        # keeps the file length leaves the size equal too. The
+                        # file would then be silently kept at the old content
+                        # while gimera.yml already claims the new sha.
+                        # The cost is paid only when we get here at all -
+                        # _dest_matches_commit skips the whole extract while
+                        # the vendored state is already the wanted one.
                         subprocess.check_call([
-                            "rsync", "-a", "--delete",
+                            "rsync", "-a", "--checksum", "--delete",
                             str(tmpdir) + "/", str(dest_path) + "/",
                         ])
                     finally:
