@@ -134,10 +134,23 @@ def wait_git_lock(path):
         gimera_lock = None
     index_lock = path / ".git" / "index.lock"
 
+    # Build the lock up front and ask it for the file it will actually
+    # create. FileLock appends ".lock" to the name it is given, so what
+    # appears on disk is "gimera.lock.lock" — while the loop below used to
+    # watch and clean up "gimera.lock", which nothing ever creates. A lock
+    # left behind by a killed process (SIGKILL runs no __del__) was
+    # therefore never recognised as stale: the next run blocked the full
+    # hour and then failed with "Timeout occured.".
+    #
+    # Taking the path from the lock object instead of spelling it out a
+    # second time keeps the two from drifting apart again.
+    lock = FileLock(gimera_lock, timeout=MAX_TIMEOUT) if gimera_lock else None
+    gimera_lockfile = Path(lock.lockfile) if lock else None
+
     def lock_exists():
         if index_lock.exists():
             return True
-        if gimera_lock and gimera_lock.exists():
+        if gimera_lockfile and gimera_lockfile.exists():
             return True
         return False
 
@@ -149,14 +162,14 @@ def wait_git_lock(path):
                 index_lock.unlink()
                 continue
 
-            if gimera_lock and file_age(gimera_lock) > MAX_TIMEOUT:
-                gimera_lock.unlink()
+            if gimera_lockfile and file_age(gimera_lockfile) > MAX_TIMEOUT:
+                gimera_lockfile.unlink()
                 continue
 
             time.sleep(0.5)
 
-        if gimera_lock:
-            with FileLock(gimera_lock, timeout=MAX_TIMEOUT):
+        if lock:
+            with lock:
                 yield
         else:
             yield
