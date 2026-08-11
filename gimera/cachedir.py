@@ -25,6 +25,13 @@ from .userconfig import is_no_cache
 from contextlib import contextmanager
 
 
+def cache_root():
+    return Path(
+        os.environ.get("GIMERA_CACHE_DIR")
+        or os.path.expanduser("~/.cache/gimera")
+    )
+
+
 def _make_cache_path(url):
     try:
         urlsafe = reformat_url(url, "git")
@@ -33,8 +40,7 @@ def _make_cache_path(url):
     for c in "?:+[]{}\\/\"'_":
         urlsafe = urlsafe.replace(c, "-")
     urlsafe = urlsafe.split("@")[-1]
-    base = Path(os.environ.get("GIMERA_CACHE_DIR") or os.path.expanduser("~/.cache/gimera"))
-    return base / urlsafe
+    return cache_root() / urlsafe
 
 
 def _invalidate_cache_if_needed(golden_path):

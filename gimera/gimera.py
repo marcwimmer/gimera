@@ -51,6 +51,45 @@ def _expand_repos(repos):
     return res
 
 
+@cli.group(name="cache", help="Inspect and prune the golden cache.")
+def cache():
+    pass
+
+
+@cache.command(name="list", help="Show what the golden cache holds.")
+def cache_list():
+    from .cachemaint import print_listing
+
+    print_listing()
+
+
+@cache.command(
+    name="clean",
+    help=(
+        "Remove leftover tarballs of older gimera versions, and with "
+        "--unused-for also cache entries that have not been updated for that "
+        "many days."
+    ),
+)
+@click.option(
+    "--unused-for",
+    type=int,
+    default=None,
+    metavar="DAYS",
+    help=(
+        "Also remove entries not updated for DAYS days. Asks first. The "
+        "cost is a fresh clone the next time such a URL is used."
+    ),
+)
+@click.option(
+    "-f", "--force", is_flag=True, help="Do not ask before removing entries."
+)
+def cache_clean(unused_for, force):
+    from .cachemaint import clean
+
+    clean(unused_for=unused_for, force=force)
+
+
 @cli.command(name="clean", help="Removes all git-dirty items")
 def clean():
     Cmd = GitCommands()
